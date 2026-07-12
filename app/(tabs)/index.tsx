@@ -567,7 +567,7 @@ const makeStyles = (C: AppColors) =>
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: Theme.spacing.xl,
-      paddingTop: Platform.OS === 'web' ? 16 : 60,
+      paddingTop: Platform.OS === 'web' ? 0 : 60,
       paddingBottom: Theme.spacing.md,
     },
     logo: { fontSize: 28, color: C.gold },

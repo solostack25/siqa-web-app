@@ -1048,7 +1048,7 @@ function GemClip({
   }
 
   return (
-    <View style={[styles.clip, { height: gemHeight }]}>
+    <View style={[styles.clip, { height: gemHeight }, Platform.OS === 'web' && { scrollSnapAlign: 'start' } as any]}>
       <TouchableOpacity
         style={StyleSheet.absoluteFill}
         activeOpacity={1}
@@ -1443,7 +1443,7 @@ export default function GemsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, Platform.OS === 'web' && { overflow: 'hidden', height: gemHeight }]}>
       <FlatList
         ref={listRef}
         data={videos}
@@ -1480,10 +1480,11 @@ export default function GemsScreen() {
         }}
         onEndReached={loadMoreVideos}
         onEndReachedThreshold={0.3}
-        removeClippedSubviews
+        removeClippedSubviews={Platform.OS !== 'web'}
         maxToRenderPerBatch={3}
         updateCellsBatchingPeriod={50}
         windowSize={5}
+        style={Platform.OS === 'web' ? { height: gemHeight } : { flex: 1 }}
       />
 
       <SignupNudge
