@@ -18,6 +18,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -816,11 +817,13 @@ function GemClip({
   isActive,
   isPreloaded,
   onCommentOpen,
+  gemHeight,
 }: {
   item: VideoItem;
   isActive: boolean;
   isPreloaded: boolean;
   onCommentOpen: (videoId: string, enabled: boolean) => void;
+  gemHeight: number;
 }) {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
@@ -1045,7 +1048,7 @@ function GemClip({
   }
 
   return (
-    <View style={styles.clip}>
+    <View style={[styles.clip, { height: gemHeight }]}>
       <TouchableOpacity
         style={StyleSheet.absoluteFill}
         activeOpacity={1}
@@ -1257,6 +1260,9 @@ function GemClip({
 export default function GemsScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
+  // Use useWindowDimensions so height is correct on web (reactive, not module-load snapshot)
+  const { height: screenHeight } = useWindowDimensions();
+  const gemHeight = screenHeight - TAB_BAR_HEIGHT;
   const params = useLocalSearchParams<{ videoId?: string }>();
   const targetVideoId = typeof params.videoId === "string" ? params.videoId : undefined;
   const listRef = useRef<FlatList<VideoItem>>(null);
@@ -1416,7 +1422,7 @@ export default function GemsScreen() {
 
   function handleMomentumEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const y = event.nativeEvent.contentOffset.y;
-    const nextIndex = Math.round(y / GEM_HEIGHT);
+    const nextIndex = Math.round(y / gemHeight);
     if (nextIndex !== activeIndex) setActiveIndex(nextIndex);
   }
 
@@ -1448,12 +1454,13 @@ export default function GemsScreen() {
             isActive={playbackEnabled && index === activeIndex}
             isPreloaded={Math.abs(index - activeIndex) <= 1}
             onCommentOpen={openComments}
+            gemHeight={gemHeight}
           />
         )}
         pagingEnabled
         bounces={false}
         showsVerticalScrollIndicator={false}
-        snapToInterval={GEM_HEIGHT}
+        snapToInterval={gemHeight}
         snapToAlignment="start"
         decelerationRate="fast"
         disableIntervalMomentum
@@ -1462,8 +1469,8 @@ export default function GemsScreen() {
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         getItemLayout={(_, index) => ({
-          length: GEM_HEIGHT,
-          offset: GEM_HEIGHT * index,
+          length: gemHeight,
+          offset: gemHeight * index,
           index,
         })}
         onScrollToIndexFailed={(info) => {

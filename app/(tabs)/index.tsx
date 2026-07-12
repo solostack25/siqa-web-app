@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { useCallback, useEffect, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -566,7 +567,7 @@ const makeStyles = (C: AppColors) =>
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: Theme.spacing.xl,
-      paddingTop: 60,
+      paddingTop: Platform.OS === 'web' ? 16 : 60,
       paddingBottom: Theme.spacing.md,
     },
     logo: { fontSize: 28, color: C.gold },
