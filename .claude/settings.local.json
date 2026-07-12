@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"/Users/solostack/siqa-app\" -name \"*admin*\" -not -path \"*/node_modules/*\" 2>/dev/null)",
+      "Read(//Users/solostack/siqa-app/**)"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Siqa",
+    "slug": "siqa",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0D0B"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.siqa.app",
+      "buildNumber": "14",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Siqa uses your camera to record and stream live video.",
+        "NSMicrophoneUsageDescription": "Siqa uses your microphone to record audio during live streams.",
+        "NSPhotoLibraryUsageDescription": "Siqa uses your photo library to upload profile photos.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0D0B"
+      },
+      "package": "com.siqa.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static"
+    },
+    "scheme": "siqa",
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.siqa.app",
+          "enableGooglePay": true
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f183978e-cbe5-4b59-9029-6f71e5a3596a"
+      }
+    }
+  }
+}
