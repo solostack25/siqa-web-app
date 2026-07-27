@@ -20,6 +20,7 @@ type Speaker = {
   bio: string | null;
   is_verified: boolean;
   follower_count: number;
+  profile_id: string;
 };
 
 type VideoItem = {
@@ -52,10 +53,25 @@ export default function ChannelScreen() {
 
     const { data: s } = await supabase
       .from('speakers')
-      .select('id, display_name, bio, is_verified, follower_count')
+      .select('id, display_name, bio, is_verified, follower_count, profile_id')
       .eq('id', speakerId)
       .single();
     setSpeaker(s as any);
+
+    if (s) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: existing } = await supabase
+          .from('follows')
+          .select('follower_id')
+          .eq('follower_id', user.id)
+          .eq('following_id', s.profile_id)
+          .maybeSingle();
+        setFollowing(Boolean(existing));
+      }
+    }
 
     const { data: v } = await supabase
       .from('videos')
@@ -68,6 +84,40 @@ export default function ChannelScreen() {
 
     setLoading(false);
   }, [speakerId, tab]);
+
+  async function toggleFollow() {
+    if (!speaker) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push('/(auth)/login' as any);
+      return;
+    }
+
+    if (following) {
+      await supabase
+        .from('follows')
+        .delete()
+        .eq('follower_id', user.id)
+        .eq('following_id', speaker.profile_id);
+      setFollowing(false);
+      setSpeaker((prev) => (prev ? { ...prev, follower_count: Math.max(0, prev.follower_count - 1) } : prev));
+    } else {
+      await supabase.from('follows').insert({ follower_id: user.id, following_id: speaker.profile_id });
+      setFollowing(true);
+      setSpeaker((prev) => (prev ? { ...prev, follower_count: prev.follower_count + 1 } : prev));
+    }
+
+    // Best-effort denormalized count sync — not atomic, fine for now.
+    // TODO: move to a Postgres trigger on the follows table if follower_count
+    // needs to stay accurate under concurrent follows.
+    await supabase
+      .from('speakers')
+      .update({ follower_count: following ? Math.max(0, speaker.follower_count - 1) : speaker.follower_count + 1 })
+      .eq('id', speaker.id);
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -119,7 +169,7 @@ export default function ChannelScreen() {
               </View>
               <TouchableOpacity
                 style={[styles.followBtn, following && styles.followingBtn]}
-                onPress={() => setFollowing((f) => !f)}
+                onPress={toggleFollow}
               >
                 <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
                   {following ? 'Following' : 'Follow'}

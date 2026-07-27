@@ -33,6 +33,7 @@ type VideoDetail = {
     display_name: string;
     is_verified: boolean;
     follower_count: number;
+    profile_id: string;
   } | null;
 };
 
@@ -78,7 +79,7 @@ export default function WatchScreen() {
       .select(
         `id, title, description, video_url, thumbnail_url, category, topics,
          view_count, comment_count, published_at, created_at, speaker_id,
-         speakers(id, display_name, is_verified, follower_count)`
+         speakers(id, display_name, is_verified, follower_count, profile_id)`
       )
       .eq('id', videoId)
       .single();
@@ -98,6 +99,20 @@ export default function WatchScreen() {
       const { data: rel } = await relQuery;
       setRelated((rel as any[]) ?? []);
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const speakerProfileId = (v as any).speakers?.profile_id as string | undefined;
+      if (user && speakerProfileId) {
+        const { data: existing } = await supabase
+          .from('follows')
+          .select('follower_id')
+          .eq('follower_id', user.id)
+          .eq('following_id', speakerProfileId)
+          .maybeSingle();
+        setFollowing(Boolean(existing));
+      }
+
       // TODO: view count increment — add a Postgres function (e.g. increment_video_view)
       // or a simple `.update({ view_count: v.view_count + 1 })` call once you decide
       // whether views should count on load or after a watch-time threshold.
@@ -105,6 +120,37 @@ export default function WatchScreen() {
 
     setLoading(false);
   }, [videoId]);
+
+  async function toggleFollow() {
+    if (!video?.speakers) return;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push('/(auth)/login' as any);
+      return;
+    }
+
+    const profileId = video.speakers.profile_id;
+
+    if (following) {
+      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', profileId);
+      setFollowing(false);
+    } else {
+      await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
+      setFollowing(true);
+    }
+
+    await supabase
+      .from('speakers')
+      .update({
+        follower_count: following
+          ? Math.max(0, video.speakers.follower_count - 1)
+          : video.speakers.follower_count + 1,
+      })
+      .eq('id', video.speakers.id);
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -161,7 +207,7 @@ export default function WatchScreen() {
 
             <TouchableOpacity
               style={[styles.followBtn, following && styles.followingBtn]}
-              onPress={() => setFollowing((f) => !f)}
+              onPress={toggleFollow}
             >
               <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
                 {following ? 'Following' : 'Follow'}
