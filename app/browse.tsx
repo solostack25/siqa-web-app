@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { SearchIcon, ClearIcon } from '../components/Siqa';
 
 const CATEGORIES = [
   'All',
@@ -103,7 +104,25 @@ export default function BrowseScreen() {
       .limit(40);
 
     if (cat !== 'All') query = query.eq('category', cat);
-    if (search.trim()) query = query.ilike('title', `%${search.trim()}%`);
+
+    const trimmed = search.trim();
+    if (trimmed) {
+      // Creator-name matches need a separate lookup first since it's a
+      // different table — Supabase's query builder doesn't support OR
+      // conditions that span title/category (on videos) and display_name
+      // (on speakers) in a single call.
+      const { data: matchingSpeakers } = await supabase
+        .from('speakers')
+        .select('id')
+        .ilike('display_name', `%${trimmed}%`);
+
+      const speakerIds = (matchingSpeakers ?? []).map((s) => s.id);
+      const orParts = [`title.ilike.%${trimmed}%`, `category.ilike.%${trimmed}%`];
+      if (speakerIds.length > 0) {
+        orParts.push(`speaker_id.in.(${speakerIds.join(',')})`);
+      }
+      query = query.or(orParts.join(','));
+    }
 
     const { data } = await query;
     setVideos(shuffle((data as any[]) ?? []));
@@ -142,10 +161,10 @@ export default function BrowseScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <SearchIcon size={16} color={Colors.text3} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search videos"
+          placeholder="Search videos, creators, categories"
           placeholderTextColor={Colors.text3}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -154,7 +173,7 @@ export default function BrowseScreen() {
         />
         {searchQuery.length > 0 ? (
           <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-            <Text style={styles.searchClear}>✕</Text>
+            <ClearIcon size={16} color={Colors.text3} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -245,16 +264,15 @@ const styles = StyleSheet.create({
     marginHorizontal: Theme.spacing.lg,
     marginBottom: Theme.spacing.lg,
     paddingHorizontal: Theme.spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: Theme.radius.full,
     backgroundColor: Colors.surface,
     borderWidth: 0.5,
     borderColor: Colors.border,
     gap: Theme.spacing.sm,
+    maxWidth: 380,
   },
-  searchIcon: { fontSize: 14 },
   searchInput: { flex: 1, color: Colors.text, fontSize: Theme.fontSize.base, padding: 0 },
-  searchClear: { color: Colors.text3, fontSize: 14, paddingHorizontal: 4 },
   chipList: { flexGrow: 0, flexShrink: 0 },
   chipRow: {
     paddingHorizontal: Theme.spacing.lg,

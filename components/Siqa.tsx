@@ -107,6 +107,24 @@ export function OrgsIcon({ size = 22, color = '#fff' }: IconProps) {
   );
 }
 
+export function SearchIcon({ size = 18, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 22 22" fill="none">
+      <Circle cx="10" cy="10" r="6.5" stroke={color} strokeWidth={1.6} />
+      <Path d="M15 15l4.5 4.5" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function ClearIcon({ size = 16, color = '#fff' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 22 22" fill="none">
+      <Circle cx="11" cy="11" r="9" fill={color} fillOpacity={0.16} />
+      <Path d="M8 8l6 6M14 8l-6 6" stroke={color} strokeWidth={1.6} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function PlayIcon({ size = 14, color = '#1A1612' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 14 14" fill={color}>

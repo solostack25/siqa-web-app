@@ -17,6 +17,7 @@ import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Theme } from "../../constants/theme";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
+import { SearchIcon, ClearIcon } from "../../components/Siqa";
 
 type LongVideo = {
   id: string;
@@ -236,7 +237,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.searchWrap}>
-            <Text style={styles.searchIcon}>🔍</Text>
+            <SearchIcon size={16} color={C.text3} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search videos"
@@ -249,7 +250,7 @@ export default function HomeScreen() {
             />
             {searchQuery.length > 0 ? (
               <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={8}>
-                <Text style={styles.searchClear}>✕</Text>
+                <ClearIcon size={16} color={C.text3} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -382,16 +383,15 @@ function makeStyles(C: AppColors) {
       marginHorizontal: Theme.spacing.lg,
       marginBottom: Theme.spacing.lg,
       paddingHorizontal: Theme.spacing.md,
-      paddingVertical: 10,
+      paddingVertical: 9,
       borderRadius: Theme.radius.full,
       backgroundColor: C.surface,
       borderWidth: 0.5,
       borderColor: C.border,
       gap: Theme.spacing.sm,
+      maxWidth: 380,
     },
-    searchIcon: { fontSize: 14 },
     searchInput: { flex: 1, color: C.text, fontSize: Theme.fontSize.base, padding: 0 },
-    searchClear: { color: C.text3, fontSize: 14, paddingHorizontal: 4 },
 
     chipList: { flexGrow: 0, flexShrink: 0 },
     chipRow: {
