@@ -7,6 +7,7 @@ import {
   Image,
   ActivityIndicator,
   useWindowDimensions,
+  Alert,
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -15,6 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
+import { shareVideo } from '../../lib/share';
 
 type VideoDetail = {
   id: string;
@@ -124,6 +126,14 @@ export default function WatchScreen() {
     setLoading(false);
   }, [videoId]);
 
+  async function handleShare() {
+    if (!video) return;
+    const result = await shareVideo(video.id, video.title);
+    if (result.copied) {
+      Alert.alert('Link copied', 'The video link has been copied to your clipboard.');
+    }
+  }
+
   async function toggleFollow() {
     if (!video?.speakers) return;
     const {
@@ -211,14 +221,21 @@ export default function WatchScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.followBtn, following && styles.followingBtn]}
-              onPress={toggleFollow}
-            >
-              <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                {following ? 'Following' : 'Follow'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={[styles.followBtn, following && styles.followingBtn]}
+                onPress={toggleFollow}
+              >
+                <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                  {following ? 'Following' : 'Follow'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                <Text style={styles.shareBtnIcon}>↗</Text>
+                <Text style={styles.shareBtnText}>Share</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.descCard}>
@@ -287,6 +304,18 @@ const styles = StyleSheet.create({
   creatorName: { color: Colors.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
   creatorMeta: { color: Colors.text2, fontSize: Theme.fontSize.sm },
   followBtn: { backgroundColor: Colors.gold, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Theme.radius.full },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: Theme.radius.full,
+  },
+  shareBtnIcon: { color: Colors.text, fontSize: 15 },
+  shareBtnText: { color: Colors.text, fontWeight: Theme.fontWeight.semibold, fontSize: Theme.fontSize.sm },
   followingBtn: { backgroundColor: Colors.surface2 },
   followBtnText: { color: Colors.bg, fontWeight: Theme.fontWeight.semibold },
   followingBtnText: { color: Colors.text },

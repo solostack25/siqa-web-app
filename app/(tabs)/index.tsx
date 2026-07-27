@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Platform,
   useWindowDimensions,
+  TextInput,
 } from "react-native";
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -95,6 +96,14 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [offset, setOffset] = useState(0);
   const [allLoaded, setAllLoaded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  function handleSearchSubmit() {
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      router.push(`/browse?search=${encodeURIComponent(trimmed)}` as any);
+    }
+  }
 
   async function checkAuth() {
     const {
@@ -212,6 +221,25 @@ export default function HomeScreen() {
                 {userName ?? "Sign In"}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchWrap}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search videos"
+              placeholderTextColor={C.text3}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearchSubmit}
+              returnKeyType="search"
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 ? (
+              <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={8}>
+                <Text style={styles.searchClear}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           <FlatList
@@ -335,6 +363,23 @@ function makeStyles(C: AppColors) {
     },
     authBtnText: { fontSize: Theme.fontSize.sm, color: C.text2 },
     authBtnTextActive: { color: C.gold },
+
+    searchWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: Theme.spacing.lg,
+      marginBottom: Theme.spacing.lg,
+      paddingHorizontal: Theme.spacing.md,
+      paddingVertical: 10,
+      borderRadius: Theme.radius.full,
+      backgroundColor: C.surface,
+      borderWidth: 0.5,
+      borderColor: C.border,
+      gap: Theme.spacing.sm,
+    },
+    searchIcon: { fontSize: 14 },
+    searchInput: { flex: 1, color: C.text, fontSize: Theme.fontSize.base, padding: 0 },
+    searchClear: { color: C.text3, fontSize: 14, paddingHorizontal: 4 },
 
     chipList: { flexGrow: 0, flexShrink: 0 },
     chipRow: {

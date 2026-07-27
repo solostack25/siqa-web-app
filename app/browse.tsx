@@ -7,9 +7,10 @@ import {
   Image,
   ActivityIndicator,
   useWindowDimensions,
+  TextInput,
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
@@ -70,11 +71,16 @@ export default function BrowseScreen() {
   const numColumns = width > 1100 ? 4 : width > 800 ? 3 : width > 520 ? 2 : 1;
   const cardWidth = (width - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
 
-  const [category, setCategory] = useState('All');
+  const params = useLocalSearchParams<{ category?: string; search?: string }>();
+  // category/search arrive as URL params from Home's chip taps, Discover's
+  // popup, and the search bar — previously this screen never read them at
+  // all, so every entry point silently landed on the unfiltered "All" view.
+  const [category, setCategory] = useState(params.category ?? 'All');
+  const [searchQuery, setSearchQuery] = useState(params.search ?? '');
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadVideos = useCallback(async (cat: string) => {
+  const loadVideos = useCallback(async (cat: string, search: string) => {
     setLoading(true);
     let query = supabase
       .from('videos')
@@ -88,6 +94,7 @@ export default function BrowseScreen() {
       .limit(40);
 
     if (cat !== 'All') query = query.eq('category', cat);
+    if (search.trim()) query = query.ilike('title', `%${search.trim()}%`);
 
     const { data } = await query;
     setVideos((data as any[]) ?? []);
@@ -96,9 +103,23 @@ export default function BrowseScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadVideos(category);
-    }, [category, loadVideos])
+      loadVideos(category, searchQuery);
+      // Only re-run this on focus/category change — searchQuery changes
+      // are handled by the debounced effect below instead, so typing
+      // doesn't refire this on every keystroke via a focus dependency.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [category])
   );
+
+  // useFocusEffect only fires on focus events, not on state changes while
+  // the screen is already focused — so without this, typing in the search
+  // box would silently do nothing until you navigated away and back.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      loadVideos(category, searchQuery);
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
 
   return (
     <DesktopShell>
@@ -109,6 +130,24 @@ export default function BrowseScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Videos</Text>
         <View style={{ width: 24 }} />
+      </View>
+
+      <View style={styles.searchWrap}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search videos"
+          placeholderTextColor={Colors.text3}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          autoCapitalize="none"
+        />
+        {searchQuery.length > 0 ? (
+          <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+            <Text style={styles.searchClear}>✕</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <FlatList
@@ -191,6 +230,22 @@ const styles = StyleSheet.create({
   },
   backArrow: { color: Colors.text, fontSize: 28, fontWeight: Theme.fontWeight.medium },
   headerTitle: { color: Colors.text, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: Theme.spacing.lg,
+    marginBottom: Theme.spacing.lg,
+    paddingHorizontal: Theme.spacing.md,
+    paddingVertical: 10,
+    borderRadius: Theme.radius.full,
+    backgroundColor: Colors.surface,
+    borderWidth: 0.5,
+    borderColor: Colors.border,
+    gap: Theme.spacing.sm,
+  },
+  searchIcon: { fontSize: 14 },
+  searchInput: { flex: 1, color: Colors.text, fontSize: Theme.fontSize.base, padding: 0 },
+  searchClear: { color: Colors.text3, fontSize: 14, paddingHorizontal: 4 },
   chipList: { flexGrow: 0, flexShrink: 0 },
   chipRow: {
     paddingHorizontal: Theme.spacing.lg,
