@@ -1426,11 +1426,18 @@ export default function GemsScreen() {
   const playbackEnabled =
     screenFocused && !commentsOpen && !signupNudgeVisible && !authPromptVisible;
 
-  const viewabilityConfig = { itemVisiblePercentThreshold: 60 };
+  // FlatList throws a hard invariant violation if either of these change
+  // identity while mounted ("Changing onViewableItemsChanged on the fly is
+  // not supported") — they were previously plain declarations recreated on
+  // every render, which crashes the moment any state update happens while
+  // scrolled (e.g. activeIndex changing), not something specific to the
+  // YouTube integration. useRef keeps both stable for the component's
+  // entire lifetime, which is what FlatList requires.
+  const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 60 });
 
-  function onViewableItemsChanged({ viewableItems }: any) {
+  const onViewableItemsChangedRef = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index ?? 0);
-  }
+  });
 
   function handleMomentumEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const y = event.nativeEvent.contentOffset.y;
@@ -1478,8 +1485,8 @@ export default function GemsScreen() {
         disableIntervalMomentum
         onMomentumScrollEnd={handleMomentumEnd}
         initialNumToRender={2}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChangedRef.current}
+        viewabilityConfig={viewabilityConfigRef.current}
         getItemLayout={(_, index) => ({
           length: gemHeight,
           offset: gemHeight * index,
