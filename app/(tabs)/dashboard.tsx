@@ -672,16 +672,11 @@ export default function DashboardScreen() {
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.menuItem}
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
             onPress={() => router.push('/org-register' as any)}
           >
             <Text style={styles.menuIcon}>🏢</Text>
             <Text style={styles.menuLabel}>Register Organization</Text>
-            <Text style={styles.menuArrow}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push({ pathname: '/(tabs)/discover', params: { apply: '1' } } as any)}>
-            <Text style={styles.menuIcon}>🎤</Text>
-            <Text style={styles.menuLabel}>Become a Speaker</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
         </View>
