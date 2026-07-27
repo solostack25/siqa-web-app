@@ -93,6 +93,7 @@ export default function GemUploadScreen() {
   const [plantSeed, setPlantSeed] = useState(false);
   const [fundraiserId, setFundraiserId] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'followers'>('public');
+  const [contentFormat, setContentFormat] = useState<'auto' | 'short' | 'long'>('auto');
   const [uploading, setUploading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
@@ -245,7 +246,10 @@ export default function GemUploadScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: false,
         quality: 1,
-        videoMaxDuration: 180,
+        // 3600s (1hr) ceiling for library picks — auto-detect / manual override
+        // below decides short vs long based on this. Camera recording (below)
+        // stays capped at 180s since live in-app recording isn't the long-form path.
+        videoMaxDuration: 3600,
       });
 
       if (result.canceled || !result.assets?.[0]) return;
@@ -513,6 +517,14 @@ export default function GemUploadScreen() {
       setProgressPct(94);
       setProgressLabel('Saving Gem...');
 
+      const detectedDurationSecs = video.duration != null ? Math.round(video.duration) : null;
+      const finalFormat: 'short' | 'long' =
+        contentFormat === 'auto'
+          ? detectedDurationSecs != null && detectedDurationSecs > 180
+            ? 'long'
+            : 'short'
+          : contentFormat;
+
       const basePayload: Record<string, any> = {
         speaker_id: finalSpeakerId,
         title: cleanCaption,
@@ -525,6 +537,8 @@ export default function GemUploadScreen() {
         is_published: true,
         status: 'published',
         published_at: new Date().toISOString(),
+        format: finalFormat,
+        duration_secs: detectedDurationSecs,
       };
 
       const ctaPayload = plantSeed
@@ -862,6 +876,34 @@ export default function GemUploadScreen() {
           </View>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.label}>Content format</Text>
+          <View style={styles.visibilityRow}>
+            {(['auto', 'short', 'long'] as const).map((f) => (
+              <TouchableOpacity
+                key={f}
+                style={[styles.visCard, contentFormat === f && styles.visCardActive]}
+                onPress={() => setContentFormat(f)}
+                disabled={uploading}
+              >
+                <Text style={[styles.visTitle, contentFormat === f && styles.visTitleActive]}>
+                  {f === 'auto' ? 'Auto detect' : f === 'short' ? 'Short (Gem)' : 'Long (Video)'}
+                </Text>
+                <Text style={styles.visSub}>
+                  {f === 'auto' ? 'Based on length' : f === 'short' ? 'Gems feed' : 'Browse & channel'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {video?.duration != null ? (
+            <Text style={styles.formatHint}>
+              {contentFormat === 'auto'
+                ? `Detected as ${video.duration > 180 ? 'Long' : 'Short'} (${formatTime(video.duration)})`
+                : `Duration: ${formatTime(video.duration)} — posting as ${contentFormat === 'long' ? 'Long' : 'Short'} regardless of length`}
+            </Text>
+          ) : null}
+        </View>
+
         <Text style={styles.securityNote}>
           Uploads go to Bunny.net and the Gem record is saved in Supabase. Move the Bunny key server-side before public beta.
         </Text>
@@ -996,6 +1038,7 @@ function makeStyles(C: AppColors, isDark: boolean) {
     visTitle: { color: C.text, fontSize: 13, fontWeight: '800' },
     visTitleActive: { color: C.gold },
     visSub: { color: C.text3, fontSize: 11, marginTop: 4 },
+    formatHint: { color: C.text3, fontSize: 12, marginTop: 10 },
     speakerRow: { gap: 8 },
     speakerPill: { borderColor: C.border, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.bg2 },
     speakerPillActive: { backgroundColor: C.gold, borderColor: C.gold },
