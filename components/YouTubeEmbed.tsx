@@ -3,6 +3,7 @@ import { View, Platform, StyleSheet } from 'react-native';
 
 type Props = {
   videoId: string;
+  autoplay?: boolean;
   // Aspect ratio container height is derived from width via aspectRatio,
   // so no fixed height is needed here.
 };
@@ -13,8 +14,10 @@ type Props = {
  * we never download or rehost the file, we just display YouTube's player,
  * same as embedding a YouTube video on any website.
  */
-export function YouTubeEmbed({ videoId }: Props) {
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0`;
+export function YouTubeEmbed({ videoId, autoplay = false }: Props) {
+  const embedUrl =
+    `https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0` +
+    (autoplay ? '&autoplay=1' : '');
 
   if (Platform.OS === 'web') {
     // react-native-web renders to real DOM, so a plain iframe works here —

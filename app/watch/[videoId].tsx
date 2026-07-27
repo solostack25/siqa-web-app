@@ -191,7 +191,7 @@ export default function WatchScreen() {
       <View style={isWide ? styles.mainCol : undefined}>
         <View style={styles.playerWrap}>
           {video.platform === 'youtube' && video.platform_video_id ? (
-            <YouTubeEmbed videoId={video.platform_video_id} />
+            <YouTubeEmbed videoId={video.platform_video_id} autoplay />
           ) : (
             <Video
               source={{ uri: video.video_url }}
@@ -200,6 +200,7 @@ export default function WatchScreen() {
               useNativeControls
               resizeMode={ResizeMode.CONTAIN}
               style={styles.player}
+              shouldPlay
             />
           )}
         </View>
