@@ -1,8 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
+import { DesktopSidebar } from '../../components/DesktopSidebar';
+
+// Below this width, web behaves like the mobile app (bottom tabs).
+// Above it, web gets the YouTube-style left sidebar instead.
+const DESKTOP_BREAKPOINT = 900;
 
 type TabIconProps = {
   focused: boolean;
@@ -24,19 +29,23 @@ function TabIcon({ focused, label, icon }: TabIconProps) {
 
 export default function TabsLayout() {
   const { colors: C } = useTheme();
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
 
-  return (
+  const tabs = (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: C.bg2,
-          borderTopColor: C.border,
-          borderTopWidth: 0.5,
-          height: 80,
-          paddingBottom: 16,
-          paddingTop: 8,
-        },
+        tabBarStyle: isDesktopWeb
+          ? { display: 'none' }
+          : {
+              backgroundColor: C.bg2,
+              borderTopColor: C.border,
+              borderTopWidth: 0.5,
+              height: 80,
+              paddingBottom: 16,
+              paddingTop: 8,
+            },
         tabBarItemStyle: {
           alignItems: 'center',
           justifyContent: 'center',
@@ -102,6 +111,15 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+  );
+
+  if (!isDesktopWeb) return tabs;
+
+  return (
+    <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.bg }}>
+      <DesktopSidebar />
+      <View style={{ flex: 1 }}>{tabs}</View>
+    </View>
   );
 }
 
