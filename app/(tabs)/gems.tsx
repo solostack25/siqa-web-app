@@ -1359,6 +1359,7 @@ export default function GemsScreen() {
       )
       .eq("is_published", true)
       .eq("format", "short")
+      .eq("platform", "youtube")
       .not("video_url", "is", null)
       .range(0, BATCH_SIZE - 1);
 
@@ -1391,6 +1392,7 @@ export default function GemsScreen() {
       )
       .eq("is_published", true)
       .eq("format", "short")
+      .eq("platform", "youtube")
       .not("video_url", "is", null)
       .range(offset, offset + BATCH_SIZE - 1);
 
