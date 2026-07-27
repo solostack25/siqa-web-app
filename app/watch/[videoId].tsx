@@ -17,6 +17,7 @@ import { Colors } from '../../constants/colors';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
 import { shareVideo } from '../../lib/share';
+import { YouTubeEmbed } from '../../components/YouTubeEmbed';
 
 type VideoDetail = {
   id: string;
@@ -31,6 +32,8 @@ type VideoDetail = {
   published_at: string | null;
   created_at: string;
   speaker_id: string;
+  platform: string | null;
+  platform_video_id: string | null;
   speakers: {
     id: string;
     display_name: string;
@@ -84,6 +87,7 @@ export default function WatchScreen() {
       .select(
         `id, title, description, video_url, thumbnail_url, category, topics,
          view_count, comment_count, published_at, created_at, speaker_id,
+         platform, platform_video_id,
          speakers(id, display_name, is_verified, follower_count, profile_id)`
       )
       .eq('id', videoId)
@@ -186,14 +190,18 @@ export default function WatchScreen() {
     <ScrollView style={styles.container} contentContainerStyle={isWide ? styles.wideLayout : undefined}>
       <View style={isWide ? styles.mainCol : undefined}>
         <View style={styles.playerWrap}>
-          <Video
-            source={{ uri: video.video_url }}
-            posterSource={video.thumbnail_url ? { uri: video.thumbnail_url } : undefined}
-            usePoster
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-            style={styles.player}
-          />
+          {video.platform === 'youtube' && video.platform_video_id ? (
+            <YouTubeEmbed videoId={video.platform_video_id} />
+          ) : (
+            <Video
+              source={{ uri: video.video_url }}
+              posterSource={video.thumbnail_url ? { uri: video.thumbnail_url } : undefined}
+              usePoster
+              useNativeControls
+              resizeMode={ResizeMode.CONTAIN}
+              style={styles.player}
+            />
+          )}
         </View>
 
         <View style={styles.body}>
