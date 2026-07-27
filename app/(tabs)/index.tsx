@@ -60,6 +60,18 @@ function formatViews(n: number) {
   return `${n} view${n === 1 ? "" : "s"}`;
 }
 
+// Fisher-Yates shuffle — shuffles the display order of an already-fetched
+// batch without touching which items get fetched, so pagination (via
+// .range()) stays correct across "load more" calls.
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 function timeAgo(ts: string | null) {
   if (!ts) return "";
   const days = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
@@ -145,7 +157,7 @@ export default function HomeScreen() {
       .order("published_at", { ascending: false })
       .range(reset ? 0 : offset, (reset ? 0 : offset) + PAGE_SIZE - 1);
 
-    const rows = (data as any[]) ?? [];
+    const rows = shuffle((data as any[]) ?? []);
     if (reset) {
       setVideos(rows);
       setOffset(PAGE_SIZE);
