@@ -52,11 +52,20 @@ export const YouTubeShortEmbed = forwardRef<YouTubeShortHandle, Props>(
 
     if (Platform.OS === 'web') {
       return (
-        <View style={StyleSheet.absoluteFill}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
           {React.createElement('iframe', {
             ref: targetRef,
             src: embedUrl,
-            style: { width: '100%', height: '100%', border: 0 },
+            // pointerEvents: 'none' stops the mouse from ever reaching
+            // YouTube's own document — without this, hovering over the
+            // embed reveals YouTube's native title bar / "more videos" /
+            // logo overlay, which visually collides with Siqa's own
+            // title, creator row, and like/share icons drawn on top.
+            // Siqa's existing tap-to-pause TouchableOpacity (in GemClip)
+            // is the only interaction surface now; playback is controlled
+            // entirely through the imperative ref (postMessage), never
+            // through direct interaction with the iframe itself.
+            style: { width: '100%', height: '100%', border: 0, pointerEvents: 'none' },
             allow: 'autoplay; encrypted-media; picture-in-picture',
             onLoad: handleLoad,
           })}
@@ -75,6 +84,7 @@ export const YouTubeShortEmbed = forwardRef<YouTubeShortHandle, Props>(
         mediaPlaybackRequiresUserAction={false}
         onLoadEnd={handleLoad}
         javaScriptEnabled
+        pointerEvents="none"
       />
     );
   }
