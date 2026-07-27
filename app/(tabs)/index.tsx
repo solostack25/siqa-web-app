@@ -71,12 +71,20 @@ function timeAgo(ts: string | null) {
 export default function HomeScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
-  const { width } = useWindowDimensions();
-  const numColumns = width > 1100 ? 4 : width > 800 ? 3 : width > 520 ? 2 : 1;
+  const { width: windowWidth } = useWindowDimensions();
+  const SIDEBAR_WIDTH = 220;
+  const isDesktopWeb = Platform.OS === "web" && windowWidth >= 900;
+  // On desktop web the sidebar (see app/(tabs)/_layout.tsx) eats a fixed
+  // 220px on the left — the FlatList's real available width is the window
+  // minus that, not the full window. Using raw window width here previously
+  // both overestimated space AND was capped at an arbitrary 1600px, which
+  // left a dead empty column on wide monitors instead of filling it.
+  const availableWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
+  const numColumns = availableWidth > 1100 ? 4 : availableWidth > 800 ? 3 : availableWidth > 520 ? 2 : 1;
   const cardWidth =
     numColumns === 1
       ? undefined
-      : (Math.min(width, 1600) - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
+      : (availableWidth - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
 
   const [userName, setUserName] = useState<string | null>(null);
   const [shorts, setShorts] = useState<ShortVideo[]>([]);

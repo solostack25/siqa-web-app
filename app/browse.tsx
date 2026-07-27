@@ -65,7 +65,7 @@ function timeAgo(ts: string | null) {
 export default function BrowseScreen() {
   const { width } = useWindowDimensions();
   const numColumns = width > 1100 ? 4 : width > 800 ? 3 : width > 520 ? 2 : 1;
-  const cardWidth = (Math.min(width, 1400) - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
+  const cardWidth = (width - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
 
   const [category, setCategory] = useState('All');
   const [videos, setVideos] = useState<VideoItem[]>([]);
