@@ -218,20 +218,25 @@ export default function HomeScreen() {
           <Text style={styles.logo}>صِقا</Text>
           <Text style={styles.logoSub}>SIQA</Text>
         </View>
-        <TouchableOpacity
-          style={styles.authBtn}
-          onPress={() =>
-            router.push(
-              userName ? "/(tabs)/dashboard" : ("/(auth)/login" as any),
-            )
-          }
-        >
-          <Text
-            style={[styles.authBtnText, userName && styles.authBtnTextActive]}
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.videosBtn} onPress={() => router.push('/browse' as any)}>
+            <Text style={styles.videosBtnText}>▶ Videos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.authBtn}
+            onPress={() =>
+              router.push(
+                userName ? "/(tabs)/dashboard" : ("/(auth)/login" as any),
+              )
+            }
           >
-            {userName ?? "Sign In"}
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[styles.authBtnText, userName && styles.authBtnTextActive]}
+            >
+              {userName ?? "Sign In"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filter pills */}
@@ -572,6 +577,16 @@ const makeStyles = (C: AppColors) =>
     },
     logo: { fontSize: 28, color: C.gold },
     logoSub: { fontSize: 9, color: C.text3, letterSpacing: 3, marginTop: -4 },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: Theme.spacing.sm },
+    videosBtn: {
+      paddingHorizontal: Theme.spacing.md,
+      paddingVertical: Theme.spacing.sm,
+      borderRadius: Theme.radius.full,
+      borderWidth: 0.5,
+      borderColor: C.border,
+      backgroundColor: C.surface,
+    },
+    videosBtnText: { fontSize: Theme.fontSize.sm, color: C.text2, fontWeight: Theme.fontWeight.medium },
     authBtn: {
       paddingHorizontal: Theme.spacing.md,
       paddingVertical: Theme.spacing.sm,
