@@ -15,6 +15,11 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { Theme } from '../constants/theme';
 
+// stripe-js touches browser globals (window/document) on use — only load it
+// on web, same pattern as the native-only @stripe/stripe-react-native import below.
+const WebDonateForm =
+  Platform.OS === 'web' ? require('../components/WebDonateForm').default : () => null;
+
 // Stripe's native module doesn't support web — only import on native platforms.
 const useStripe =
   Platform.OS === 'web'
@@ -52,6 +57,8 @@ export default function DonateScreen() {
   const styles = makeStyles(C);
   const [selectedAmount, setSelectedAmount] = useState<number>(2500);
   const [loading, setLoading] = useState(false);
+  const [webClientSecret, setWebClientSecret] = useState<string | null>(null);
+  const [webPaymentIntentId, setWebPaymentIntentId] = useState<string | null>(null);
 
   function formatAmount(cents: number) {
     return '$' + (cents / 100).toFixed(0);
@@ -66,6 +73,65 @@ export default function DonateScreen() {
     const fee = Math.max(Math.round(cents * 0.01), 50);
     const stripeFee = Math.round(cents * 0.029) + 30;
     return '$' + ((cents - fee - stripeFee) / 100).toFixed(2);
+  }
+
+  async function createWebPaymentIntent() {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-payment-intent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          amount: selectedAmount,
+          fundraiserId,
+          orgStripeAccountId: orgStripeAccountId || null,
+          donorName: session?.user?.email ?? 'Anonymous',
+          campaignTitle: title,
+        }),
+      });
+
+      const { clientSecret, paymentIntentId, error: fnError } = await res.json();
+      if (fnError) throw new Error(fnError);
+
+      setWebClientSecret(clientSecret);
+      setWebPaymentIntentId(paymentIntentId);
+    } catch (err: any) {
+      Alert.alert('Error', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleWebDonateSuccess(confirmedPaymentIntentId: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    // Real payment confirmed by Stripe.js (stripe.confirmCardPayment resolved
+    // with status 'succeeded') before this runs — unlike the old web path,
+    // this only executes after money has actually moved.
+    await supabase.from('donations').insert({
+      fundraiser_id: fundraiserId,
+      org_id: orgId,
+      donor_profile_id: session?.user?.id ?? null,
+      donor_name: session?.user?.email ?? 'Anonymous',
+      donor_email: session?.user?.email ?? null,
+      amount: selectedAmount,
+      platform_fee: Math.max(Math.round(selectedAmount * 0.01), 50),
+      stripe_payment_intent_id: confirmedPaymentIntentId,
+      campaign_title: title,
+      status: 'completed',
+      currency: 'USD',
+    });
+
+    setWebClientSecret(null);
+    router.replace({
+      pathname: '/donate-success',
+      params: { amount: formatAmount(selectedAmount), title },
+    });
   }
 
   async function handleDonate() {
@@ -247,14 +313,15 @@ if (fnError) throw new Error(fnError);
           </View>
         )}
 
-        {/* Web notice */}
-        {Platform.OS === 'web' && !isAltPay && !isNoPayment && (
-          <View style={styles.altPayNotice}>
-            <Text style={styles.altPayNoticeTitle}>📱 Mobile app required</Text>
-            <Text style={styles.altPayNoticeSub}>
-              Donations are completed in the Siqa mobile app. Open this on your phone to donate.
-            </Text>
-          </View>
+        {/* Web card form — shown once a PaymentIntent has been created */}
+        {Platform.OS === 'web' && !isAltPay && !isNoPayment && webClientSecret && (
+          <WebDonateForm
+            clientSecret={webClientSecret}
+            colors={C}
+            isDark={isDark}
+            onSuccess={handleWebDonateSuccess}
+            onCancel={() => setWebClientSecret(null)}
+          />
         )}
 
       </ScrollView>
@@ -274,6 +341,20 @@ if (fnError) throw new Error(fnError);
               {paymentMethodLabel || `Donate via ${paymentMethodType?.charAt(0).toUpperCase()}${paymentMethodType?.slice(1)}`} ↗
             </Text>
           </TouchableOpacity>
+        ) : Platform.OS === 'web' ? (
+          webClientSecret ? null : (
+            <TouchableOpacity
+              style={[styles.donateBtn, loading && styles.donateBtnDisabled]}
+              onPress={createWebPaymentIntent}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={C.black} />
+              ) : (
+                <Text style={styles.donateBtnText}>Donate {formatAmount(selectedAmount)} →</Text>
+              )}
+            </TouchableOpacity>
+          )
         ) : (
           <TouchableOpacity
             style={[styles.donateBtn, loading && styles.donateBtnDisabled]}
