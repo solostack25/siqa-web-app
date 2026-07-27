@@ -21,6 +21,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
+import { YouTubeShortEmbed, type YouTubeShortHandle } from "../../components/YouTubeShortEmbed";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useFocusEffect, router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
@@ -58,6 +59,8 @@ type VideoItem = {
   view_count: number;
   topics: string[];
   comments_enabled: boolean;
+  platform?: string | null;
+  platform_video_id?: string | null;
   speakers: {
     id: string;
     display_name: string;
@@ -827,7 +830,7 @@ function GemClip({
 }) {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
-  const videoRef = useRef<Video>(null);
+  const videoRef = useRef<any>(null);
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingVideo, setSavingVideo] = useState(false);
@@ -1055,27 +1058,36 @@ function GemClip({
         onPress={() => setPaused((p) => !p)}
       >
         {isPreloaded ? (
-          <Video
-            ref={videoRef}
-            source={{ uri: item.video_url }}
-            style={StyleSheet.absoluteFill}
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            shouldPlay={isActive && !paused}
-            isMuted={false}
-            volume={1.0}
-            posterSource={
-              item.thumbnail_url ? { uri: item.thumbnail_url } : undefined
-            }
-            usePoster={!!item.thumbnail_url}
-            onLoadStart={() => setVideoLoading(true)}
-            onReadyForDisplay={() => setVideoLoading(false)}
-            onPlaybackStatusUpdate={(status) => {
-              if (!status.isLoaded || !status.durationMillis) return;
-              setProgress(status.positionMillis / status.durationMillis);
-              if (status.isPlaying) setVideoLoading(false);
-            }}
-          />
+          item.platform === 'youtube' && item.platform_video_id ? (
+            <YouTubeShortEmbed
+              ref={videoRef}
+              videoId={item.platform_video_id}
+              loop
+              onReadyForDisplay={() => setVideoLoading(false)}
+            />
+          ) : (
+            <Video
+              ref={videoRef}
+              source={{ uri: item.video_url }}
+              style={StyleSheet.absoluteFill}
+              resizeMode={ResizeMode.COVER}
+              isLooping
+              shouldPlay={isActive && !paused}
+              isMuted={false}
+              volume={1.0}
+              posterSource={
+                item.thumbnail_url ? { uri: item.thumbnail_url } : undefined
+              }
+              usePoster={!!item.thumbnail_url}
+              onLoadStart={() => setVideoLoading(true)}
+              onReadyForDisplay={() => setVideoLoading(false)}
+              onPlaybackStatusUpdate={(status) => {
+                if (!status.isLoaded || !status.durationMillis) return;
+                setProgress(status.positionMillis / status.durationMillis);
+                if (status.isPlaying) setVideoLoading(false);
+              }}
+            />
+          )
         ) : (
           <View style={styles.videoColdPlaceholder} />
         )}
@@ -1332,7 +1344,7 @@ export default function GemsScreen() {
       .from("videos")
       .select(
         `
-        id, title, video_url, thumbnail_url,
+        id, title, video_url, thumbnail_url, platform, platform_video_id,
         like_count, comment_count, view_count, topics, comments_enabled,
         speakers(id, display_name, denomination, state)
       `,
@@ -1364,7 +1376,7 @@ export default function GemsScreen() {
       .from("videos")
       .select(
         `
-        id, title, video_url, thumbnail_url,
+        id, title, video_url, thumbnail_url, platform, platform_video_id,
         like_count, comment_count, view_count, topics, comments_enabled,
         speakers(id, display_name, denomination, state)
       `,
