@@ -13,6 +13,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
+import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
 
 type VideoDetail = {
@@ -62,7 +63,9 @@ function timeAgo(ts: string | null) {
 
 export default function WatchScreen() {
   const { videoId } = useLocalSearchParams<{ videoId: string }>();
-  const { width } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const isDesktopWeb = useIsDesktopWeb();
+  const width = isDesktopWeb ? windowWidth - 220 : windowWidth;
   const isWide = width > 900;
 
   const [video, setVideo] = useState<VideoDetail | null>(null);
@@ -160,13 +163,16 @@ export default function WatchScreen() {
 
   if (loading || !video) {
     return (
-      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator color={Colors.gold} />
-      </View>
+      <DesktopShell>
+        <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+          <ActivityIndicator color={Colors.gold} />
+        </View>
+      </DesktopShell>
     );
   }
 
   return (
+    <DesktopShell>
     <ScrollView style={styles.container} contentContainerStyle={isWide ? styles.wideLayout : undefined}>
       <View style={isWide ? styles.mainCol : undefined}>
         <View style={styles.playerWrap}>
@@ -254,6 +260,7 @@ export default function WatchScreen() {
         ))}
       </View>
     </ScrollView>
+    </DesktopShell>
   );
 }
 

@@ -13,6 +13,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 
 const CATEGORIES = [
   'All',
@@ -63,7 +64,9 @@ function timeAgo(ts: string | null) {
 }
 
 export default function BrowseScreen() {
-  const { width } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const isDesktopWeb = useIsDesktopWeb();
+  const width = isDesktopWeb ? windowWidth - 220 : windowWidth;
   const numColumns = width > 1100 ? 4 : width > 800 ? 3 : width > 520 ? 2 : 1;
   const cardWidth = (width - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
 
@@ -98,6 +101,7 @@ export default function BrowseScreen() {
   );
 
   return (
+    <DesktopShell>
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
@@ -171,6 +175,7 @@ export default function BrowseScreen() {
         />
       )}
     </View>
+    </DesktopShell>
   );
 }
 

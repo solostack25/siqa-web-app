@@ -13,6 +13,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 
 type Speaker = {
   id: string;
@@ -38,7 +39,9 @@ function formatViews(n: number) {
 
 export default function ChannelScreen() {
   const { speakerId } = useLocalSearchParams<{ speakerId: string }>();
-  const { width } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const isDesktopWeb = useIsDesktopWeb();
+  const width = isDesktopWeb ? windowWidth - 220 : windowWidth;
   const numColumns = width > 900 ? 4 : width > 600 ? 3 : 2;
 
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
@@ -127,21 +130,26 @@ export default function ChannelScreen() {
 
   if (loading && !speaker) {
     return (
-      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator color={Colors.gold} />
-      </View>
+      <DesktopShell>
+        <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+          <ActivityIndicator color={Colors.gold} />
+        </View>
+      </DesktopShell>
     );
   }
 
   if (!speaker) {
     return (
-      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={styles.emptyTitle}>Creator not found</Text>
-      </View>
+      <DesktopShell>
+        <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Text style={styles.emptyTitle}>Creator not found</Text>
+        </View>
+      </DesktopShell>
     );
   }
 
   return (
+    <DesktopShell>
     <View style={styles.container}>
       <FlatList
         key={numColumns}
@@ -220,6 +228,7 @@ export default function ChannelScreen() {
         }
       />
     </View>
+    </DesktopShell>
   );
 }
 

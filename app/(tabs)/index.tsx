@@ -15,6 +15,7 @@ import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Theme } from "../../constants/theme";
+import { useIsDesktopWeb } from "../../components/DesktopShell";
 
 type LongVideo = {
   id: string;
@@ -73,7 +74,7 @@ export default function HomeScreen() {
   const styles = makeStyles(C);
   const { width: windowWidth } = useWindowDimensions();
   const SIDEBAR_WIDTH = 220;
-  const isDesktopWeb = Platform.OS === "web" && windowWidth >= 900;
+  const isDesktopWeb = useIsDesktopWeb();
   // On desktop web the sidebar (see app/(tabs)/_layout.tsx) eats a fixed
   // 220px on the left — the FlatList's real available width is the window
   // minus that, not the full window. Using raw window width here previously
