@@ -28,6 +28,7 @@ import { supabase } from "../../lib/supabase";
 import { Theme } from "../../constants/theme";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Audio } from "expo-av";
+import { useIsDesktopWeb } from "../../components/DesktopShell";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -821,12 +822,14 @@ function GemClip({
   isPreloaded,
   onCommentOpen,
   gemHeight,
+  gemWidth,
 }: {
   item: VideoItem;
   isActive: boolean;
   isPreloaded: boolean;
   onCommentOpen: (videoId: string, enabled: boolean) => void;
   gemHeight: number;
+  gemWidth: number;
 }) {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
@@ -1051,7 +1054,7 @@ function GemClip({
   }
 
   return (
-    <View style={[styles.clip, { height: gemHeight }, Platform.OS === 'web' && { scrollSnapAlign: 'start' } as any]}>
+    <View style={[styles.clip, { height: gemHeight, width: gemWidth }, Platform.OS === 'web' && { scrollSnapAlign: 'start' } as any]}>
       <TouchableOpacity
         style={StyleSheet.absoluteFill}
         activeOpacity={1}
@@ -1272,8 +1275,13 @@ function GemClip({
 export default function GemsScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
-  // Use useWindowDimensions so height is correct on web (reactive, not module-load snapshot)
-  const { height: screenHeight } = useWindowDimensions();
+  // Use useWindowDimensions so both are correct on web (reactive, not
+  // module-load snapshot) — width also needs to subtract the desktop
+  // sidebar's 220px, which the old SCREEN_WIDTH constant never accounted
+  // for at all, so this was wrong even before considering resize.
+  const { width: windowWidth, height: screenHeight } = useWindowDimensions();
+  const isDesktopWeb = useIsDesktopWeb();
+  const gemWidth = isDesktopWeb ? windowWidth - 220 : windowWidth;
   const gemHeight = screenHeight - TAB_BAR_HEIGHT;
   const params = useLocalSearchParams<{ videoId?: string }>();
   const targetVideoId = typeof params.videoId === "string" ? params.videoId : undefined;
@@ -1474,6 +1482,7 @@ export default function GemsScreen() {
             isPreloaded={Math.abs(index - activeIndex) <= 1}
             onCommentOpen={openComments}
             gemHeight={gemHeight}
+            gemWidth={gemWidth}
           />
         )}
         pagingEnabled
