@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -70,6 +71,12 @@ function timeAgo(ts: string | null) {
 export default function HomeScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
+  const { width } = useWindowDimensions();
+  const numColumns = width > 1100 ? 4 : width > 800 ? 3 : width > 520 ? 2 : 1;
+  const cardWidth =
+    numColumns === 1
+      ? undefined
+      : (Math.min(width, 1600) - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
 
   const [userName, setUserName] = useState<string | null>(null);
   const [shorts, setShorts] = useState<ShortVideo[]>([]);
@@ -161,9 +168,12 @@ export default function HomeScreen() {
 
   return (
     <FlatList
+      key={numColumns}
       style={styles.container}
       data={videos}
       keyExtractor={(v) => v.id}
+      numColumns={numColumns}
+      columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.md, paddingHorizontal: Theme.spacing.lg } : undefined}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -244,7 +254,10 @@ export default function HomeScreen() {
         </>
       }
       renderItem={({ item }) => (
-        <TouchableOpacity style={styles.videoCard} onPress={() => router.push(`/watch/${item.id}` as any)}>
+        <TouchableOpacity
+          style={[styles.videoCard, numColumns > 1 && { paddingHorizontal: 0, width: cardWidth }]}
+          onPress={() => router.push(`/watch/${item.id}` as any)}
+        >
           <View style={styles.thumbWrap}>
             {item.thumbnail_url ? (
               <Image source={{ uri: item.thumbnail_url }} style={styles.thumb} resizeMode="cover" />
