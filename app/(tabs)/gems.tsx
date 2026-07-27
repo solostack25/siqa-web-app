@@ -1350,7 +1350,7 @@ export default function GemsScreen() {
       `,
       )
       .eq("is_published", true)
-      .eq("platform", "bunny")
+      .eq("format", "short")
       .not("video_url", "is", null)
       .range(0, BATCH_SIZE - 1);
 
@@ -1382,7 +1382,7 @@ export default function GemsScreen() {
       `,
       )
       .eq("is_published", true)
-      .eq("platform", "bunny")
+      .eq("format", "short")
       .not("video_url", "is", null)
       .range(offset, offset + BATCH_SIZE - 1);
 
