@@ -110,6 +110,7 @@ export default function BrowseScreen() {
       <FlatList
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.chipList}
         data={CATEGORIES}
         keyExtractor={(c) => c}
         contentContainerStyle={styles.chipRow}
@@ -185,7 +186,13 @@ const styles = StyleSheet.create({
   },
   backArrow: { color: Colors.text, fontSize: 28, fontWeight: Theme.fontWeight.medium },
   headerTitle: { color: Colors.text, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
-  chipRow: { paddingHorizontal: Theme.spacing.lg, gap: Theme.spacing.sm, paddingBottom: Theme.spacing.md },
+  chipList: { flexGrow: 0, flexShrink: 0 },
+  chipRow: {
+    paddingHorizontal: Theme.spacing.lg,
+    gap: Theme.spacing.sm,
+    paddingBottom: Theme.spacing.md,
+    alignItems: 'center',
+  },
   chip: {
     paddingHorizontal: Theme.spacing.lg,
     paddingVertical: Theme.spacing.sm,
