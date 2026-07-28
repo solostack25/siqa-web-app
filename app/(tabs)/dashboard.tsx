@@ -15,6 +15,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme } from '../../constants/theme';
+import { useIsDesktopWeb } from '../../components/DesktopShell';
 
 type Profile = {
   id: string;
@@ -145,6 +146,7 @@ function GuestScreen() {
 export default function DashboardScreen() {
   const { mode, setMode, colors: C } = useTheme();
   const styles = makeStyles(C);
+  const isDesktopWeb = useIsDesktopWeb();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
@@ -340,6 +342,7 @@ export default function DashboardScreen() {
         { key: 'donations', label: 'Donations' },
       ];
 
+  if (!isDesktopWeb) {
   return (
     <ScrollView
       style={styles.container}
@@ -689,6 +692,344 @@ export default function DashboardScreen() {
       <View style={{ height: 100 }} />
     </ScrollView>
   );
+  }
+
+  // ─── DESKTOP LAYOUT ──────────────────────────────────────────
+  // Real two-column dashboard: header banner with inline stats, main
+  // content panel (tabs + grid) on the left, account/settings stacked
+  // as a compact sidebar on the right — replacing the mobile version's
+  // long single-column stack of cards, which just looked stretched and
+  // sparse on a wide screen instead of using the space.
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.dtScroll}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); loadDashboard(); }}
+          tintColor={C.gold}
+        />
+      }
+    >
+      <View style={styles.dtHeader}>
+        <Text style={styles.logo}>صِقا</Text>
+        <Text style={styles.logoSub}>SIQA</Text>
+      </View>
+
+      {/* Profile banner — avatar, identity, and (for creators) an inline
+          impact strip, all in one wide row instead of stacked cards. */}
+      <View style={styles.dtBanner}>
+        <View style={styles.dtBannerGlow} />
+        <View style={styles.dtBannerRow}>
+          <View style={styles.dtBannerLeft}>
+            <View style={styles.dtAvatar}>
+              <Text style={styles.dtAvatarText}>{initial}</Text>
+            </View>
+            <View>
+              <Text style={styles.dtName}>{profile.full_name || 'Welcome'}</Text>
+              <Text style={styles.dtEmail}>{profile.email}</Text>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>{profile.role?.toUpperCase() || 'MEMBER'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {speaker && (
+            <View style={styles.dtImpactStrip}>
+              {[
+                { val: formatCount(liveFollowerCount), label: 'Followers' },
+                { val: formatMoney(speaker.total_raised), label: 'Total Raised' },
+                { val: (liveVideoCount ?? 0).toString(), label: 'Gems' },
+              ].map((s, i) => (
+                <View key={i} style={styles.dtImpactItem}>
+                  <Text style={styles.dtImpactVal}>{s.val}</Text>
+                  <Text style={styles.dtImpactLabel}>{s.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.dtQuickActions}>
+          {speaker && (
+            <TouchableOpacity style={styles.dtActionBtnPrimary} onPress={() => router.push('/gem-upload')}>
+              <Text style={styles.dtActionBtnPrimaryText}>+ Post a Gem</Text>
+            </TouchableOpacity>
+          )}
+          {canCreateSeeds && (
+            <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/seed-create' as any)}>
+              <Text style={styles.dtActionBtnText}>+ Create Seed</Text>
+            </TouchableOpacity>
+          )}
+          {canCreateSeeds && organization && (
+            <TouchableOpacity
+              style={styles.dtActionBtn}
+              onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
+            >
+              <Text style={styles.dtActionBtnText}>{organization.org_name} ›</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Two-column body */}
+      <View style={styles.dtBody}>
+        {/* Main panel */}
+        <View style={styles.dtMainCol}>
+          <View style={styles.dtTabs}>
+            {tabs.map(t => (
+              <TouchableOpacity
+                key={t.key}
+                style={[styles.dtTab, activeTab === t.key && styles.dtTabActive]}
+                onPress={() => setActiveTab(t.key as any)}
+              >
+                <Text style={[styles.dtTabText, activeTab === t.key && styles.dtTabTextActive]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.dtPanel}>
+            {activeTab === 'gems' && speaker && (
+              gems.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyEmoji}>🎬</Text>
+                  <Text style={styles.emptyTitle}>No gems yet</Text>
+                  <Text style={styles.emptySub}>Post your first clip to get started.</Text>
+                </View>
+              ) : (
+                <View style={styles.dtGemsGrid}>
+                  {gems.map(v => (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={styles.dtGemCard}
+                      activeOpacity={0.86}
+                      onPress={() => router.push({ pathname: '/(tabs)/gems', params: { videoId: v.id } } as any)}
+                    >
+                      <View style={styles.gemThumb}>
+                        {v.thumbnail_url ? (
+                          <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        ) : null}
+                        <View style={styles.gemPlayIcon}>
+                          <Text style={styles.gemPlayText}>▶</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.gemDeleteBtn}
+                          onPress={(e) => { e.stopPropagation(); deleteGem(v.id); }}
+                        >
+                          <Text style={styles.gemDeleteBtnText}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.gemInfo}>
+                        <Text style={styles.gemTitle} numberOfLines={2}>{v.title}</Text>
+                        <View style={styles.gemMeta}>
+                          <Text style={styles.gemMetaText}>▶ {formatCount(v.view_count)}</Text>
+                          <Text style={styles.gemMetaText}>♡ {formatCount(v.like_count)}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )
+            )}
+
+            {activeTab === 'seeds' && (
+              orgSeeds.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyEmoji}>🌱</Text>
+                  <Text style={styles.emptyTitle}>No seeds yet</Text>
+                  <Text style={styles.emptySub}>Create a donation appeal to get started.</Text>
+                </View>
+              ) : (
+                <View style={styles.dtGemsGrid}>
+                  {orgSeeds.map(s => (
+                    <View key={s.id} style={styles.dtGemCard}>
+                      <View style={styles.gemThumb}>
+                        {(s.cover_image_url || s.image_url) ? (
+                          <Image source={{ uri: (s.cover_image_url || s.image_url) as string }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        ) : null}
+                      </View>
+                      <View style={styles.gemInfo}>
+                        <Text style={styles.gemTitle} numberOfLines={2}>{s.title}</Text>
+                        <Text style={styles.gemMetaText}>
+                          {formatMoney(s.raised_amount)} of {formatMoney(s.goal_amount)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )
+            )}
+
+            {activeTab === 'saved' && (
+              savedGems.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyEmoji}>🔖</Text>
+                  <Text style={styles.emptyTitle}>No saved gems</Text>
+                  <Text style={styles.emptySub}>Tap the bookmark on any clip to save it.</Text>
+                </View>
+              ) : (
+                <View style={styles.dtGemsGrid}>
+                  {savedGems.map(v => (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={styles.dtGemCard}
+                      activeOpacity={0.86}
+                      onPress={() => router.push({ pathname: '/(tabs)/gems', params: { videoId: v.id } } as any)}
+                    >
+                      <View style={styles.gemThumb}>
+                        {v.thumbnail_url ? (
+                          <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        ) : null}
+                        <View style={styles.gemPlayIcon}>
+                          <Text style={styles.gemPlayText}>▶</Text>
+                        </View>
+                      </View>
+                      <View style={styles.gemInfo}>
+                        <Text style={styles.gemTitle} numberOfLines={2}>{v.title}</Text>
+                        <Text style={styles.gemMetaText}>▶ {formatCount(v.view_count)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )
+            )}
+
+            {activeTab === 'donations' && (
+              donations.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyEmoji}>💚</Text>
+                  <Text style={styles.emptyTitle}>No donations yet</Text>
+                  <Text style={styles.emptySub}>Your donation history will appear here.</Text>
+                  <TouchableOpacity style={styles.browseSeedsBtn} onPress={() => router.push('/(tabs)/seeds' as any)}>
+                    <Text style={styles.browseSeedsBtnText}>Browse Seeds</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.listWrap}>
+                  {donations.map(d => (
+                    <View key={d.id} style={styles.donationCard}>
+                      <View style={styles.donationLeft}>
+                        <Text style={styles.donationAmount}>{formatMoney(d.amount)}</Text>
+                        <Text style={styles.donationCampaign} numberOfLines={1}>{d.campaign_title || 'Donation'}</Text>
+                        <Text style={styles.donationTime}>{timeAgo(d.created_at)}</Text>
+                      </View>
+                      <View style={[styles.donationStatus, d.status === 'completed' && styles.donationStatusCompleted]}>
+                        <Text style={[styles.donationStatusText, d.status === 'completed' && styles.donationStatusTextCompleted]}>
+                          {d.status === 'completed' ? '✓ Paid' : d.status}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )
+            )}
+          </View>
+        </View>
+
+        {/* Settings sidebar */}
+        <View style={styles.dtSideCol}>
+          <Text style={styles.settingsSectionLabel}>ACCOUNT</Text>
+          <View style={styles.settingsCard}>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsRowLabel}>Display Name</Text>
+              <View style={styles.settingsRowRight}>
+                {savingName && <ActivityIndicator size="small" color={C.gold} style={{ marginRight: 6 }} />}
+                <TextInput
+                  style={styles.settingsNameInput}
+                  value={editName}
+                  onChangeText={setEditName}
+                  onBlur={saveDisplayName}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={saveDisplayName}
+                  placeholderTextColor={C.text3}
+                />
+              </View>
+            </View>
+            <View style={styles.settingsDivider} />
+            <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.settingsRowLabel}>Email</Text>
+              <Text style={styles.settingsRowValue} numberOfLines={1}>{profile.email}</Text>
+            </View>
+          </View>
+
+          {speaker && (
+            <>
+              <Text style={styles.settingsSectionLabel}>SPEAKER</Text>
+              <View style={styles.settingsCard}>
+                <TouchableOpacity
+                  style={[styles.settingsRow, { borderBottomWidth: 0 }]}
+                  onPress={() => router.push(`/speaker/${speaker.id}` as any)}
+                >
+                  <Text style={styles.settingsRowLabel}>My Public Profile</Text>
+                  <Text style={styles.settingsRowLink}>{speaker.display_name} ›</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          <Text style={styles.settingsSectionLabel}>APPEARANCE</Text>
+          <View style={styles.settingsCard}>
+            <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.settingsRowLabel}>🌙 Theme</Text>
+              <View style={styles.themeSeg}>
+                {(['light', 'dark', 'system'] as const).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.themeBtn, mode === m && styles.themeBtnActive]}
+                    onPress={() => setMode(m)}
+                  >
+                    <Text style={[styles.themeBtnText, mode === m && styles.themeBtnTextActive]}>
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          {['admin', 'owner', 'moderator', 'super_admin'].includes(String(profile.role || '').toLowerCase()) && (
+            <>
+              <Text style={styles.settingsSectionLabel}>ADMIN</Text>
+              <View style={styles.settingsCard}>
+                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push('/admin' as any)}>
+                  <Text style={styles.menuIcon}>🛡️</Text>
+                  <View style={styles.menuTextWrap}>
+                    <Text style={styles.menuLabel}>Moderation Queue</Text>
+                    <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
+                  </View>
+                  <Text style={styles.menuArrow}>›</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          <Text style={styles.settingsSectionLabel}>MORE</Text>
+          <View style={styles.settingsCard}>
+            <TouchableOpacity style={styles.menuItem}>
+              <Text style={styles.menuIcon}>🔔</Text>
+              <Text style={styles.menuLabel}>Notifications</Text>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push('/org-register' as any)}>
+              <Text style={styles.menuIcon}>🏢</Text>
+              <Text style={styles.menuLabel}>Register Organization</Text>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.8}>
+            <Text style={styles.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={{ height: 60 }} />
+    </ScrollView>
+  );
 }
 
 function makeStyles(C: AppColors) {
@@ -958,5 +1299,115 @@ function makeStyles(C: AppColors) {
       alignItems: 'center',
     },
     signOutText: { color: '#e84545', fontSize: Theme.fontSize.base, fontWeight: '600' },
+
+    // ─── DESKTOP LAYOUT STYLES ─────────────────────────────────
+    dtScroll: { paddingBottom: 40 },
+    dtHeader: { paddingHorizontal: 40, paddingTop: 40, paddingBottom: Theme.spacing.lg },
+
+    dtBanner: {
+      marginHorizontal: 40,
+      borderRadius: Theme.radius.xl,
+      backgroundColor: C.surface,
+      borderWidth: 0.5,
+      borderColor: C.border2,
+      padding: 32,
+      overflow: 'hidden',
+    },
+    dtBannerGlow: {
+      position: 'absolute',
+      top: -120,
+      right: -80,
+      width: 320,
+      height: 320,
+      borderRadius: 160,
+      backgroundColor: C.gold,
+      opacity: 0.08,
+    },
+    dtBannerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: Theme.spacing.xl,
+    },
+    dtBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.lg },
+    dtAvatar: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: C.goldBg,
+      borderWidth: 2,
+      borderColor: C.goldDim,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dtAvatarText: { color: C.gold, fontSize: 30, fontWeight: '700' },
+    dtName: { fontSize: 26, fontWeight: '700', color: C.text, marginBottom: 2 },
+    dtEmail: { fontSize: Theme.fontSize.base, color: C.text3, marginBottom: 8 },
+
+    dtImpactStrip: {
+      flexDirection: 'row',
+      gap: 32,
+      paddingLeft: 32,
+      borderLeftWidth: 1,
+      borderLeftColor: C.border2,
+    },
+    dtImpactItem: { alignItems: 'flex-start' },
+    dtImpactVal: { fontSize: 24, fontWeight: '700', color: C.gold },
+    dtImpactLabel: { fontSize: Theme.fontSize.xs, color: C.text3, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+    dtQuickActions: { flexDirection: 'row', gap: Theme.spacing.md, marginTop: 28 },
+    dtActionBtnPrimary: {
+      backgroundColor: C.gold,
+      paddingHorizontal: 22,
+      paddingVertical: 12,
+      borderRadius: Theme.radius.full,
+    },
+    dtActionBtnPrimaryText: { color: C.bg, fontWeight: '700', fontSize: Theme.fontSize.base },
+    dtActionBtn: {
+      backgroundColor: C.surface2,
+      borderWidth: 0.5,
+      borderColor: C.border,
+      paddingHorizontal: 22,
+      paddingVertical: 12,
+      borderRadius: Theme.radius.full,
+    },
+    dtActionBtnText: { color: C.text, fontWeight: '600', fontSize: Theme.fontSize.base },
+
+    dtBody: {
+      flexDirection: 'row',
+      gap: 28,
+      paddingHorizontal: 40,
+      marginTop: 28,
+      alignItems: 'flex-start',
+    },
+    dtMainCol: { flex: 1, minWidth: 0 },
+    dtSideCol: { width: 340, gap: 4 },
+
+    dtTabs: {
+      flexDirection: 'row',
+      gap: 6,
+      backgroundColor: C.surface2,
+      borderRadius: Theme.radius.full,
+      padding: 4,
+      alignSelf: 'flex-start',
+      marginBottom: Theme.spacing.lg,
+    },
+    dtTab: { paddingHorizontal: 20, paddingVertical: 9, borderRadius: Theme.radius.full },
+    dtTabActive: { backgroundColor: C.gold },
+    dtTabText: { color: C.text3, fontWeight: '600', fontSize: Theme.fontSize.sm },
+    dtTabTextActive: { color: C.bg },
+
+    dtPanel: {
+      backgroundColor: C.surface,
+      borderRadius: Theme.radius.xl,
+      borderWidth: 0.5,
+      borderColor: C.border2,
+      padding: 28,
+      minHeight: 320,
+    },
+
+    dtGemsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Theme.spacing.md },
+    dtGemCard: { width: 220 },
   });
 }
