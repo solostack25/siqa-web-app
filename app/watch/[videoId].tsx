@@ -18,6 +18,7 @@ import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
 import { shareVideo } from '../../lib/share';
 import { YouTubeEmbed } from '../../components/YouTubeEmbed';
+import { CommentsSection } from '../../components/CommentsSection';
 
 type VideoDetail = {
   id: string;
@@ -178,7 +179,7 @@ export default function WatchScreen() {
   if (loading || !video) {
     return (
       <DesktopShell>
-        <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <View style={[styles.screen, { alignItems: 'center', justifyContent: 'center' }]}>
           <ActivityIndicator color={Colors.gold} />
         </View>
       </DesktopShell>
@@ -187,9 +188,12 @@ export default function WatchScreen() {
 
   return (
     <DesktopShell>
-    <ScrollView style={styles.container} contentContainerStyle={isWide ? styles.wideLayout : undefined}>
-      <View style={isWide ? styles.mainCol : undefined}>
-        <View style={styles.playerWrap}>
+    <View style={styles.screen}>
+      {/* Player is intentionally OUTSIDE the ScrollView below — this is
+          what keeps it fixed/playing while everything else scrolls under
+          it, rather than scrolling away with the page. */}
+      <View style={styles.playerWrapFixed}>
+        <View style={styles.playerInner}>
           {video.platform === 'youtube' && video.platform_video_id ? (
             <YouTubeEmbed videoId={video.platform_video_id} autoplay />
           ) : (
@@ -204,100 +208,111 @@ export default function WatchScreen() {
             />
           )}
         </View>
+      </View>
 
-        <View style={styles.body}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backRow} hitSlop={8}>
-            <Text style={styles.backArrow}>‹</Text>
-            <Text style={styles.backLabel}>Back</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.title}>{video.title}</Text>
-
-          <View style={styles.creatorRow}>
-            <TouchableOpacity
-              style={styles.creatorInfo}
-              onPress={() => router.push(`/channel/${video.speaker_id}`)}
-            >
-              <View style={styles.avatarPlaceholder} />
-              <View>
-                <Text style={styles.creatorName}>
-                  {video.speakers?.display_name ?? 'Siqa'}
-                  {video.speakers?.is_verified ? ' ✓' : ''}
-                </Text>
-                <Text style={styles.creatorMeta}>
-                  {(video.speakers?.follower_count ?? 0).toLocaleString()} followers
-                </Text>
-              </View>
+      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+        <View style={isWide ? styles.wideContent : undefined}>
+          <View style={styles.body}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backRow} hitSlop={8}>
+              <Text style={styles.backArrow}>‹</Text>
+              <Text style={styles.backLabel}>Back</Text>
             </TouchableOpacity>
 
-            <View style={styles.actionsRow}>
+            <Text style={styles.title}>{video.title}</Text>
+
+            <View style={styles.creatorRow}>
               <TouchableOpacity
-                style={[styles.followBtn, following && styles.followingBtn]}
-                onPress={toggleFollow}
+                style={styles.creatorInfo}
+                onPress={() => router.push(`/channel/${video.speaker_id}`)}
               >
-                <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                  {following ? 'Following' : 'Follow'}
-                </Text>
+                <View style={styles.avatarPlaceholder} />
+                <View>
+                  <Text style={styles.creatorName}>
+                    {video.speakers?.display_name ?? 'Siqa'}
+                    {video.speakers?.is_verified ? ' ✓' : ''}
+                  </Text>
+                  <Text style={styles.creatorMeta}>
+                    {(video.speakers?.follower_count ?? 0).toLocaleString()} followers
+                  </Text>
+                </View>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
-                <Text style={styles.shareBtnIcon}>↗</Text>
-                <Text style={styles.shareBtnText}>Share</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+              <View style={styles.actionsRow}>
+                <TouchableOpacity
+                  style={[styles.followBtn, following && styles.followingBtn]}
+                  onPress={toggleFollow}
+                >
+                  <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                    {following ? 'Following' : 'Follow'}
+                  </Text>
+                </TouchableOpacity>
 
-          <View style={styles.descCard}>
-            <Text style={styles.descMeta}>
-              {formatViews(video.view_count)} · {timeAgo(video.published_at ?? video.created_at)}
-            </Text>
-            {video.description ? <Text style={styles.descText}>{video.description}</Text> : null}
-            {video.topics && video.topics.length > 0 ? (
-              <View style={styles.topicRow}>
-                {video.topics.map((t) => (
-                  <View key={t} style={styles.topicChip}>
-                    <Text style={styles.topicText}>#{t}</Text>
-                  </View>
-                ))}
+                <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                  <Text style={styles.shareBtnIcon}>↗</Text>
+                  <Text style={styles.shareBtnText}>Share</Text>
+                </TouchableOpacity>
               </View>
-            ) : null}
-          </View>
+            </View>
 
-          <Text style={styles.commentsLabel}>{video.comment_count} comments</Text>
-          {/* Reuse the comments sheet component from gems.tsx here */}
-        </View>
-      </View>
-
-      <View style={isWide ? styles.sideCol : styles.body}>
-        <Text style={styles.relatedLabel}>Related videos</Text>
-        {related.map((r) => (
-          <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
-            <View style={styles.relatedThumbWrap}>
-              {r.thumbnail_url ? (
-                <Image source={{ uri: r.thumbnail_url }} style={styles.relatedThumb} resizeMode="cover" />
+            <View style={styles.descCard}>
+              <Text style={styles.descMeta}>
+                {formatViews(video.view_count)} · {timeAgo(video.published_at ?? video.created_at)}
+              </Text>
+              {video.description ? <Text style={styles.descText}>{video.description}</Text> : null}
+              {video.topics && video.topics.length > 0 ? (
+                <View style={styles.topicRow}>
+                  {video.topics.map((t) => (
+                    <View key={t} style={styles.topicChip}>
+                      <Text style={styles.topicText}>#{t}</Text>
+                    </View>
+                  ))}
+                </View>
               ) : null}
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.relatedTitle} numberOfLines={2}>{r.title}</Text>
-              <Text style={styles.relatedMeta}>{r.speakers?.display_name}</Text>
-              <Text style={styles.relatedMeta}>{formatViews(r.view_count)}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+
+            <CommentsSection videoId={video.id} />
+          </View>
+
+          <View style={isWide ? styles.relatedWideCol : styles.body}>
+            <Text style={styles.relatedLabel}>Related videos</Text>
+            {related.map((r) => (
+              <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
+                <View style={styles.relatedThumbWrap}>
+                  {r.thumbnail_url ? (
+                    <Image source={{ uri: r.thumbnail_url }} style={styles.relatedThumb} resizeMode="cover" />
+                  ) : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.relatedTitle} numberOfLines={2}>{r.title}</Text>
+                  <Text style={styles.relatedMeta}>{r.speakers?.display_name}</Text>
+                  <Text style={styles.relatedMeta}>{formatViews(r.view_count)}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
     </DesktopShell>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+  screen: { flex: 1, backgroundColor: Colors.bg },
+  // Fixed player wrapper — never scrolls. Capped width on wide screens so
+  // it doesn't stretch to an absurd size on an ultrawide monitor; centered.
+  playerWrapFixed: { backgroundColor: Colors.black, alignItems: 'center' },
+  playerInner: { width: '100%', maxWidth: 1000, aspectRatio: 16 / 9 },
+  scrollArea: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   wideLayout: { flexDirection: 'row', maxWidth: 1600, alignSelf: 'center', width: '100%' },
+  wideContent: { flexDirection: 'row', maxWidth: 1400, alignSelf: 'center', width: '100%' },
   mainCol: { flex: 1 },
   sideCol: { width: 380, padding: Theme.spacing.lg, gap: Theme.spacing.md },
+  relatedWideCol: { width: 380, padding: Theme.spacing.lg, gap: Theme.spacing.md },
   playerWrap: { aspectRatio: 16 / 9, backgroundColor: Colors.black },
   player: { width: '100%', height: '100%' },
-  body: { padding: Theme.spacing.lg },
+  body: { padding: Theme.spacing.lg, flex: 1 },
   backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Theme.spacing.sm },
   backArrow: { color: Colors.text2, fontSize: 22 },
   backLabel: { color: Colors.text2, fontSize: Theme.fontSize.base, marginLeft: 2 },
