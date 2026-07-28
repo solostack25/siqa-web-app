@@ -52,15 +52,15 @@ type ThemeContextType = {
 };
 
 const ThemeContext = createContext<ThemeContextType>({
-  mode: 'dark',
-  isDark: true,
-  colors: DarkColors,
+  mode: 'light',
+  isDark: false,
+  colors: LightColors,
   setMode: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>('dark');
+  const [mode, setModeState] = useState<ThemeMode>('light');
 
   useEffect(() => {
     AsyncStorage.getItem('siqa_theme').then(saved => {
