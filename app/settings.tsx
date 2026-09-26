@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
-import { DesktopShell } from '../components/DesktopShell';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 
 type Profile = {
@@ -32,16 +33,26 @@ function isOrgRole(role?: string | null) {
   return ['org', 'organization', 'nonprofit', 'masjid'].includes(String(role || '').toLowerCase());
 }
 
-// Each section collapses until tapped, same pattern as the reference
-// screenshot's Settings page — General / History & privacy / etc. — so
-// the page reads as a short list instead of every field being expanded
-// and visible at once.
+// Each section collapses until tapped on mobile, matching the reference
+// pattern this screen was originally built from. On desktop there's
+// now a permanent sidebar "YOU" section covering navigation (My Public
+// Profile, Cart, My Orders, Messages, Seller Dashboard, Admin, Sign
+// Out) plus a top-bar account dropdown — so on desktop, the sections
+// that remain here are only the ones that AREN'T just a link to
+// somewhere the sidebar already goes (Account's editable fields,
+// Appearance's theme toggle, Organization's Create Seed/Org Profile
+// links, More's Notifications/Register Organization), and what's left
+// renders always-expanded in a two-column grid instead of a narrow
+// accordion stack — using the available width instead of floating in
+// the middle of empty space.
 function Section({
   icon,
   label,
   sublabel,
   open,
   onToggle,
+  alwaysOpen,
+  gridWidth,
   children,
 }: {
   icon: SiqaIconName;
@@ -49,13 +60,20 @@ function Section({
   sublabel?: string;
   open: boolean;
   onToggle: () => void;
+  alwaysOpen?: boolean;
+  gridWidth?: number;
   children: React.ReactNode;
 }) {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
+  const isOpen = alwaysOpen || open;
   return (
-    <View style={styles.card}>
-      <TouchableOpacity style={styles.sectionRow} onPress={onToggle} activeOpacity={0.7}>
+    <View style={[styles.card, gridWidth ? { width: gridWidth, marginHorizontal: 0 } : null]}>
+      <TouchableOpacity
+        style={styles.sectionRow}
+        onPress={alwaysOpen ? undefined : onToggle}
+        activeOpacity={alwaysOpen ? 1 : 0.7}
+      >
         <View style={styles.sectionIconWrap}>
           <Icon name={icon} size={18} color={C.text2} />
         </View>
@@ -63,17 +81,21 @@ function Section({
           <Text style={styles.sectionLabel}>{label}</Text>
           {sublabel ? <Text style={styles.sectionSublabel}>{sublabel}</Text> : null}
         </View>
-        <View style={open ? styles.chevronOpen : undefined}>
-          <Icon name="chevron-down" size={16} color={C.text3} />
-        </View>
+        {!alwaysOpen && (
+          <View style={isOpen ? styles.chevronOpen : undefined}>
+            <Icon name="chevron-down" size={16} color={C.text3} />
+          </View>
+        )}
       </TouchableOpacity>
-      {open && <View style={styles.sectionBody}>{children}</View>}
+      {isOpen && <View style={styles.sectionBody}>{children}</View>}
     </View>
   );
 }
 
 export default function SettingsScreen() {
   const { mode, setMode, colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
+  const { width: windowWidth } = useWindowDimensions();
   const styles = makeStyles(C);
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -170,9 +192,17 @@ export default function SettingsScreen() {
   const role = String(profile.role || '').toLowerCase();
   const canCreateSeeds = Boolean(organization) || isOrgRole(role) || isAdminRole(role);
 
+  // Two columns on desktop, each roughly half the available width minus
+  // the gap between them; capped so cards don't get absurdly wide on a
+  // huge monitor, floored so this doesn't collapse to something
+  // unreadable on a smaller desktop window.
+  const desktopContentWidth = Math.min(windowWidth - 220, 980);
+  const gridGap = Theme.spacing.md;
+  const gridWidth = isDesktopWeb ? (desktopContentWidth - Theme.spacing.xl * 2 - gridGap) / 2 : undefined;
+
   return (
     <DesktopShell>
-      <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
+      <ScrollView style={styles.container} contentContainerStyle={[styles.scroll, isDesktopWeb && { maxWidth: desktopContentWidth }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
             <Icon name="arrow-back" size={22} color={C.text} />
@@ -182,191 +212,214 @@ export default function SettingsScreen() {
 
         {/* Direct-action row, no expansion — mirrors "Switch account" in
             the reference: an action you take immediately, not a category
-            to open. */}
-        <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
-          <Icon name="log-out-outline" size={18} color="#e84545" />
-          <Text style={styles.signOutLabel}>Sign Out</Text>
-        </TouchableOpacity>
-
-        <Section
-          icon="person-outline"
-          label="Account"
-          sublabel={profile.full_name || profile.email || undefined}
-          open={openSection === 'account'}
-          onToggle={() => toggle('account')}
-        >
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Display Name</Text>
-            <View style={styles.rowRight}>
-              {savingName && <ActivityIndicator size="small" color={C.gold} style={{ marginRight: 6 }} />}
-              <TextInput
-                style={styles.nameInput}
-                value={editName}
-                onChangeText={setEditName}
-                onBlur={saveDisplayName}
-                autoCapitalize="words"
-                returnKeyType="done"
-                onSubmitEditing={saveDisplayName}
-                placeholderTextColor={C.text3}
-              />
-            </View>
-          </View>
-          <View style={styles.divider} />
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <Text style={styles.rowLabel}>Email</Text>
-            <Text style={styles.rowValue} numberOfLines={1}>{profile.email}</Text>
-          </View>
-        </Section>
-
-        <Section
-          icon="color-palette-outline"
-          label="Appearance"
-          sublabel={mode.charAt(0).toUpperCase() + mode.slice(1)}
-          open={openSection === 'appearance'}
-          onToggle={() => toggle('appearance')}
-        >
-          <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <View style={styles.rowLabelWithIcon}>
-              <Icon name="moon-outline" size={16} color={C.text2} />
-              <Text style={styles.rowLabel}>Theme</Text>
-            </View>
-            <View style={styles.themeSeg}>
-              {(['light', 'dark', 'system'] as const).map(m => (
-                <TouchableOpacity
-                  key={m}
-                  style={[styles.themeBtn, mode === m && styles.themeBtnActive]}
-                  onPress={() => setMode(m)}
-                >
-                  <Text style={[styles.themeBtnText, mode === m && styles.themeBtnTextActive]}>
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </Section>
-
-        {speaker && (
-          <Section
-            icon="mic-outline"
-            label="Speaker"
-            sublabel={speaker.display_name}
-            open={openSection === 'speaker'}
-            onToggle={() => toggle('speaker')}
-          >
-            <TouchableOpacity
-              style={[styles.row, { borderBottomWidth: 0 }]}
-              onPress={() => router.push(`/speaker/${speaker.id}` as any)}
-            >
-              <Text style={styles.rowLabel}>My Public Profile</Text>
-              <Text style={styles.rowLink}>{speaker.display_name} ›</Text>
-            </TouchableOpacity>
-          </Section>
+            to open. Desktop already has Sign Out in both the sidebar's
+            YOU section and the top-bar account dropdown. */}
+        {!isDesktopWeb && (
+          <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
+            <Icon name="log-out-outline" size={18} color="#e84545" />
+            <Text style={styles.signOutLabel}>Sign Out</Text>
+          </TouchableOpacity>
         )}
 
-        {canCreateSeeds && (
+        <View style={isDesktopWeb ? styles.grid : undefined}>
           <Section
-            icon="business-outline"
-            label="Organization"
-            sublabel={organization?.org_name}
-            open={openSection === 'organization'}
-            onToggle={() => toggle('organization')}
+            icon="person-outline"
+            label="Account"
+            sublabel={profile.full_name || profile.email || undefined}
+            open={openSection === 'account'}
+            onToggle={() => toggle('account')}
+            alwaysOpen={isDesktopWeb}
+            gridWidth={gridWidth}
           >
-            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/seed-create' as any)}>
-              <Icon name="leaf-outline" size={18} color={C.text2} />
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuLabel}>Create Seed</Text>
-                <Text style={styles.menuSubLabel}>Post a donation appeal for your nonprofit or masjid</Text>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Display Name</Text>
+              <View style={styles.rowRight}>
+                {savingName && <ActivityIndicator size="small" color={C.gold} style={{ marginRight: 6 }} />}
+                <TextInput
+                  style={styles.nameInput}
+                  value={editName}
+                  onChangeText={setEditName}
+                  onBlur={saveDisplayName}
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={saveDisplayName}
+                  placeholderTextColor={C.text3}
+                />
               </View>
-              <Text style={styles.menuArrow}>›</Text>
-            </TouchableOpacity>
-            {organization && (
+            </View>
+            <View style={styles.divider} />
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <Text style={styles.rowLabel}>Email</Text>
+              <Text style={styles.rowValue} numberOfLines={1}>{profile.email}</Text>
+            </View>
+          </Section>
+
+          <Section
+            icon="color-palette-outline"
+            label="Appearance"
+            sublabel={mode.charAt(0).toUpperCase() + mode.slice(1)}
+            open={openSection === 'appearance'}
+            onToggle={() => toggle('appearance')}
+            alwaysOpen={isDesktopWeb}
+            gridWidth={gridWidth}
+          >
+            <View style={[styles.row, { borderBottomWidth: 0 }]}>
+              <View style={styles.rowLabelWithIcon}>
+                <Icon name="moon-outline" size={16} color={C.text2} />
+                <Text style={styles.rowLabel}>Theme</Text>
+              </View>
+              <View style={styles.themeSeg}>
+                {(['light', 'dark', 'system'] as const).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.themeBtn, mode === m && styles.themeBtnActive]}
+                    onPress={() => setMode(m)}
+                  >
+                    <Text style={[styles.themeBtnText, mode === m && styles.themeBtnTextActive]}>
+                      {m.charAt(0).toUpperCase() + m.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </Section>
+
+          {/* Speaker section was just a link to My Public Profile — the
+              sidebar's YOU section already goes there on desktop, so
+              this only exists on mobile now. */}
+          {!isDesktopWeb && speaker && (
+            <Section
+              icon="mic-outline"
+              label="Speaker"
+              sublabel={speaker.display_name}
+              open={openSection === 'speaker'}
+              onToggle={() => toggle('speaker')}
+            >
               <TouchableOpacity
-                style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
+                style={[styles.row, { borderBottomWidth: 0 }]}
+                onPress={() => router.push(`/speaker/${speaker.id}` as any)}
               >
-                <Icon name="business-outline" size={18} color={C.text2} />
+                <Text style={styles.rowLabel}>My Public Profile</Text>
+                <Text style={styles.rowLink}>{speaker.display_name} ›</Text>
+              </TouchableOpacity>
+            </Section>
+          )}
+
+          {canCreateSeeds && (
+            <Section
+              icon="business-outline"
+              label="Organization"
+              sublabel={organization?.org_name}
+              open={openSection === 'organization'}
+              onToggle={() => toggle('organization')}
+              alwaysOpen={isDesktopWeb}
+              gridWidth={gridWidth}
+            >
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/seed-create' as any)}>
+                <Icon name="leaf-outline" size={18} color={C.text2} />
                 <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuLabel}>Organization Profile</Text>
-                  <Text style={styles.menuSubLabel}>{organization.org_name}</Text>
+                  <Text style={styles.menuLabel}>Create Seed</Text>
+                  <Text style={styles.menuSubLabel}>Post a donation appeal for your nonprofit or masjid</Text>
                 </View>
                 <Text style={styles.menuArrow}>›</Text>
               </TouchableOpacity>
-            )}
-          </Section>
-        )}
+              {organization && (
+                <TouchableOpacity
+                  style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                  onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
+                >
+                  <Icon name="business-outline" size={18} color={C.text2} />
+                  <View style={styles.menuTextWrap}>
+                    <Text style={styles.menuLabel}>Organization Profile</Text>
+                    <Text style={styles.menuSubLabel}>{organization.org_name}</Text>
+                  </View>
+                  <Text style={styles.menuArrow}>›</Text>
+                </TouchableOpacity>
+              )}
+            </Section>
+          )}
 
-        <Section
-          icon="bag-handle-outline"
-          label="Marketplace"
-          sublabel={mySeller?.shop_name}
-          open={openSection === 'marketplace'}
-          onToggle={() => toggle('marketplace')}
-        >
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/orders' as any)}>
-            <Icon name="receipt-outline" size={18} color={C.text2} />
-            <View style={styles.menuTextWrap}>
-              <Text style={styles.menuLabel}>My Orders</Text>
-              <Text style={styles.menuSubLabel}>Track purchases and leave reviews</Text>
-            </View>
-            <Text style={styles.menuArrow}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
-            onPress={() => router.push((mySeller ? '/seller-dashboard' : '/sell') as any)}
-          >
-            <Icon name="storefront-outline" size={18} color={C.text2} />
-            <View style={styles.menuTextWrap}>
-              <Text style={styles.menuLabel}>{mySeller ? 'Seller Dashboard' : 'Sell on Siqa'}</Text>
-              <Text style={styles.menuSubLabel}>
-                {mySeller ? mySeller.shop_name : 'Turn your craft into a shop'}
-              </Text>
-            </View>
-            <Text style={styles.menuArrow}>›</Text>
-          </TouchableOpacity>
-        </Section>
+          {/* Marketplace section was just My Orders + Seller Dashboard
+              links — both already in the sidebar's YOU section (along
+              with Cart, which wasn't even here). Mobile-only now. */}
+          {!isDesktopWeb && (
+            <Section
+              icon="bag-handle-outline"
+              label="Marketplace"
+              sublabel={mySeller?.shop_name}
+              open={openSection === 'marketplace'}
+              onToggle={() => toggle('marketplace')}
+            >
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/orders' as any)}>
+                <Icon name="receipt-outline" size={18} color={C.text2} />
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuLabel}>My Orders</Text>
+                  <Text style={styles.menuSubLabel}>Track purchases and leave reviews</Text>
+                </View>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                onPress={() => router.push((mySeller ? '/seller-dashboard' : '/sell') as any)}
+              >
+                <Icon name="storefront-outline" size={18} color={C.text2} />
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuLabel}>{mySeller ? 'Seller Dashboard' : 'Sell on Siqa'}</Text>
+                  <Text style={styles.menuSubLabel}>
+                    {mySeller ? mySeller.shop_name : 'Turn your craft into a shop'}
+                  </Text>
+                </View>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
+            </Section>
+          )}
 
-        {isAdminRole(role) && (
+          {/* Admin section was just a link to the Moderation Queue —
+              already in the sidebar's YOU section. Mobile-only now. */}
+          {!isDesktopWeb && isAdminRole(role) && (
+            <Section
+              icon="shield-checkmark-outline"
+              label="Admin"
+              open={openSection === 'admin'}
+              onToggle={() => toggle('admin')}
+            >
+              <TouchableOpacity
+                style={[styles.menuItem, { borderBottomWidth: 0 }]}
+                onPress={() => router.push('/admin' as any)}
+              >
+                <Icon name="shield-checkmark-outline" size={18} color={C.text2} />
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuLabel}>Moderation Queue</Text>
+                  <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
+                </View>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
+            </Section>
+          )}
+
           <Section
-            icon="shield-checkmark-outline"
-            label="Admin"
-            open={openSection === 'admin'}
-            onToggle={() => toggle('admin')}
+            icon="ellipsis-horizontal"
+            label="More"
+            open={openSection === 'more'}
+            onToggle={() => toggle('more')}
+            alwaysOpen={isDesktopWeb}
+            gridWidth={gridWidth}
           >
+            <TouchableOpacity style={styles.menuItem}>
+              <Icon name="notifications-outline" size={18} color={C.text2} />
+              <Text style={styles.menuLabel}>Notifications</Text>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.menuItem, { borderBottomWidth: 0 }]}
-              onPress={() => router.push('/admin' as any)}
+              onPress={() => router.push('/org-register' as any)}
             >
-              <Icon name="shield-checkmark-outline" size={18} color={C.text2} />
-              <View style={styles.menuTextWrap}>
-                <Text style={styles.menuLabel}>Moderation Queue</Text>
-                <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
-              </View>
+              <Icon name="business-outline" size={18} color={C.text2} />
+              <Text style={styles.menuLabel}>Register Organization</Text>
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>
           </Section>
-        )}
-
-        <Section
-          icon="ellipsis-horizontal"
-          label="More"
-          open={openSection === 'more'}
-          onToggle={() => toggle('more')}
-        >
-          <TouchableOpacity style={styles.menuItem}>
-            <Icon name="notifications-outline" size={18} color={C.text2} />
-            <Text style={styles.menuLabel}>Notifications</Text>
-            <Text style={styles.menuArrow}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.menuItem, { borderBottomWidth: 0 }]}
-            onPress={() => router.push('/org-register' as any)}
-          >
-            <Icon name="business-outline" size={18} color={C.text2} />
-            <Text style={styles.menuLabel}>Register Organization</Text>
-            <Text style={styles.menuArrow}>›</Text>
-          </TouchableOpacity>
-        </Section>
+        </View>
 
         <Text style={styles.footer}>Siqa — Islamic media & community</Text>
 
@@ -381,7 +434,8 @@ function makeStyles(C: AppColors) {
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     emptyText: { color: C.text3, fontSize: 14 },
-    scroll: { paddingBottom: 20, maxWidth: 640, width: '100%', alignSelf: 'center' },
+    scroll: { paddingBottom: 20, width: '100%', alignSelf: 'center' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Theme.spacing.md, paddingHorizontal: Theme.spacing.xl },
 
     header: {
       flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md,
