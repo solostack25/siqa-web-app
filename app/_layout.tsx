@@ -66,9 +66,18 @@ function AppContent() {
   // this puts one solid, explicitly full-height backdrop at the true
   // app root, above all of that, so background coverage never depends
   // on any wrapper in between doing the right thing.
+  //
+  // First pass used minHeight:100vh here, which was wrong — minHeight
+  // lets the box grow taller than the viewport when a screen's content
+  // is tall (which it always is), so the whole app grew past one
+  // screen's height and pushed the bottom tab bar down off-screen
+  // instead of keeping it pinned. This needs a hard height:100vh clamp
+  // (plus overflow:hidden as a backstop) so the root never grows —
+  // every screen's own internal scrolling absorbs the extra content
+  // instead, same as ScrollViewStyleReset already does for body itself.
   const rootBackdropStyle =
     Platform.OS === 'web'
-      ? { flex: 1, backgroundColor: C.bg, minHeight: '100vh' as any }
+      ? { flex: 1, backgroundColor: C.bg, height: '100vh' as any, overflow: 'hidden' as any }
       : { flex: 1, backgroundColor: C.bg };
 
   return (
