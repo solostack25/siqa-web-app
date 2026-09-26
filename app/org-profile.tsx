@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
 // expo-haptics is native-only — no-op on web
@@ -117,6 +118,7 @@ function trustColor(score: number | null, C: AppColors) {
 
 export default function OrgProfileScreen() {
   const { colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [org, setOrg] = useState<Org | null>(null);
@@ -270,20 +272,24 @@ export default function OrgProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.gold} size="large" />
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
     );
   }
 
   if (!org) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>Organization not found.</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtnCenter}>
-          <Text style={styles.backBtnText}>← Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <Text style={styles.emptyText}>Organization not found.</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtnCenter}>
+            <Text style={styles.backBtnText}>← Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </DesktopShell>
     );
   }
 
@@ -299,6 +305,7 @@ export default function OrgProfileScreen() {
   const emoji = orgEmoji(org.org_type);
 
   return (
+    <DesktopShell>
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
@@ -670,6 +677,7 @@ export default function OrgProfileScreen() {
         </TouchableOpacity>
       </Modal>
     </View>
+    </DesktopShell>
   );
 }
 
@@ -723,6 +731,7 @@ function makeStyles(C: AppColors) {
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
+  scrollContentDesktop: { maxWidth: 760, width: '100%', alignSelf: 'center' },
 
   cover: {
     height: 140,
