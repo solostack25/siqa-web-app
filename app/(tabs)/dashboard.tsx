@@ -500,7 +500,12 @@ export default function DashboardScreen() {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hzRow}>
               {orgSeeds.map(s => (
-                <View key={s.id} style={styles.hzSeedCard}>
+                <TouchableOpacity
+                  key={s.id}
+                  style={styles.hzSeedCard}
+                  activeOpacity={0.86}
+                  onPress={() => router.push({ pathname: '/seed/[id]', params: { id: s.id } } as any)}
+                >
                   <View style={styles.hzSeedThumb}>
                     {(s.cover_image_url || s.image_url) ? (
                       <Image source={{ uri: (s.cover_image_url || s.image_url) as string }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -512,7 +517,7 @@ export default function DashboardScreen() {
                   <Text style={styles.gemMetaText}>
                     {formatMoney(s.raised_amount)} of {formatMoney(s.goal_amount)}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
           )}
@@ -792,7 +797,12 @@ export default function DashboardScreen() {
               ) : (
                 <View style={styles.dtGemsGrid}>
                   {orgSeeds.map(s => (
-                    <View key={s.id} style={styles.dtGemCard}>
+                    <TouchableOpacity
+                      key={s.id}
+                      style={styles.dtGemCard}
+                      activeOpacity={0.86}
+                      onPress={() => router.push({ pathname: '/seed/[id]', params: { id: s.id } } as any)}
+                    >
                       <View style={styles.gemThumb}>
                         {(s.cover_image_url || s.image_url) ? (
                           <Image source={{ uri: (s.cover_image_url || s.image_url) as string }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -804,7 +814,7 @@ export default function DashboardScreen() {
                           {formatMoney(s.raised_amount)} of {formatMoney(s.goal_amount)}
                         </Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               )
