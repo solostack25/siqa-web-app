@@ -55,12 +55,24 @@ export default function MarketplaceScreen() {
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState('All');
   const [query, setQuery] = useState('');
+  const [cartCount, setCartCount] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       load();
+      loadCartCount();
     }, [category])
   );
+
+  async function loadCartCount() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { setCartCount(0); return; }
+    const { count } = await supabase
+      .from('marketplace_cart_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', session.user.id);
+    setCartCount(count ?? 0);
+  }
 
   async function load() {
     setLoading(true);
@@ -88,8 +100,18 @@ export default function MarketplaceScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Marketplace</Text>
-        <Text style={styles.headerSub}>Support Muslim-owned shops</Text>
+        <View>
+          <Text style={styles.headerTitle}>Marketplace</Text>
+          <Text style={styles.headerSub}>Support Muslim-owned shops</Text>
+        </View>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
+          <Icon name="cart-outline" size={20} color={C.text} />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchWrap}>
@@ -182,8 +204,13 @@ function makeStyles(C: AppColors) {
     headerSub: { fontSize: Theme.fontSize.xs, color: C.text3, marginTop: 2 },
     iconBtn: {
       width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2,
+      backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2, position: 'relative',
     },
+    cartBadge: {
+      position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9,
+      backgroundColor: C.live, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+    },
+    cartBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
 
     searchWrap: {
       flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm,

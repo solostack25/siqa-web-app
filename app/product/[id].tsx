@@ -56,6 +56,7 @@ export default function ProductDetailScreen() {
   const [activeImage, setActiveImage] = useState(0);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
 
   useEffect(() => {
     if (id) load(id);
@@ -109,6 +110,55 @@ export default function ProductDetailScreen() {
       setIsFavorited(true);
     }
     setFavBusy(false);
+  }
+
+  async function requireSignedIn() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      Alert.alert('Sign in required', 'Sign in to buy or save items.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/(auth)/sign-in' as any) },
+      ]);
+      return null;
+    }
+    return session.user.id;
+  }
+
+  async function addToCart() {
+    if (!product) return;
+    const userId = await requireSignedIn();
+    if (!userId) return;
+
+    setAddingToCart(true);
+    // One row per (user, product) — bump quantity if it's already there
+    // rather than inserting a duplicate line.
+    const { data: existing } = await supabase
+      .from('marketplace_cart_items')
+      .select('id, quantity')
+      .eq('user_id', userId)
+      .eq('product_id', product.id)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('marketplace_cart_items').update({ quantity: existing.quantity + 1 }).eq('id', existing.id);
+    } else {
+      await supabase.from('marketplace_cart_items').insert({ user_id: userId, product_id: product.id, quantity: 1 });
+    }
+    setAddingToCart(false);
+    Alert.alert('Added to cart', `${product.title} was added to your cart.`, [
+      { text: 'Keep Browsing', style: 'cancel' },
+      { text: 'View Cart', onPress: () => router.push('/cart' as any) },
+    ]);
+  }
+
+  async function buyNow() {
+    if (!product) return;
+    const userId = await requireSignedIn();
+    if (!userId) return;
+    router.push({
+      pathname: '/checkout',
+      params: { productId: product.id, quantity: '1' },
+    } as any);
   }
 
   if (loading) {
@@ -222,11 +272,25 @@ export default function ProductDetailScreen() {
                   : 'Out of stock'}
             </Text>
 
-            {/* Buying isn't wired up yet — cart/checkout is a separate
-                phase (needs Stripe Connect flow, not just UI). Showing
-                a disabled state rather than a button that goes nowhere. */}
-            <View style={styles.buyBtnDisabled}>
-              <Text style={styles.buyBtnDisabledText}>Purchasing coming soon</Text>
+            <View style={styles.buyRow}>
+              <TouchableOpacity
+                style={[styles.addToCartBtn, (addingToCart || product.inventory_count === 0) && styles.btnDisabled]}
+                onPress={addToCart}
+                disabled={addingToCart || (!product.is_digital && product.inventory_count === 0)}
+              >
+                {addingToCart ? (
+                  <ActivityIndicator color={C.text} size="small" />
+                ) : (
+                  <Text style={styles.addToCartBtnText}>Add to Cart</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.buyNowBtn, (!product.is_digital && product.inventory_count === 0) && styles.btnDisabled]}
+                onPress={buyNow}
+                disabled={!product.is_digital && product.inventory_count === 0}
+              >
+                <Text style={styles.buyNowBtnText}>Buy Now</Text>
+              </TouchableOpacity>
             </View>
 
             {reviews.length > 0 && (
@@ -336,11 +400,15 @@ function makeStyles(C: AppColors) {
     inStock: { color: C.emeraldLight, fontSize: 13, fontWeight: '600', marginBottom: 18 },
     outStock: { color: C.live, fontSize: 13, fontWeight: '600', marginBottom: 18 },
 
-    buyBtnDisabled: {
-      backgroundColor: C.surface2, borderRadius: Theme.radius.md, paddingVertical: 15,
-      alignItems: 'center', marginBottom: 28, borderWidth: 0.5, borderColor: C.border2,
+    buyRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
+    addToCartBtn: {
+      flex: 1, backgroundColor: C.surface2, borderRadius: Theme.radius.md, paddingVertical: 15,
+      alignItems: 'center', borderWidth: 0.5, borderColor: C.border,
     },
-    buyBtnDisabledText: { color: C.text3, fontSize: 15, fontWeight: '700' },
+    addToCartBtnText: { color: C.text, fontSize: 14, fontWeight: '700' },
+    buyNowBtn: { flex: 1, backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 15, alignItems: 'center' },
+    buyNowBtnText: { color: C.black, fontSize: 14, fontWeight: '800' },
+    btnDisabled: { opacity: 0.5 },
 
     section: { marginBottom: 28 },
     sectionTitle: { fontSize: 16, fontWeight: '800', color: C.text, marginBottom: 12 },

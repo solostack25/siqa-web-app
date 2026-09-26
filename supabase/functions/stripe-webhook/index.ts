@@ -64,6 +64,52 @@ Deno.serve(async (req) => {
           .eq('id', meta.fundraiser_id);
       }
     }
+
+    // Marketplace orders: buyers have no client-side UPDATE policy on
+    // marketplace_orders (by design — a buyer shouldn't be able to
+    // self-mark their own order paid), so this webhook, running with
+    // the service role, is the only place that flips status to 'paid'.
+    // Same reasoning for inventory: decrementing stock has to happen
+    // once payment is actually confirmed, not when the order row is
+    // first created as 'pending'.
+    if (meta.order_ids) {
+      const orderIds = meta.order_ids.split(',').filter(Boolean);
+      if (orderIds.length > 0) {
+        const { data: orders } = await supabase
+          .from('marketplace_orders')
+          .select('id, product_id, quantity, buyer_id')
+          .in('id', orderIds);
+
+        await supabase
+          .from('marketplace_orders')
+          .update({ status: 'paid' })
+          .in('id', orderIds);
+
+        for (const order of orders ?? []) {
+          const { data: product } = await supabase
+            .from('marketplace_products')
+            .select('inventory_count, is_digital')
+            .eq('id', order.product_id)
+            .single();
+
+          if (product && !product.is_digital) {
+            await supabase
+              .from('marketplace_products')
+              .update({ inventory_count: Math.max(0, (product.inventory_count || 0) - order.quantity) })
+              .eq('id', order.product_id);
+          }
+        }
+
+        if (meta.buyer_id && orders && orders.length > 0) {
+          const purchasedProductIds = orders.map(o => o.product_id);
+          await supabase
+            .from('marketplace_cart_items')
+            .delete()
+            .eq('user_id', meta.buyer_id)
+            .in('product_id', purchasedProductIds);
+        }
+      }
+    }
   }
 
   if (event.type === 'payment_intent.payment_failed') {
@@ -72,6 +118,16 @@ Deno.serve(async (req) => {
       .from('donations')
       .update({ status: 'failed' })
       .eq('stripe_payment_intent_id', intent.id);
+
+    if (intent.metadata.order_ids) {
+      const orderIds = intent.metadata.order_ids.split(',').filter(Boolean);
+      if (orderIds.length > 0) {
+        await supabase
+          .from('marketplace_orders')
+          .update({ status: 'cancelled' })
+          .in('id', orderIds);
+      }
+    }
   }
 
   if (event.type === 'account.updated') {

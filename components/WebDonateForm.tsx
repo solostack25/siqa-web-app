@@ -18,9 +18,10 @@ type Props = {
   isDark: boolean;
   onSuccess: (paymentIntentId: string) => void;
   onCancel: () => void;
+  confirmLabel?: string;
 };
 
-function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel }: Props) {
+function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel, confirmLabel = 'Confirm donation' }: Props) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -80,7 +81,7 @@ function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel }:
           onPress={handleConfirm}
           disabled={submitting || !stripe}
         >
-          {submitting ? <ActivityIndicator color={C.bg} /> : <Text style={styles.confirmText}>Confirm donation</Text>}
+          {submitting ? <ActivityIndicator color={C.bg} /> : <Text style={styles.confirmText}>{confirmLabel}</Text>}
         </TouchableOpacity>
       </View>
     </View>
