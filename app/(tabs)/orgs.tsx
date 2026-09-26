@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
@@ -25,6 +26,7 @@ type Org = {
   is_verified: boolean;
   trust_score: number | null;
   ein: string | null;
+  logo_url: string | null;
 };
 
 const FILTERS = ['All', '🕌 Masjid', '🤝 Nonprofit', '❤️ Charity', '🎓 School'];
@@ -64,7 +66,7 @@ export default function OrgsScreen() {
   async function loadOrgs() {
     const { data } = await supabase
       .from('organizations')
-      .select('id, org_name, org_type, city, state, mission, tagline, is_verified, trust_score, ein')
+      .select('id, org_name, org_type, city, state, mission, tagline, is_verified, trust_score, ein, logo_url')
       .eq('approval_status', 'approved')
       .order('trust_score', { ascending: false });
 
@@ -101,7 +103,11 @@ export default function OrgsScreen() {
       <TouchableOpacity style={styles.orgCard} activeOpacity={0.8} onPress={() => router.push({ pathname: '/org-profile', params: { id: item.id } })}>
         <View style={styles.orgCardTop}>
           <View style={styles.orgAvatar}>
-            <Text style={styles.orgAvatarText}>{initials}</Text>
+            {item.logo_url ? (
+              <Image source={{ uri: item.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <Text style={styles.orgAvatarText}>{initials}</Text>
+            )}
           </View>
           <View style={styles.orgInfo}>
             <View style={styles.orgNameRow}>
@@ -307,6 +313,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.emerald,
       alignItems: 'center',
       justifyContent: 'center',
+      overflow: 'hidden',
       flexShrink: 0,
     },
     orgAvatarText: { fontSize: 15, fontWeight: '700', color: C.gold },
