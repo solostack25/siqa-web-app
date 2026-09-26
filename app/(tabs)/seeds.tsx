@@ -394,6 +394,7 @@ export default function SeedsScreen() {
         keyExtractor={(c) => c}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.categoriesList}
         contentContainerStyle={styles.categories}
         renderItem={({ item: cat }) => (
           <TouchableOpacity
@@ -479,10 +480,16 @@ function makeStyles(C: AppColors) {
       fontSize: Theme.fontSize.sm,
       fontWeight: Theme.fontWeight.bold,
     },
+    categoriesList: {
+      flexGrow: 0,
+      flexShrink: 0,
+      height: 32 + Theme.spacing.md,
+    },
     categories: {
       paddingHorizontal: Theme.spacing.lg,
       paddingBottom: Theme.spacing.md,
       gap: Theme.spacing.sm,
+      alignItems: 'center',
     },
     catPill: {
       paddingHorizontal: Theme.spacing.md,
