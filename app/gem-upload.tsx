@@ -33,6 +33,51 @@ import { useTheme, type AppColors } from '../lib/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
+// Web has no VideoThumbnails module, but browsers can draw a video frame to
+// a <canvas> natively — this was previously unimplemented, so every gem
+// uploaded from the web app silently ended up with thumbnail_url: null.
+function captureVideoFrameWeb(uri: string, timeSec: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.src = uri;
+
+    const cleanup = () => {
+      video.onloadedmetadata = null;
+      video.onseeked = null;
+      video.onerror = null;
+    };
+
+    video.onloadedmetadata = () => {
+      const duration = video.duration || 1;
+      video.currentTime = Math.min(Math.max(timeSec, 0), Math.max(duration - 0.05, 0));
+    };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 720;
+        canvas.height = video.videoHeight || 1280;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas context unavailable');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        cleanup();
+        resolve(dataUrl);
+      } catch (e) {
+        cleanup();
+        reject(e);
+      }
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error('Could not load video for frame capture'));
+    };
+  });
+}
+
 const TOPICS = ['Fundraising', 'Aqeedah', 'Quran', 'Youth', 'Seerah', 'Marriage', 'Mental Health', 'Family', 'Dawah', 'Reverts'];
 const DRAFT_KEY = 'siqa:gems:upload-draft:v1';
 
@@ -265,30 +310,24 @@ export default function GemUploadScreen() {
 
       // Auto-generate a default thumbnail from the first frame so every
       // Gem has a thumbnail even if the speaker skips the manual picker.
-      // expo-video-thumbnails is native-only — skip on web.
-      if (VideoThumbnails) {
-        try {
-          const { uri: autoThumbUri } = await VideoThumbnails.getThumbnailAsync(asset.uri, {
-            time: 0,
-            quality: 0.9,
-          });
-          setThumbnail({
-            uri: autoThumbUri,
-            fileName: `siqa-autothumb-${Date.now()}.jpg`,
-            mimeType: 'image/jpeg',
-          });
-        } catch (thumbErr) {
-          // If auto-generation fails, the speaker can still pick one manually.
-        }
-      }
+      await generateAutoThumbnail(asset.uri);
     } catch (error) {
       Alert.alert('Could not open video', 'Choose a video downloaded to this device and make sure Siqa has full Photos access.');
     }
   }
 
   async function generateAutoThumbnail(uri: string) {
-    if (!VideoThumbnails) return; // native-only — skip on web
     try {
+      if (Platform.OS === 'web') {
+        const dataUrl = await captureVideoFrameWeb(uri, 0);
+        setThumbnail({
+          uri: dataUrl,
+          fileName: `siqa-autothumb-${Date.now()}.jpg`,
+          mimeType: 'image/jpeg',
+        });
+        return;
+      }
+      if (!VideoThumbnails) return;
       const { uri: autoThumbUri } = await VideoThumbnails.getThumbnailAsync(uri, {
         time: 0,
         quality: 0.9,
@@ -397,9 +436,16 @@ export default function GemUploadScreen() {
   ).current;
 
   async function captureFrameAt(position: number) {
-    if (!video || !VideoThumbnails) return; // VideoThumbnails is native-only
+    if (!video) return;
     setCapturingFrame(true);
     try {
+      if (Platform.OS === 'web') {
+        const timeSec = (position * videoDuration.current) / 1000;
+        const dataUrl = await captureVideoFrameWeb(video.uri, timeSec);
+        setFrameUri(dataUrl);
+        return;
+      }
+      if (!VideoThumbnails) return;
       const timeMs = Math.round(position * videoDuration.current);
       const { uri } = await VideoThumbnails.getThumbnailAsync(video.uri, {
         time: timeMs,
