@@ -20,6 +20,7 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadFileToBunny } from '../lib/bunnyUpload';
+import ImageCropModal from '../components/ImageCropModal';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -129,6 +130,8 @@ export default function OrgProfileScreen() {
   const canEditOrg = isOwner || isAdmin;
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [cropImageUri, setCropImageUri] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<'logo' | 'banner' | null>(null);
 
   // Payment setup
   const [connectingStripe, setConnectingStripe] = useState(false);
@@ -174,6 +177,10 @@ export default function OrgProfileScreen() {
     setLoading(false);
   }
 
+  // allowsEditing/aspect below only do anything on native — that's the
+  // OS's own crop UI. On web expo-image-picker silently ignores both,
+  // so the picker just hands back the raw file; ImageCropModal (web
+  // only) is the actual reposition/zoom step for that platform.
   async function pickLogo() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert('Permission needed', 'Allow Siqa to access your photos.'); return; }
@@ -182,20 +189,14 @@ export default function OrgProfileScreen() {
       allowsEditing: true, aspect: [1, 1], quality: 0.85,
     });
     if (result.canceled || !result.assets[0]) return;
-    setUploadingLogo(true);
-    try {
-      const asset = result.assets[0];
-      const ext = asset.uri.split('.').pop() ?? 'jpg';
-      const path = `org-logos/${org!.id}_${Date.now()}.${ext}`;
-      const url = await uploadImageToBunny(asset.uri, path);
-      await supabase.from('organizations').update({ logo_url: url }).eq('id', org!.id);
-      setOrg(prev => prev ? { ...prev, logo_url: url } : prev);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
-    } finally {
-      setUploadingLogo(false);
+    const asset = result.assets[0];
+
+    if (Platform.OS === 'web') {
+      setCropTarget('logo');
+      setCropImageUri(asset.uri);
+      return;
     }
+    await uploadLogo(asset.uri);
   }
 
   async function pickBanner() {
@@ -206,12 +207,38 @@ export default function OrgProfileScreen() {
       allowsEditing: true, aspect: [3, 1], quality: 0.85,
     });
     if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+
+    if (Platform.OS === 'web') {
+      setCropTarget('banner');
+      setCropImageUri(asset.uri);
+      return;
+    }
+    await uploadBanner(asset.uri);
+  }
+
+  async function uploadLogo(uri: string) {
+    setUploadingLogo(true);
+    try {
+      const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
+      const path = `org-logos/${org!.id}_${Date.now()}.${ext}`;
+      const url = await uploadImageToBunny(uri, path);
+      await supabase.from('organizations').update({ logo_url: url }).eq('id', org!.id);
+      setOrg(prev => prev ? { ...prev, logo_url: url } : prev);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message);
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function uploadBanner(uri: string) {
     setUploadingBanner(true);
     try {
-      const asset = result.assets[0];
-      const ext = asset.uri.split('.').pop() ?? 'jpg';
+      const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
       const path = `org-banners/${org!.id}_${Date.now()}.${ext}`;
-      const url = await uploadImageToBunny(asset.uri, path);
+      const url = await uploadImageToBunny(uri, path);
       await supabase.from('organizations').update({ banner_url: url }).eq('id', org!.id);
       setOrg(prev => prev ? { ...prev, banner_url: url } : prev);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -220,6 +247,15 @@ export default function OrgProfileScreen() {
     } finally {
       setUploadingBanner(false);
     }
+  }
+
+  function handleCropped(blob: Blob) {
+    const target = cropTarget;
+    const blobUrl = URL.createObjectURL(blob);
+    setCropImageUri(null);
+    setCropTarget(null);
+    if (target === 'logo') uploadLogo(blobUrl);
+    else if (target === 'banner') uploadBanner(blobUrl);
   }
 
   async function connectStripe() {
@@ -684,6 +720,17 @@ export default function OrgProfileScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {Platform.OS === 'web' && (
+        <ImageCropModal
+          visible={!!cropImageUri}
+          imageUri={cropImageUri}
+          aspectRatio={cropTarget === 'banner' ? 3 : 1}
+          outputWidth={cropTarget === 'banner' ? 1200 : 600}
+          onCancel={() => { setCropImageUri(null); setCropTarget(null); }}
+          onCropped={handleCropped}
+        />
+      )}
     </View>
     </DesktopShell>
   );
