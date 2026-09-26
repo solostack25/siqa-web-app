@@ -68,11 +68,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="discover"
+        name="marketplace"
         options={{
-          title: 'Discover',
+          title: 'Marketplace',
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Discover" icon={<DiscoverIcon color={focused ? C.gold : C.text3} />} />
+            <TabIcon focused={focused} label="Shop" icon={<DiscoverIcon color={focused ? C.gold : C.text3} />} />
           ),
           tabBarLabel: () => null,
         }}

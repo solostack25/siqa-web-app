@@ -34,10 +34,10 @@ export function DesktopSidebar() {
       icon: (color) => <PlayIcon color={color} size={16} />,
     },
     {
-      key: 'discover',
-      label: 'Discover',
-      path: '/(tabs)/discover',
-      matchPrefixes: ['/discover'],
+      key: 'marketplace',
+      label: 'Shop',
+      path: '/(tabs)/marketplace',
+      matchPrefixes: ['/marketplace', '/product'],
       icon: (color) => <DiscoverIcon color={color} />,
     },
     {
