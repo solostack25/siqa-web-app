@@ -59,6 +59,7 @@ function AppContent() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="speaker/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="seed/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="donate" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate-success" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="org-profile" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />

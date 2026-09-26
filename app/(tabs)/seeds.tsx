@@ -296,14 +296,18 @@ export default function SeedsScreen() {
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.title} numberOfLines={2}>
-          {item.title}
-        </Text>
-        {item.story || item.description ? (
-          <Text style={styles.story} numberOfLines={3}>
-            {item.story || item.description}
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any)}
+        >
+          <Text style={styles.title} numberOfLines={2}>
+            {item.title}
           </Text>
-        ) : null}
+          {item.story || item.description ? (
+            <Text style={styles.story} numberOfLines={3}>
+              {item.story || item.description}
+            </Text>
+          ) : null}
+        </TouchableOpacity>
 
         <View style={styles.progressWrap}>
           <View style={styles.progressTrack}>
@@ -348,14 +352,9 @@ export default function SeedsScreen() {
           style={styles.donateBtn}
           onPress={() =>
             router.push({
-              pathname: "/donate",
-              params: {
-                fundraiserId: item.id,
-                orgId: item.org_id ?? "",
-                title: item.title,
-                orgStripeAccountId: "",
-              },
-            })
+              pathname: "/seed/[id]",
+              params: { id: item.id },
+            } as any)
           }
         >
           <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
