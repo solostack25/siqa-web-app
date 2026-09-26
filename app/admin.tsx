@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 
 type QueueVideo = {
   id: string;
@@ -80,6 +81,7 @@ const ADMIN_ROLES = ['admin', 'owner', 'moderator', 'super_admin'];
 
 export default function AdminScreen() {
   const { colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -359,31 +361,36 @@ export default function AdminScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.gold} size="large" />
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
     );
   }
 
   if (!allowed) {
     return (
-      <View style={styles.centered}>
-        <View style={styles.lockIcon}>
-          <Icon name="lock-closed-outline" size={42} color={C.text3} />
+      <DesktopShell>
+        <View style={styles.centered}>
+          <View style={styles.lockIcon}>
+            <Icon name="lock-closed-outline" size={42} color={C.text3} />
+          </View>
+          <Text style={styles.title}>Admin access required</Text>
+          <Text style={styles.sub}>This area is only for Siqa moderators and admins.</Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.back()}>
+            <Text style={styles.primaryBtnText}>Go Back</Text>
+          </TouchableOpacity>
         </View>
-        <Text style={styles.title}>Admin access required</Text>
-        <Text style={styles.sub}>This area is only for Siqa moderators and admins.</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.back()}>
-          <Text style={styles.primaryBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      </DesktopShell>
     );
   }
 
   return (
+    <DesktopShell>
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, isDesktopWeb && styles.contentDesktop]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAdmin(); }} tintColor={C.gold} />}
     >
       <View style={styles.header}>
@@ -481,6 +488,7 @@ export default function AdminScreen() {
 
       <View style={{ height: 80 }} />
     </ScrollView>
+    </DesktopShell>
   );
 }
 
@@ -520,7 +528,13 @@ function SimpleRow({ title, sub, action, busy, onPress, C }: { title: string; su
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: C.bg },
+    // This page never had any desktop treatment at all — no DesktopShell
+    // (so no sidebar/top bar either), and this content padding had no
+    // width cap, so every queue row stretched edge-to-edge on a wide
+    // screen instead of staying a readable width like every other
+    // list/detail page in the app.
     content: { padding: Theme.spacing.xl, paddingTop: 58 },
+    contentDesktop: { maxWidth: 900, width: '100%', alignSelf: 'center', paddingTop: 32 },
     centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 28 },
     lockIcon: { marginBottom: 12 },
     title: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 8, textAlign: 'center' },
