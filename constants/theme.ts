@@ -23,15 +23,20 @@ export const Theme = {
     xxl: 24,
     full: 9999,
   },
+  // Bumped roughly 10-20% across the board (larger jump at the top end,
+  // where headings benefit from more separation) — 29 files pull sizes
+  // from this one scale rather than hardcoding pixels, so this is the
+  // one change that actually reaches most of the app at once instead of
+  // tuning each screen's text individually.
   fontSize: {
-    xs: 10,
-    sm: 11,
-    md: 13,
-    base: 14,
-    lg: 16,
-    xl: 18,
-    xxl: 22,
-    xxxl: 28,
+    xs: 11,
+    sm: 13,
+    md: 15,
+    base: 16,
+    lg: 18,
+    xl: 21,
+    xxl: 25,
+    xxxl: 32,
   },
   fontWeight: {
     normal: '400' as const,
