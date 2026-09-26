@@ -31,6 +31,18 @@ const responsiveBackground = `
 html, body {
   background-color: #FFFFFF;
 }
+/* A fast flick-scroll past the top or bottom of content triggers the
+   browser's own native overscroll UI (Chrome's pull-to-refresh /
+   rubber-band bounce) — a browser affordance rendered on top of
+   everything, not an app background color, so no background-color fix
+   could touch it. react-native-web's ScrollView renders its own nested
+   scrolling div with a generated class name, not a stable selector, so
+   this targets every element rather than guessing which one actually
+   scrolls on a given screen. It only suppresses overscroll-triggered
+   browser UI — normal scrolling and layout are unaffected. */
+* {
+  overscroll-behavior: none;
+}
 @media (prefers-color-scheme: dark) {
   html, body {
     background-color: #0A0F1C;
