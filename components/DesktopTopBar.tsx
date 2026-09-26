@@ -22,9 +22,10 @@ export function DesktopTopBar() {
   // same as before: type, hit enter, land on /browse's general search.
   const [query, setQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
-  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
+  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
+  const [speaker, setSpeaker] = useState<{ id: string } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -34,16 +35,28 @@ export function DesktopTopBar() {
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setProfile(null); setCartCount(0); return; }
+    if (!session?.user) { setProfile(null); setCartCount(0); setSpeaker(null); setIsSeller(false); return; }
 
-    const [{ data: profileData }, { count }, { data: sellerData }] = await Promise.all([
-      supabase.from('profiles').select('full_name, avatar_url').eq('id', session.user.id).maybeSingle(),
+    const [{ data: profileData }, { count }, { data: sellerData }, { data: speakerData }] = await Promise.all([
+      supabase.from('profiles').select('full_name, avatar_url, role').eq('id', session.user.id).maybeSingle(),
       supabase.from('marketplace_cart_items').select('id', { count: 'exact', head: true }).eq('user_id', session.user.id),
       supabase.from('marketplace_sellers').select('id').eq('user_id', session.user.id).maybeSingle(),
+      supabase.from('speakers').select('id').eq('profile_id', session.user.id).maybeSingle(),
     ]);
     if (profileData) setProfile(profileData);
     setCartCount(count ?? 0);
     setIsSeller(Boolean(sellerData));
+    setSpeaker(speakerData ?? null);
+  }
+
+  function isAdminRole(role?: string | null) {
+    return ['admin', 'owner', 'moderator', 'super_admin'].includes(String(role || '').toLowerCase());
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    setMenuOpen(false);
+    router.replace('/(auth)/sign-in' as any);
   }
 
   function submitSearch() {
@@ -100,6 +113,12 @@ export function DesktopTopBar() {
                     <Icon name="settings-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>Settings</Text>
                   </TouchableOpacity>
+                  {speaker && (
+                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo(`/speaker/${speaker.id}`)}>
+                      <Icon name="person-circle-outline" size={16} color={C.text2} />
+                      <Text style={styles.menuItemText}>My Public Profile</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/orders')}>
                     <Icon name="receipt-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>My Orders</Text>
@@ -108,12 +127,19 @@ export function DesktopTopBar() {
                     <Icon name="chatbubble-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>Messages</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                    onPress={() => goTo(isSeller ? '/seller-dashboard' : '/sell')}
-                  >
+                  <TouchableOpacity style={styles.menuItem} onPress={() => goTo(isSeller ? '/seller-dashboard' : '/sell')}>
                     <Icon name="storefront-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>{isSeller ? 'Seller Dashboard' : 'Sell on Siqa'}</Text>
+                  </TouchableOpacity>
+                  {profile && isAdminRole(profile.role) && (
+                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/admin')}>
+                      <Icon name="shield-checkmark-outline" size={16} color={C.text2} />
+                      <Text style={styles.menuItemText}>Admin</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleSignOut}>
+                    <Icon name="log-out-outline" size={16} color="#e84545" />
+                    <Text style={[styles.menuItemText, { color: '#e84545' }]}>Sign Out</Text>
                   </TouchableOpacity>
                 </View>
             )}
