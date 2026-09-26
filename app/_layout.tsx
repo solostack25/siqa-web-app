@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../lib/supabase';
@@ -22,7 +22,7 @@ SplashScreen.preventAutoHideAsync();
 const STRIPE_PUBLISHABLE_KEY = 'pk_test_51T2HncK5xjtBKuF4Y965OsNOGhXJ16tWfdELCQjCVxYBGB9KK8MilrSuuO43Qu7aExBp3uIQh9sEWqnPrInHyBjY00lN8XtXAb';
 
 function AppContent() {
-  const { isDark, mode } = useTheme();
+  const { isDark, mode, colors: C } = useTheme();
   const [initialized, setInitialized] = useState(false);
 
   // Keep legacy static Colors imports in sync before screens render.
@@ -52,7 +52,27 @@ function AppContent() {
           merchantIdentifier: 'merchant.com.siqa.app',
         };
 
+  // ScrollViewStyleReset (in app/+html.tsx) locks #root/body/html to
+  // exactly height:100% with body{overflow:hidden} — a fixed, non-
+  // scrolling viewport frame by design, with each screen expected to
+  // manage its own scrolling inside it. But Expo Router's Stack wraps
+  // every screen in its own transition container (for slide_from_right
+  // etc.), which isn't part of that #root/body/html chain — breaking
+  // it, so a screen's own height:100%/flex:1 had nothing real to
+  // measure against and collapsed to fit its (very tall) content
+  // instead of the viewport. That let the page overflow past body's
+  // own painted background, showing raw white beneath. Rather than
+  // patch every individual screen and Expo Router's internal wrapper,
+  // this puts one solid, explicitly full-height backdrop at the true
+  // app root, above all of that, so background coverage never depends
+  // on any wrapper in between doing the right thing.
+  const rootBackdropStyle =
+    Platform.OS === 'web'
+      ? { flex: 1, backgroundColor: C.bg, minHeight: '100vh' as any }
+      : { flex: 1, backgroundColor: C.bg };
+
   return (
+    <View style={rootBackdropStyle}>
     <StripeProvider {...stripeProps}>
       <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={isDark ? '#0A0D0B' : '#F5F3EE'} />
       <Stack key={`${mode}-${isDark ? 'dark' : 'light'}`} screenOptions={{ headerShown: false }}>
@@ -70,6 +90,7 @@ function AppContent() {
         <Stack.Screen name="admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
     </StripeProvider>
+    </View>
   );
 }
 
