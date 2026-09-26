@@ -19,27 +19,19 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
+import { uploadFileToBunny } from '../lib/bunnyUpload';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
-const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE ?? 'siqa-videos';
-const BUNNY_STORAGE_KEY  = process.env.EXPO_PUBLIC_BUNNY_STORAGE_KEY ?? '';
-const BUNNY_STORAGE_URL  = `https://storage.bunnycdn.com`;
-const BUNNY_CDN_URL      = process.env.EXPO_PUBLIC_BUNNY_CDN_URL ?? 'https://siqa-videos.b-cdn.net';
-
+// This file used to have its own copy of the Bunny upload call, hitting
+// https://storage.bunnycdn.com with no region prefix — the wrong
+// endpoint for a zone that actually lives in the 'ny' region, which is
+// why picking a photo here silently failed. lib/bunnyUpload.ts already
+// has the correct, working version (used successfully by Gems/Seeds
+// uploads), so this just reuses that instead of maintaining a second,
+// drifted copy of the same logic.
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  const uploadRes = await fetch(`${BUNNY_STORAGE_URL}/${BUNNY_STORAGE_ZONE}/${path}`, {
-    method: 'PUT',
-    headers: {
-      AccessKey: BUNNY_STORAGE_KEY,
-      'Content-Type': 'image/jpeg',
-    },
-    body: blob,
-  });
-  if (!uploadRes.ok) throw new Error(`Bunny upload failed: ${uploadRes.status}`);
-  return `${BUNNY_CDN_URL}/${path}`;
+  return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
 }
 
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
