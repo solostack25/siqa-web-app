@@ -13,7 +13,7 @@ import {
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/colors';
+import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 
 const ORG_TYPES = [
@@ -68,6 +68,8 @@ const INITIAL: FormData = {
 };
 
 export default function OrgRegisterScreen() {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(INITIAL);
   const [submitting, setSubmitting] = useState(false);
@@ -234,7 +236,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="e.g. ICNA Relief USA"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.org_name}
                 onChangeText={v => set('org_name', v)}
                 autoCapitalize="words"
@@ -263,7 +265,7 @@ export default function OrgRegisterScreen() {
                   <TextInput
                     style={styles.input}
                     placeholder="Houston"
-                    placeholderTextColor={Colors.text3}
+                    placeholderTextColor={C.text3}
                     value={form.city}
                     onChangeText={v => set('city', v)}
                     autoCapitalize="words"
@@ -304,7 +306,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="https://yourorg.org"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.website}
                 onChangeText={v => set('website', v)}
                 autoCapitalize="none"
@@ -323,7 +325,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Your full name"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.contact_name}
                 onChangeText={v => set('contact_name', v)}
                 autoCapitalize="words"
@@ -334,7 +336,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="you@yourorg.org"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.contact_email}
                 onChangeText={v => set('contact_email', v)}
                 autoCapitalize="none"
@@ -346,7 +348,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="(555) 000-0000"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.contact_phone}
                 onChangeText={v => set('contact_phone', v)}
                 keyboardType="phone-pad"
@@ -357,7 +359,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="XX-XXXXXXX"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.ein}
                 onChangeText={v => set('ein', v)}
                 keyboardType="numbers-and-punctuation"
@@ -402,7 +404,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={[styles.input, styles.textarea]}
                 placeholder="Describe what your organization does and who you serve..."
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.mission}
                 onChangeText={v => set('mission', v)}
                 multiline
@@ -415,7 +417,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="A short, memorable phrase (optional)"
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.tagline}
                 onChangeText={v => set('tagline', v)}
                 maxLength={80}
@@ -427,7 +429,7 @@ export default function OrgRegisterScreen() {
               <TextInput
                 style={[styles.input, styles.textarea]}
                 placeholder="Have you run fundraisers before? Tell us about your experience (optional)..."
-                placeholderTextColor={Colors.text3}
+                placeholderTextColor={C.text3}
                 value={form.fundraising_history}
                 onChangeText={v => set('fundraising_history', v)}
                 multiline
@@ -481,7 +483,7 @@ export default function OrgRegisterScreen() {
             disabled={submitting}
           >
             {submitting ? (
-              <ActivityIndicator color={Colors.black} size="small" />
+              <ActivityIndicator color={C.black} size="small" />
             ) : (
               <Text style={styles.nextBtnText}>
                 {step < 3 ? 'Continue →' : 'Submit Application'}
@@ -500,6 +502,8 @@ export default function OrgRegisterScreen() {
 }
 
 function Field({ label, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -509,6 +513,8 @@ function Field({ label, children }: { label: string; required?: boolean; childre
 }
 
 function ReviewRow({ label, value }: { label: string; value: string }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.reviewRow}>
       <Text style={styles.reviewLabel}>{label}</Text>
@@ -518,6 +524,8 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 }
 
 function SuccessStep({ n, label, done }: { n: string; label: string; done?: boolean }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.successStep}>
       <View style={[styles.successStepDot, done && styles.successStepDotDone]}>
@@ -528,8 +536,9 @@ function SuccessStep({ n, label, done }: { n: string; label: string; done?: bool
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -538,158 +547,159 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.lg,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backText: { fontSize: 22, color: Colors.text2 },
+  backText: { fontSize: 22, color: C.text2 },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: Theme.fontSize.base, fontWeight: '600', color: Colors.text },
-  headerStep: { fontSize: Theme.fontSize.xs, color: Colors.text3, marginTop: 2 },
+  headerTitle: { fontSize: Theme.fontSize.base, fontWeight: '600', color: C.text },
+  headerStep: { fontSize: Theme.fontSize.xs, color: C.text3, marginTop: 2 },
   progressTrack: {
     height: 3,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     marginHorizontal: Theme.spacing.lg,
     borderRadius: 2,
     marginBottom: Theme.spacing.lg,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     borderRadius: 2,
   },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 40 },
   stepWrap: { gap: Theme.spacing.lg },
-  stepTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: Colors.text },
-  stepSubtitle: { fontSize: Theme.fontSize.sm, color: Colors.text3, lineHeight: 20, marginTop: -8 },
+  stepTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: C.text },
+  stepSubtitle: { fontSize: Theme.fontSize.sm, color: C.text3, lineHeight: 20, marginTop: -8 },
   field: { gap: 6 },
-  fieldLabel: { fontSize: Theme.fontSize.sm, fontWeight: '600', color: Colors.text2 },
+  fieldLabel: { fontSize: Theme.fontSize.sm, fontWeight: '600', color: C.text2 },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.md,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     paddingHorizontal: Theme.spacing.md,
     paddingVertical: 12,
-    color: Colors.text,
+    color: C.text,
     fontSize: Theme.fontSize.base,
   },
   textarea: { minHeight: 96, paddingTop: 12 },
-  charCount: { fontSize: 10, color: Colors.text3, textAlign: 'right', marginTop: 2 },
+  charCount: { fontSize: 10, color: C.text3, textAlign: 'right', marginTop: 2 },
   row: { flexDirection: 'row', gap: Theme.spacing.md },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Theme.radius.full,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
   },
-  typeChipActive: { backgroundColor: Colors.goldBg, borderColor: Colors.gold },
-  typeChipText: { fontSize: Theme.fontSize.sm, color: Colors.text2 },
-  typeChipTextActive: { color: Colors.gold, fontWeight: '600' },
+  typeChipActive: { backgroundColor: C.goldBg, borderColor: C.gold },
+  typeChipText: { fontSize: Theme.fontSize.sm, color: C.text2 },
+  typeChipTextActive: { color: C.gold, fontWeight: '600' },
   dropdownTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dropdownPlaceholder: { color: Colors.text3, fontSize: Theme.fontSize.base },
-  dropdownValue: { color: Colors.text, fontSize: Theme.fontSize.base },
-  dropdownArrow: { color: Colors.text3, fontSize: 10 },
+  dropdownPlaceholder: { color: C.text3, fontSize: Theme.fontSize.base },
+  dropdownValue: { color: C.text, fontSize: Theme.fontSize.base },
+  dropdownArrow: { color: C.text3, fontSize: 10 },
   dropdown: {
     position: 'absolute',
     top: '100%',
     left: 0,
     right: 0,
-    backgroundColor: Colors.surface2,
+    backgroundColor: C.surface2,
     borderRadius: Theme.radius.md,
     borderWidth: 0.5,
-    borderColor: Colors.border,
+    borderColor: C.border,
     maxHeight: 180,
     zIndex: 999,
   },
   dropdownItem: { paddingHorizontal: Theme.spacing.md, paddingVertical: 10 },
-  dropdownItemText: { fontSize: Theme.fontSize.sm, color: Colors.text2 },
-  dropdownItemActive: { color: Colors.gold, fontWeight: '700' },
+  dropdownItemText: { fontSize: Theme.fontSize.sm, color: C.text2 },
+  dropdownItemActive: { color: C.gold, fontWeight: '700' },
   toggleRow: { flexDirection: 'row', gap: 8 },
   toggleBtn: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: Theme.radius.md,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     alignItems: 'center',
   },
-  toggleBtnActive: { backgroundColor: Colors.emeraldBg, borderColor: Colors.emerald },
-  toggleText: { fontSize: Theme.fontSize.sm, color: Colors.text2, fontWeight: '500' },
-  toggleTextActive: { color: Colors.emeraldLight, fontWeight: '700' },
+  toggleBtnActive: { backgroundColor: C.emeraldBg, borderColor: C.emerald },
+  toggleText: { fontSize: Theme.fontSize.sm, color: C.text2, fontWeight: '500' },
+  toggleTextActive: { color: C.emeraldLight, fontWeight: '700' },
   infoBox: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.md,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     padding: Theme.spacing.md,
   },
-  infoBoxText: { fontSize: Theme.fontSize.sm, color: Colors.text3, lineHeight: 18 },
+  infoBoxText: { fontSize: Theme.fontSize.sm, color: C.text3, lineHeight: 18 },
   reviewCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.xl,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     padding: Theme.spacing.lg,
     gap: 8,
   },
-  reviewTitle: { fontSize: Theme.fontSize.sm, fontWeight: '700', color: Colors.text2, marginBottom: 4 },
+  reviewTitle: { fontSize: Theme.fontSize.sm, fontWeight: '700', color: C.text2, marginBottom: 4 },
   reviewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  reviewLabel: { fontSize: Theme.fontSize.sm, color: Colors.text3 },
-  reviewValue: { fontSize: Theme.fontSize.sm, color: Colors.text, fontWeight: '500' },
+  reviewLabel: { fontSize: Theme.fontSize.sm, color: C.text3 },
+  reviewValue: { fontSize: Theme.fontSize.sm, color: C.text, fontWeight: '500' },
   footer: {
     padding: Theme.spacing.lg,
     paddingBottom: 34,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.border2,
+    borderTopColor: C.border2,
     gap: 8,
   },
   nextBtn: {
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     borderRadius: Theme.radius.full,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   nextBtnDisabled: { opacity: 0.5 },
-  nextBtnText: { fontSize: Theme.fontSize.base, fontWeight: '700', color: Colors.black },
-  footerNote: { fontSize: Theme.fontSize.xs, color: Colors.text3, textAlign: 'center' },
+  nextBtnText: { fontSize: Theme.fontSize.base, fontWeight: '700', color: C.black },
+  footerNote: { fontSize: Theme.fontSize.xs, color: C.text3, textAlign: 'center' },
   successWrap: { paddingTop: 40, alignItems: 'center', gap: Theme.spacing.lg, paddingHorizontal: Theme.spacing.md },
   successEmoji: { fontSize: 56 },
-  successTitle: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: Colors.text, textAlign: 'center' },
-  successBody: { fontSize: Theme.fontSize.base, color: Colors.text2, textAlign: 'center', lineHeight: 24 },
-  successOrgName: { color: Colors.gold, fontWeight: '700' },
+  successTitle: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: C.text, textAlign: 'center' },
+  successBody: { fontSize: Theme.fontSize.base, color: C.text2, textAlign: 'center', lineHeight: 24 },
+  successOrgName: { color: C.gold, fontWeight: '700' },
   successSteps: { width: '100%', gap: 12, marginTop: 8 },
   successStep: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   successStepDot: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: C.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  successStepDotDone: { backgroundColor: Colors.emeraldBg, borderColor: Colors.emerald },
-  successStepN: { fontSize: 11, fontWeight: '700', color: Colors.text3 },
-  successStepLabel: { fontSize: Theme.fontSize.base, color: Colors.text3 },
-  successStepLabelDone: { color: Colors.emeraldLight, fontWeight: '600' },
+  successStepDotDone: { backgroundColor: C.emeraldBg, borderColor: C.emerald },
+  successStepN: { fontSize: 11, fontWeight: '700', color: C.text3 },
+  successStepLabel: { fontSize: Theme.fontSize.base, color: C.text3 },
+  successStepLabelDone: { color: C.emeraldLight, fontWeight: '600' },
   successBtn: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.full,
     borderWidth: 0.5,
-    borderColor: Colors.border,
+    borderColor: C.border,
     paddingVertical: 14,
     paddingHorizontal: 32,
     marginTop: 8,
     width: '100%',
     alignItems: 'center',
   },
-  successBtnText: { fontSize: Theme.fontSize.base, color: Colors.text2, fontWeight: '600' },
+  successBtnText: { fontSize: Theme.fontSize.base, color: C.text2, fontWeight: '600' },
 });
+}
