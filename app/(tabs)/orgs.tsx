@@ -30,6 +30,7 @@ type Org = {
   trust_score: number | null;
   ein: string | null;
   logo_url: string | null;
+  banner_url: string | null;
 };
 
 const FILTERS = ['All', '🕌 Masjid', '🤝 Nonprofit', '❤️ Charity', '🎓 School'];
@@ -87,7 +88,7 @@ export default function OrgsScreen() {
   async function loadOrgs() {
     const { data } = await supabase
       .from('organizations')
-      .select('id, org_name, org_type, city, state, mission, tagline, is_verified, trust_score, ein, logo_url')
+      .select('id, org_name, org_type, city, state, mission, tagline, is_verified, trust_score, ein, logo_url, banner_url')
       .eq('approval_status', 'approved')
       .order('trust_score', { ascending: false });
 
@@ -121,52 +122,66 @@ export default function OrgsScreen() {
     const emoji = orgEmoji(item.org_type);
 
     return (
-      <TouchableOpacity style={styles.orgCard} activeOpacity={0.8} onPress={() => router.push({ pathname: '/org-profile', params: { id: item.id } })}>
-        <View style={styles.orgCardTop}>
-          <View style={styles.orgAvatar}>
-            {item.logo_url ? (
-              <Image source={{ uri: item.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            ) : (
-              <Text style={styles.orgAvatarText}>{initials}</Text>
-            )}
-          </View>
-          <View style={styles.orgInfo}>
-            <View style={styles.orgNameRow}>
-              <Text style={styles.orgName} numberOfLines={1}>{item.org_name}</Text>
-              {item.is_verified && (
-                <Text style={styles.orgVerified}>✓</Text>
-              )}
+      <TouchableOpacity style={styles.orgCard} activeOpacity={0.85} onPress={() => router.push({ pathname: '/org-profile', params: { id: item.id } })}>
+        {/* Cards were avatar + text only, no hero image at all — flat
+            next to how Seeds' cards already look. Orgs have had a real
+            banner_url since the profile-editing work, just never used
+            here. */}
+        <View style={styles.orgBanner}>
+          {item.banner_url ? (
+            <Image source={{ uri: item.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : null}
+          {item.is_verified && (
+            <View style={styles.orgBannerVerified}>
+              <Text style={styles.orgBannerVerifiedText}>✓ Verified</Text>
             </View>
-            <Text style={styles.orgMeta}>{location}{item.ein ? ' · EIN on file' : ''}</Text>
-          </View>
-          <View style={styles.orgTrust}>
-            <Text style={[styles.orgTrustVal, { color: trustColor(item.trust_score, C) }]}>
-              {item.trust_score ?? '—'}
-            </Text>
-            <Text style={styles.orgTrustLabel}>Trust</Text>
-          </View>
+          )}
         </View>
 
-        {item.mission || item.tagline ? (
-          <Text style={styles.orgMission} numberOfLines={2}>
-            {item.tagline || item.mission}
-          </Text>
-        ) : null}
-
-        <View style={styles.orgFooter}>
-          <View style={styles.orgBadges}>
-            {item.org_type ? (
-              <View style={styles.orgTypeBadge}>
-                <Text style={styles.orgTypeBadgeText}>{emoji} {item.org_type}</Text>
+        <View style={styles.orgCardBody}>
+          <View style={styles.orgCardTop}>
+            <View style={styles.orgAvatar}>
+              {item.logo_url ? (
+                <Image source={{ uri: item.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              ) : (
+                <Text style={styles.orgAvatarText}>{initials}</Text>
+              )}
+            </View>
+            <View style={styles.orgInfo}>
+              <View style={styles.orgNameRow}>
+                <Text style={styles.orgName} numberOfLines={1}>{item.org_name}</Text>
               </View>
-            ) : null}
-            {item.ein ? (
-              <View style={styles.org990Badge}>
-                <Text style={styles.org990BadgeText}>📄 990 on file</Text>
-              </View>
-            ) : null}
+              <Text style={styles.orgMeta}>{location}{item.ein ? ' · EIN on file' : ''}</Text>
+            </View>
+            <View style={styles.orgTrust}>
+              <Text style={[styles.orgTrustVal, { color: trustColor(item.trust_score, C) }]}>
+                {item.trust_score ?? '—'}
+              </Text>
+              <Text style={styles.orgTrustLabel}>Trust</Text>
+            </View>
           </View>
-          <Text style={styles.orgViewLink}>View profile →</Text>
+
+          {item.mission || item.tagline ? (
+            <Text style={styles.orgMission} numberOfLines={2}>
+              {item.tagline || item.mission}
+            </Text>
+          ) : null}
+
+          <View style={styles.orgFooter}>
+            <View style={styles.orgBadges}>
+              {item.org_type ? (
+                <View style={styles.orgTypeBadge}>
+                  <Text style={styles.orgTypeBadgeText}>{emoji} {item.org_type}</Text>
+                </View>
+              ) : null}
+              {item.ein ? (
+                <View style={styles.org990Badge}>
+                  <Text style={styles.org990BadgeText}>📄 990 on file</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.orgViewLink}>View profile →</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -335,9 +350,19 @@ function makeStyles(C: AppColors) {
       borderRadius: Theme.radius.xl,
       borderWidth: 0.5,
       borderColor: C.border2,
-      padding: Theme.spacing.lg,
       marginBottom: Theme.spacing.md,
+      overflow: 'hidden',
     },
+    orgBanner: {
+      height: 88, backgroundColor: C.bg3, position: 'relative',
+    },
+    orgBannerVerified: {
+      position: 'absolute', top: 10, right: 10,
+      backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999,
+      paddingHorizontal: 10, paddingVertical: 4,
+    },
+    orgBannerVerifiedText: { color: C.gold, fontSize: 10, fontWeight: '700' },
+    orgCardBody: { padding: Theme.spacing.lg },
     orgCardTop: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md, marginBottom: Theme.spacing.md },
     orgAvatar: {
       width: 48,
