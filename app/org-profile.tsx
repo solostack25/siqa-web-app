@@ -15,7 +15,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/colors';
+import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
 // expo-haptics is native-only — no-op on web
@@ -108,14 +108,16 @@ function fmtMoney(cents: number) {
   return '$' + d.toFixed(0);
 }
 
-function trustColor(score: number | null) {
-  if (!score) return Colors.text3;
-  if (score >= 90) return Colors.emeraldLight;
-  if (score >= 75) return Colors.gold;
-  return Colors.text3;
+function trustColor(score: number | null, C: AppColors) {
+  if (!score) return C.text3;
+  if (score >= 90) return C.emeraldLight;
+  if (score >= 75) return C.gold;
+  return C.text3;
 }
 
 export default function OrgProfileScreen() {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [org, setOrg] = useState<Org | null>(null);
   const [docs, setDocs] = useState<Doc990[]>([]);
@@ -269,7 +271,7 @@ export default function OrgProfileScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.gold} size="large" />
+        <ActivityIndicator color={C.gold} size="large" />
       </View>
     );
   }
@@ -407,7 +409,7 @@ export default function OrgProfileScreen() {
         {/* Trust score strip */}
         <View style={styles.trustStrip}>
           <View style={styles.trustScoreBox}>
-            <Text style={[styles.trustScoreNum, { color: trustColor(org.trust_score) }]}>
+            <Text style={[styles.trustScoreNum, { color: trustColor(org.trust_score, C) }]}>
               {org.trust_score ?? '—'}
             </Text>
             <Text style={styles.trustScoreLabel}>Trust</Text>
@@ -642,7 +644,7 @@ export default function OrgProfileScreen() {
               value={altPayUrl}
               onChangeText={setAltPayUrl}
               placeholder="https://www.zeffy.com/..."
-              placeholderTextColor={Colors.text3}
+              placeholderTextColor={C.text3}
               autoCapitalize="none"
               keyboardType="url"
             />
@@ -652,7 +654,7 @@ export default function OrgProfileScreen() {
               value={altPayLabel}
               onChangeText={setAltPayLabel}
               placeholder="e.g. Donate via Zeffy"
-              placeholderTextColor={Colors.text3}
+              placeholderTextColor={C.text3}
             />
             <TouchableOpacity
               style={[styles.sheetSaveBtn, savingAltPay && { opacity: 0.55 }]}
@@ -672,6 +674,8 @@ export default function OrgProfileScreen() {
 }
 
 function TrustItem({ done, label }: { done: boolean; label: string }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.trustItem}>
       <Text style={[styles.trustItemDot, done ? styles.trustItemDotDone : styles.trustItemDotPending]}>
@@ -685,20 +689,23 @@ function TrustItem({ done, label }: { done: boolean; label: string }) {
 }
 
 function DetailRow({ label, value, link }: { label: string; value: string; link?: boolean }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={[styles.detailValue, link && { color: Colors.gold }]}>{value}</Text>
+      <Text style={[styles.detailValue, link && { color: C.gold }]}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bg },
-  emptyText: { color: Colors.text3, fontSize: 14, marginBottom: 16 },
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+  emptyText: { color: C.text3, fontSize: 14, marginBottom: 16 },
   backBtnCenter: { padding: 12 },
-  backBtnText: { color: Colors.gold, fontSize: 14 },
+  backBtnText: { color: C.gold, fontSize: 14 },
 
   header: {
     flexDirection: 'row',
@@ -706,20 +713,20 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 10,
     paddingHorizontal: 16,
-    backgroundColor: Colors.bg,
+    backgroundColor: C.bg,
   },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { fontSize: 22, color: Colors.text2 },
-  headerTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: Colors.text, marginHorizontal: 8 },
+  backArrow: { fontSize: 22, color: C.text2 },
+  headerTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text, marginHorizontal: 8 },
   shareBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  shareBtnText: { fontSize: 20, color: Colors.text2 },
+  shareBtnText: { fontSize: 20, color: C.text2 },
 
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 20 },
 
   cover: {
     height: 140,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     overflow: 'hidden',
   },
   coverPattern: {
@@ -753,9 +760,9 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 18,
-    backgroundColor: Colors.emerald,
+    backgroundColor: C.emerald,
     borderWidth: 3,
-    borderColor: Colors.bg,
+    borderColor: C.bg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -764,16 +771,16 @@ const styles = StyleSheet.create({
     height: 68,
     borderRadius: 18,
     borderWidth: 3,
-    borderColor: Colors.bg,
+    borderColor: C.bg,
   },
-  orgLogoText: { fontSize: 20, fontWeight: '700', color: Colors.gold },
+  orgLogoText: { fontSize: 20, fontWeight: '700', color: C.gold },
   logoEditOverlay: {
     position: 'absolute',
     bottom: 0, right: 0,
     width: 24, height: 24, borderRadius: 12,
     backgroundColor: 'rgba(0,0,0,0.65)',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: Colors.bg,
+    borderWidth: 1.5, borderColor: C.bg,
   },
   logoEditIcon: { fontSize: 11 },
   profileBtns: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
@@ -782,37 +789,37 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 100,
     borderWidth: 0.5,
-    borderColor: Colors.goldDim ?? '#8a6f2e',
+    borderColor: C.goldDim ?? '#8a6f2e',
     backgroundColor: 'transparent',
   },
-  followBtnActive: { backgroundColor: Colors.goldBg },
-  followBtnText: { fontSize: 12, fontWeight: '600', color: Colors.gold },
-  followBtnTextActive: { color: Colors.gold },
+  followBtnActive: { backgroundColor: C.goldBg },
+  followBtnText: { fontSize: 12, fontWeight: '600', color: C.gold },
+  followBtnTextActive: { color: C.gold },
   visitBtn: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 100,
-    backgroundColor: Colors.emeraldBg,
+    backgroundColor: C.emeraldBg,
     borderWidth: 0.5,
-    borderColor: Colors.emerald,
+    borderColor: C.emerald,
   },
-  visitBtnText: { fontSize: 12, fontWeight: '600', color: Colors.emeraldLight },
+  visitBtnText: { fontSize: 12, fontWeight: '600', color: C.emeraldLight },
 
   info: { paddingHorizontal: 16, paddingBottom: 14 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 },
-  orgName: { fontSize: 18, fontWeight: '700', color: Colors.text },
+  orgName: { fontSize: 18, fontWeight: '700', color: C.text },
   verifiedBadge: {
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,
   },
   verifiedText: { fontSize: 9, fontWeight: '800', color: '#000' },
-  ein: { fontSize: 11, color: Colors.text3, marginBottom: 4 },
-  tagline: { fontSize: 13, color: Colors.text2, lineHeight: 20, marginBottom: 10 },
+  ein: { fontSize: 11, color: C.text3, marginBottom: 4 },
+  tagline: { fontSize: 13, color: C.text2, lineHeight: 20, marginBottom: 10 },
   metaRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   metaItem: {},
-  metaText: { fontSize: 12, color: Colors.text3 },
+  metaText: { fontSize: 12, color: C.text3 },
 
   trustStrip: {
     flexDirection: 'row',
@@ -820,34 +827,34 @@ const styles = StyleSheet.create({
     gap: 16,
     marginHorizontal: 16,
     marginBottom: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.xl,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     padding: 14,
   },
   trustScoreBox: { alignItems: 'center', flexShrink: 0 },
   trustScoreNum: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
-  trustScoreLabel: { fontSize: 9, color: Colors.text3, textTransform: 'uppercase', letterSpacing: 0.5 },
+  trustScoreLabel: { fontSize: 9, color: C.text3, textTransform: 'uppercase', letterSpacing: 0.5 },
   trustChecks: { flex: 1, gap: 4 },
   trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   trustItemDot: { fontSize: 11, fontWeight: '700', width: 14 },
-  trustItemDotDone: { color: Colors.emeraldLight },
-  trustItemDotPending: { color: Colors.text3 },
+  trustItemDotDone: { color: C.emeraldLight },
+  trustItemDotPending: { color: C.text3 },
   trustItemLabel: { fontSize: 11 },
-  trustItemLabelDone: { color: Colors.emeraldLight },
-  trustItemLabelPending: { color: Colors.text3 },
+  trustItemLabelDone: { color: C.emeraldLight },
+  trustItemLabelPending: { color: C.text3 },
 
   section: { paddingHorizontal: 16, marginBottom: 20 },
   sectionTitle: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.text3,
+    color: C.text3,
     textTransform: 'uppercase',
     letterSpacing: 1.5,
     marginBottom: 10,
   },
-  missionText: { fontSize: 13, color: Colors.text2, lineHeight: 21 },
+  missionText: { fontSize: 13, color: C.text2, lineHeight: 21 },
 
   transparencyCard: {
     backgroundColor: 'rgba(27,107,74,0.1)',
@@ -861,40 +868,40 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: Colors.emerald,
+    backgroundColor: C.emerald,
     alignItems: 'center',
     justifyContent: 'center',
   },
   transparencyIcon: { fontSize: 18 },
-  transparencyTitle: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  transparencySub: { fontSize: 11, color: Colors.emeraldLight, marginTop: 1 },
+  transparencyTitle: { fontSize: 13, fontWeight: '600', color: C.text },
+  transparencySub: { fontSize: 11, color: C.emeraldLight, marginTop: 1 },
 
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.md,
     padding: 10,
     marginBottom: 8,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
   },
   docIconBox: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.goldBg,
+    backgroundColor: C.goldBg,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   docIcon: { fontSize: 16 },
-  docName: { fontSize: 12, fontWeight: '600', color: Colors.text },
-  docMeta: { fontSize: 10, color: Colors.text3, marginTop: 2 },
-  docArrow: { fontSize: 14, color: Colors.gold },
-  noDocsText: { fontSize: 12, color: Colors.text3, paddingVertical: 6 },
+  docName: { fontSize: 12, fontWeight: '600', color: C.text },
+  docMeta: { fontSize: 10, color: C.text3, marginTop: 2 },
+  docArrow: { fontSize: 14, color: C.gold },
+  noDocsText: { fontSize: 12, color: C.text3, paddingVertical: 6 },
   propublicaBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -905,26 +912,26 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: 'rgba(27,107,74,0.25)',
   },
-  propublicaBtnText: { fontSize: 12, fontWeight: '600', color: Colors.emeraldLight },
+  propublicaBtnText: { fontSize: 12, fontWeight: '600', color: C.emeraldLight },
 
   fundraiserCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.xl,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     padding: 14,
     marginBottom: 10,
   },
-  frCategory: { fontSize: 10, color: Colors.gold, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  frTitle: { fontSize: 14, fontWeight: '600', color: Colors.text, lineHeight: 20, marginBottom: 10 },
-  frProgressTrack: { height: 5, backgroundColor: Colors.surface2, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
-  frProgressFill: { height: '100%', backgroundColor: Colors.emerald, borderRadius: 3 },
+  frCategory: { fontSize: 10, color: C.gold, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
+  frTitle: { fontSize: 14, fontWeight: '600', color: C.text, lineHeight: 20, marginBottom: 10 },
+  frProgressTrack: { height: 5, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
+  frProgressFill: { height: '100%', backgroundColor: C.emerald, borderRadius: 3 },
   frStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  frRaised: { fontSize: 15, fontWeight: '700', color: Colors.gold },
-  frGoal: { fontSize: 11, color: Colors.text3, flex: 1 },
-  frDonors: { fontSize: 11, color: Colors.text3 },
+  frRaised: { fontSize: 15, fontWeight: '700', color: C.gold },
+  frGoal: { fontSize: 11, color: C.text3, flex: 1 },
+  frDonors: { fontSize: 11, color: C.text3 },
   donateBtn: {
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     borderRadius: Theme.radius.md,
     padding: 10,
     alignItems: 'center',
@@ -932,10 +939,10 @@ const styles = StyleSheet.create({
   donateBtnText: { fontSize: 13, fontWeight: '700', color: '#000' },
 
   detailsCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.xl,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     overflow: 'hidden',
   },
   detailRow: {
@@ -945,73 +952,74 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.border2,
+    borderBottomColor: C.border2,
   },
-  detailLabel: { fontSize: 12, color: Colors.text3 },
-  detailValue: { fontSize: 12, fontWeight: '500', color: Colors.text },
+  detailLabel: { fontSize: 12, color: C.text3 },
+  detailValue: { fontSize: 12, fontWeight: '500', color: C.text },
 
   // Payment setup
   payCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.xl,
     borderWidth: 0.5,
-    borderColor: Colors.border2,
+    borderColor: C.border2,
     overflow: 'hidden',
     padding: 14,
   },
   payRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   payIconBox: {
     width: 38, height: 38, borderRadius: 10,
-    backgroundColor: Colors.surface2,
+    backgroundColor: C.surface2,
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
   payIcon: { fontSize: 18 },
   payInfo: { flex: 1 },
-  payTitle: { color: Colors.text, fontSize: 13, fontWeight: '700', marginBottom: 2 },
-  paySub: { color: Colors.text3, fontSize: 11, lineHeight: 15 },
+  payTitle: { color: C.text, fontSize: 13, fontWeight: '700', marginBottom: 2 },
+  paySub: { color: C.text3, fontSize: 11, lineHeight: 15 },
   payBtn: {
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 8,
     minWidth: 72, alignItems: 'center',
     flexShrink: 0,
   },
-  payBtnDone: { backgroundColor: Colors.emeraldBg, borderWidth: 1, borderColor: Colors.emeraldLight },
-  payBtnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.border },
-  payBtnText: { color: Colors.black, fontSize: 12, fontWeight: '800' },
-  payBtnGhostText: { color: Colors.text2, fontSize: 12, fontWeight: '700' },
-  paySeparator: { height: 0.5, backgroundColor: Colors.border2, marginVertical: 14 },
+  payBtnDone: { backgroundColor: C.emeraldBg, borderWidth: 1, borderColor: C.emeraldLight },
+  payBtnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border },
+  payBtnText: { color: C.black, fontSize: 12, fontWeight: '800' },
+  payBtnGhostText: { color: C.text2, fontSize: 12, fontWeight: '700' },
+  paySeparator: { height: 0.5, backgroundColor: C.border2, marginVertical: 14 },
 
   // Alt pay modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   altPaySheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, paddingBottom: 44,
   },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border2, alignSelf: 'center', marginBottom: 18 },
-  sheetTitle: { color: Colors.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
-  sheetSub: { color: Colors.text3, fontSize: 12, lineHeight: 18, marginBottom: 18 },
-  sheetLabel: { color: Colors.text3, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border2, alignSelf: 'center', marginBottom: 18 },
+  sheetTitle: { color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
+  sheetSub: { color: C.text3, fontSize: 12, lineHeight: 18, marginBottom: 18 },
+  sheetLabel: { color: C.text3, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
   platformRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
   platformPill: {
     flex: 1, paddingVertical: 10, borderRadius: 12,
-    borderWidth: 1, borderColor: Colors.border2,
-    alignItems: 'center', backgroundColor: Colors.surface2,
+    borderWidth: 1, borderColor: C.border2,
+    alignItems: 'center', backgroundColor: C.surface2,
   },
-  platformPillActive: { backgroundColor: Colors.goldBg, borderColor: Colors.gold },
-  platformPillText: { color: Colors.text2, fontSize: 13, fontWeight: '700' },
-  platformPillTextActive: { color: Colors.gold },
+  platformPillActive: { backgroundColor: C.goldBg, borderColor: C.gold },
+  platformPillText: { color: C.text2, fontSize: 13, fontWeight: '700' },
+  platformPillTextActive: { color: C.gold },
   sheetInput: {
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: C.border,
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    color: Colors.text, fontSize: 14, marginBottom: 16,
-    backgroundColor: Colors.bg,
+    color: C.text, fontSize: 14, marginBottom: 16,
+    backgroundColor: C.bg,
   },
   sheetSaveBtn: {
-    backgroundColor: Colors.gold, borderRadius: 14,
+    backgroundColor: C.gold, borderRadius: 14,
     paddingVertical: 15, alignItems: 'center', marginTop: 4,
   },
-  sheetSaveBtnText: { color: Colors.black, fontSize: 15, fontWeight: '900' },
+  sheetSaveBtnText: { color: C.black, fontSize: 15, fontWeight: '900' },
 });
+}
