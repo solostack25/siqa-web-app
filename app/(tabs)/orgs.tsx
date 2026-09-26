@@ -221,11 +221,18 @@ export default function OrgsScreen() {
         </View>
       )}
 
+      {/* No explicit style/height was set on this FlatList — only
+          contentContainerStyle — which on web can leave a horizontal
+          FlatList without a reliable box height to size itself against,
+          instead of it sizing naturally to filterPill's own height. An
+          explicit height here (pill height + the container's vertical
+          padding) makes that deterministic rather than left to chance. */}
       <FlatList
         data={FILTERS}
         keyExtractor={f => f}
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.filtersFlatList}
         contentContainerStyle={styles.filters}
         renderItem={({ item: f }) => (
           <TouchableOpacity
@@ -313,6 +320,7 @@ function makeStyles(C: AppColors) {
     searchIcon: { fontSize: 16 },
     searchInput: { flex: 1, paddingVertical: Theme.spacing.md, color: C.text, fontSize: Theme.fontSize.base },
     clearBtn: { color: C.text3, fontSize: 14, padding: 4 },
+    filtersFlatList: { flexGrow: 0, height: 32 + Theme.spacing.md },
     filters: {
       paddingHorizontal: Theme.spacing.lg,
       paddingBottom: Theme.spacing.md,
