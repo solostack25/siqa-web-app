@@ -9,14 +9,18 @@ import {
   RefreshControl,
   Image,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { uploadFileToBunny } from '../../lib/bunnyUpload';
+import ImageCropModal from '../../components/ImageCropModal';
 
 type Profile = {
   id: string;
@@ -152,6 +156,14 @@ export default function DashboardScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [gems, setGems] = useState<VideoItem[]>([]);
+  // Gems uploaded from the web before the video-thumbnail generation
+  // bug was fixed (expo-video-thumbnails is native-only — it silently
+  // did nothing on web) are stuck with thumbnail_url: null forever;
+  // that fix only applies to new uploads. This is the retroactive fix —
+  // pick a thumbnail for an existing gem after the fact.
+  const [uploadingThumbFor, setUploadingThumbFor] = useState<string | null>(null);
+  const [thumbCropUri, setThumbCropUri] = useState<string | null>(null);
+  const [thumbCropGemId, setThumbCropGemId] = useState<string | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
   const [savedGems, setSavedGems] = useState<VideoItem[]>([]);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -332,6 +344,50 @@ export default function DashboardScreen() {
       ]
     );
   }
+  async function pickGemThumbnail(gemId: string) {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Allow Siqa to access your photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [9, 16], quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+
+    if (Platform.OS === 'web') {
+      setThumbCropGemId(gemId);
+      setThumbCropUri(asset.uri);
+      return;
+    }
+    await uploadGemThumbnail(gemId, asset.uri);
+  }
+
+  async function uploadGemThumbnail(gemId: string, uri: string) {
+    setUploadingThumbFor(gemId);
+    try {
+      const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
+      const path = `gem-thumbnails/${gemId}_${Date.now()}.${ext}`;
+      const url = await uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
+      await supabase.from('videos').update({ thumbnail_url: url }).eq('id', gemId);
+      setGems(prev => prev.map(g => (g.id === gemId ? { ...g, thumbnail_url: url } : g)));
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message);
+    } finally {
+      setUploadingThumbFor(null);
+    }
+  }
+
+  function handleThumbCropped(blob: Blob) {
+    const gemId = thumbCropGemId;
+    const blobUrl = URL.createObjectURL(blob);
+    setThumbCropUri(null);
+    setThumbCropGemId(null);
+    if (gemId) uploadGemThumbnail(gemId, blobUrl);
+  }
+
   const tabs = speaker
     ? [
         { key: 'gems', label: 'My Gems' },
@@ -455,7 +511,22 @@ export default function DashboardScreen() {
                   <View style={styles.hzGemThumb}>
                     {v.thumbnail_url ? (
                       <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                    ) : null}
+                    ) : (
+                      <TouchableOpacity
+                        style={styles.addThumbBtn}
+                        onPress={(e) => { e.stopPropagation(); pickGemThumbnail(v.id); }}
+                        disabled={uploadingThumbFor === v.id}
+                      >
+                        {uploadingThumbFor === v.id ? (
+                          <ActivityIndicator size="small" color={C.text} />
+                        ) : (
+                          <>
+                            <Icon name="image-outline" size={18} color={C.text3} />
+                            <Text style={styles.addThumbBtnText}>Add thumbnail</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
                     <View style={styles.gemPlayIcon}>
                       <Text style={styles.gemPlayText}>▶</Text>
                     </View>
@@ -1039,6 +1110,8 @@ function makeStyles(C: AppColors) {
       aspectRatio: 9 / 16, backgroundColor: C.surface2,
       alignItems: 'center', justifyContent: 'center', position: 'relative',
     },
+    addThumbBtn: { alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 },
+    addThumbBtnText: { fontSize: 10, color: C.text3, fontWeight: '600', textAlign: 'center' },
     hzSeedCard: { width: 150 },
     hzSeedThumb: {
       width: 150, height: 110, borderRadius: Theme.radius.lg, backgroundColor: C.surface2,

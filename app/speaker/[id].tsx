@@ -7,13 +7,23 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Image,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { useEffect, useState } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { Theme } from '../../constants/theme';
 import { useTheme, AppColors } from '../../lib/theme';
 import { DesktopShell, useIsDesktopWeb, DESKTOP_BREAKPOINT } from '../../components/DesktopShell';
+import { uploadFileToBunny } from '../../lib/bunnyUpload';
+import { Icon } from '../../components/Icon';
+import ImageCropModal from '../../components/ImageCropModal';
+
+async function uploadImageToBunny(uri: string, path: string): Promise<string> {
+  return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
+}
 
 const SIDEBAR_WIDTH = 220;
 
@@ -30,6 +40,8 @@ type Speaker = {
   is_available: boolean;
   profile_id: string | null;
   is_verified: boolean;
+  avatar_url: string | null;
+  banner_url: string | null;
 };
 
 type Video = {
@@ -78,10 +90,23 @@ export default function SpeakerProfileScreen() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [cropImageUri, setCropImageUri] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<'avatar' | 'banner' | null>(null);
+  // Gems uploaded from the web before the video-thumbnail generation bug
+  // was fixed (expo-video-thumbnails is native-only, silently a no-op
+  // on web) are stuck with thumbnail_url: null — that fix only applies
+  // to new uploads. This is the retroactive per-gem fix.
+  const [uploadingThumbFor, setUploadingThumbFor] = useState<string | null>(null);
+  const [thumbCropUri, setThumbCropUri] = useState<string | null>(null);
+  const [thumbCropGemId, setThumbCropGemId] = useState<string | null>(null);
 
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: true });
     if (id) loadSpeaker(id);
+    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id ?? null));
   }, [id]);
 
   async function loadSpeaker(speakerId: string) {
@@ -91,7 +116,7 @@ export default function SpeakerProfileScreen() {
         id, display_name, denomination, state, topics,
         bio, total_raised,
         follower_count, events_count, is_available, profile_id,
-        is_verified
+        is_verified, avatar_url, banner_url
       `)
       .eq('id', speakerId)
       .single();
@@ -113,8 +138,136 @@ export default function SpeakerProfileScreen() {
 
   function handleBack() {
     if (router.canGoBack()) {
-      router.replace('/(tabs)/discover');
+      router.back();
+    } else {
+      // Was '/(tabs)/discover', a route that no longer exists — Discover
+      // was replaced by Marketplace earlier this session. Home is the
+      // safer fallback destination when there's nowhere to go back to.
+      router.replace('/(tabs)' as any);
     }
+  }
+
+  const canEdit = Boolean(userId) && speaker?.profile_id === userId;
+
+  async function requireImagePermission() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Allow Siqa to access your photos.');
+      return false;
+    }
+    return true;
+  }
+
+  async function pickAvatar() {
+    if (!(await requireImagePermission())) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [1, 1], quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (Platform.OS === 'web') {
+      setCropTarget('avatar');
+      setCropImageUri(asset.uri);
+      return;
+    }
+    await uploadAvatar(asset.uri);
+  }
+
+  async function pickBanner() {
+    if (!(await requireImagePermission())) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [3, 1], quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (Platform.OS === 'web') {
+      setCropTarget('banner');
+      setCropImageUri(asset.uri);
+      return;
+    }
+    await uploadBanner(asset.uri);
+  }
+
+  async function uploadAvatar(uri: string) {
+    if (!speaker) return;
+    setUploadingAvatar(true);
+    try {
+      const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
+      const path = `speaker-avatars/${speaker.id}_${Date.now()}.${ext}`;
+      const url = await uploadImageToBunny(uri, path);
+      await supabase.from('speakers').update({ avatar_url: url }).eq('id', speaker.id);
+      setSpeaker(prev => prev ? { ...prev, avatar_url: url } : prev);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function uploadBanner(uri: string) {
+    if (!speaker) return;
+    setUploadingBanner(true);
+    try {
+      const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
+      const path = `speaker-banners/${speaker.id}_${Date.now()}.${ext}`;
+      const url = await uploadImageToBunny(uri, path);
+      await supabase.from('speakers').update({ banner_url: url }).eq('id', speaker.id);
+      setSpeaker(prev => prev ? { ...prev, banner_url: url } : prev);
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message);
+    } finally {
+      setUploadingBanner(false);
+    }
+  }
+
+  function handleCropped(blob: Blob) {
+    const target = cropTarget;
+    const blobUrl = URL.createObjectURL(blob);
+    setCropImageUri(null);
+    setCropTarget(null);
+    if (target === 'avatar') uploadAvatar(blobUrl);
+    else if (target === 'banner') uploadBanner(blobUrl);
+  }
+
+  async function pickGemThumbnail(gemId: string) {
+    if (!(await requireImagePermission())) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true, aspect: [9, 16], quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    if (Platform.OS === 'web') {
+      setThumbCropGemId(gemId);
+      setThumbCropUri(asset.uri);
+      return;
+    }
+    await uploadGemThumbnail(gemId, asset.uri);
+  }
+
+  async function uploadGemThumbnail(gemId: string, uri: string) {
+    setUploadingThumbFor(gemId);
+    try {
+      const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
+      const path = `gem-thumbnails/${gemId}_${Date.now()}.${ext}`;
+      const url = await uploadImageToBunny(uri, path);
+      await supabase.from('videos').update({ thumbnail_url: url }).eq('id', gemId);
+      setVideos(prev => prev.map(v => (v.id === gemId ? { ...v, thumbnail_url: url } : v)));
+    } catch (e: any) {
+      Alert.alert('Upload failed', e.message);
+    } finally {
+      setUploadingThumbFor(null);
+    }
+  }
+
+  function handleThumbCropped(blob: Blob) {
+    const gemId = thumbCropGemId;
+    const blobUrl = URL.createObjectURL(blob);
+    setThumbCropUri(null);
+    setThumbCropGemId(null);
+    if (gemId) uploadGemThumbnail(gemId, blobUrl);
   }
 
   const styles = makeStyles(C);
@@ -173,10 +326,37 @@ export default function SpeakerProfileScreen() {
                     style={StyleSheet.absoluteFill}
                     resizeMode="cover"
                   />
+                ) : canEdit ? (
+                  <TouchableOpacity
+                    style={styles.addThumbBtn}
+                    onPress={() => pickGemThumbnail(v.id)}
+                    disabled={uploadingThumbFor === v.id}
+                  >
+                    {uploadingThumbFor === v.id ? (
+                      <ActivityIndicator size="small" color={C.text} />
+                    ) : (
+                      <>
+                        <Icon name="image-outline" size={18} color={C.text3} />
+                        <Text style={styles.addThumbBtnText}>Add thumbnail</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 ) : null}
-                <View style={styles.clipPlayOverlay}>
-                  <Text style={styles.clipPlayIcon}>▶</Text>
-                </View>
+                {/* clipPlayOverlay isn't absolutely positioned — it only
+                    ever worked as a centered overlay because it was the
+                    one normal-flow child sitting on top of the
+                    absoluteFill Image behind it. With the new
+                    addThumbBtn also a normal-flow child in the no-
+                    thumbnail case, showing both would stack them
+                    instead of overlapping, and a play button floating
+                    over an "add thumbnail" prompt doesn't make sense
+                    anyway — only show it when there's actually
+                    something to play. */}
+                {!(canEdit && !v.thumbnail_url) && (
+                  <View style={styles.clipPlayOverlay}>
+                    <Text style={styles.clipPlayIcon}>▶</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.clipInfo}>
                 <Text style={styles.clipTitle} numberOfLines={2}>{v.title}</Text>
@@ -210,11 +390,44 @@ export default function SpeakerProfileScreen() {
         {isDesktopWeb ? (
           // ---- Desktop channel header: banner, avatar + name + stats in one row ----
           <>
-            <View style={styles.coverDesktop} />
+            <TouchableOpacity
+              style={styles.coverDesktop}
+              activeOpacity={canEdit ? 0.85 : 1}
+              onPress={canEdit ? pickBanner : undefined}
+            >
+              {speaker.banner_url && (
+                <Image source={{ uri: speaker.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              )}
+              {canEdit && (
+                <View style={styles.editBannerBtn}>
+                  {uploadingBanner ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Icon name="camera-outline" size={14} color="#fff" />
+                      <Text style={styles.editBannerText}>Edit Banner</Text>
+                    </>
+                  )}
+                </View>
+              )}
+            </TouchableOpacity>
             <View style={styles.headerRowDesktop}>
-              <View style={[styles.avatar, styles.avatarDesktop]}>
-                <Text style={styles.avatarTextDesktop}>{initial}</Text>
-              </View>
+              <TouchableOpacity
+                style={[styles.avatar, styles.avatarDesktop]}
+                activeOpacity={canEdit ? 0.85 : 1}
+                onPress={canEdit ? pickAvatar : undefined}
+              >
+                {speaker.avatar_url ? (
+                  <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarTextDesktop}>{initial}</Text>
+                )}
+                {canEdit && (
+                  <View style={styles.editAvatarBadge}>
+                    {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <Icon name="camera-outline" size={13} color="#fff" />}
+                  </View>
+                )}
+              </TouchableOpacity>
               <View style={styles.headerInfoDesktop}>
                 <View style={styles.nameRow}>
                   <Text style={styles.nameDesktop}>{speaker.display_name}</Text>
@@ -265,16 +478,41 @@ export default function SpeakerProfileScreen() {
         ) : (
           // ---- Mobile: original stacked layout ----
           <>
-            <View style={styles.cover}>
+            <TouchableOpacity
+              style={styles.cover}
+              activeOpacity={canEdit ? 0.9 : 1}
+              onPress={canEdit ? pickBanner : undefined}
+            >
+              {speaker.banner_url && (
+                <Image source={{ uri: speaker.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              )}
               <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.8}>
                 <Text style={styles.backIcon}>←</Text>
               </TouchableOpacity>
-            </View>
+              {canEdit && (
+                <View style={styles.editBannerBtnMobile}>
+                  {uploadingBanner ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Icon name="camera-outline" size={14} color="#fff" />
+                  )}
+                </View>
+              )}
+            </TouchableOpacity>
 
             <View style={styles.profileRow}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initial}</Text>
-              </View>
+              <TouchableOpacity style={styles.avatar} activeOpacity={canEdit ? 0.85 : 1} onPress={canEdit ? pickAvatar : undefined}>
+                {speaker.avatar_url ? (
+                  <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.avatarText}>{initial}</Text>
+                )}
+                {canEdit && (
+                  <View style={styles.editAvatarBadge}>
+                    {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <Icon name="camera-outline" size={12} color="#fff" />}
+                  </View>
+                )}
+              </TouchableOpacity>
               <View style={styles.profileBtns}>
                 <TouchableOpacity
                   style={[styles.followBtn, following && styles.followBtnActive]}
@@ -331,6 +569,28 @@ export default function SpeakerProfileScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
       </View>
+
+      {Platform.OS === 'web' && (
+        <ImageCropModal
+          visible={!!cropImageUri}
+          imageUri={cropImageUri}
+          aspectRatio={cropTarget === 'banner' ? 3 : 1}
+          outputWidth={cropTarget === 'banner' ? 1200 : 600}
+          onCancel={() => { setCropImageUri(null); setCropTarget(null); }}
+          onCropped={handleCropped}
+        />
+      )}
+
+      {Platform.OS === 'web' && (
+        <ImageCropModal
+          visible={!!thumbCropUri}
+          imageUri={thumbCropUri}
+          aspectRatio={9 / 16}
+          outputWidth={720}
+          onCancel={() => { setThumbCropUri(null); setThumbCropGemId(null); }}
+          onCropped={handleThumbCropped}
+        />
+      )}
     </DesktopShell>
   );
 }
@@ -354,13 +614,28 @@ function makeStyles(C: AppColors) {
     },
     avatar: {
       width: 78, height: 78, borderRadius: 22, backgroundColor: C.emerald,
-      borderWidth: 3, borderColor: C.bg, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 3, borderColor: C.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
     avatarText: { fontSize: 28, color: C.gold, fontWeight: '700' },
     profileBtns: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
 
+    editBannerBtnMobile: {
+      position: 'absolute', bottom: 12, right: 12, width: 32, height: 32, borderRadius: 16,
+      backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
+    },
+    editAvatarBadge: {
+      position: 'absolute', bottom: 2, right: 2, width: 22, height: 22, borderRadius: 11,
+      backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1.5, borderColor: C.bg,
+    },
+
     // Desktop header
-    coverDesktop: { height: 160, backgroundColor: C.bg3, marginHorizontal: 32, marginTop: 24, borderRadius: Theme.radius.xl },
+    coverDesktop: { height: 160, backgroundColor: C.bg3, marginHorizontal: 32, marginTop: 24, borderRadius: Theme.radius.xl, overflow: 'hidden' },
+    editBannerBtn: {
+      position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    },
+    editBannerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
     headerRowDesktop: {
       flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, marginTop: -32, marginBottom: 16, gap: 20,
     },
@@ -417,6 +692,8 @@ function makeStyles(C: AppColors) {
     clipThumb: {
       aspectRatio: 9 / 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
+    addThumbBtn: { alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 },
+    addThumbBtnText: { fontSize: 10, color: C.text3, fontWeight: '600', textAlign: 'center' },
     clipPlayOverlay: {
       width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(201,168,76,0.9)',
       alignItems: 'center', justifyContent: 'center',
