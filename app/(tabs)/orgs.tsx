@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
@@ -14,6 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { Icon } from '../../components/Icon';
+import { useIsDesktopWeb } from '../../components/DesktopShell';
 
 type Org = {
   id: string;
@@ -47,6 +49,9 @@ function trustColor(score: number | null, C: AppColors) {
 
 export default function OrgsScreen() {
   const { colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
+  const { width: windowWidth } = useWindowDimensions();
+  const numColumns = isDesktopWeb ? (windowWidth > 1500 ? 3 : 2) : 1;
   const styles = makeStyles(C);
 
   const [orgs, setOrgs] = useState<Org[]>([]);
@@ -213,9 +218,12 @@ export default function OrgsScreen() {
         </View>
       ) : (
         <FlatList
+          key={numColumns}
           data={filtered}
           keyExtractor={item => item.id}
           renderItem={renderOrg}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.md } : undefined}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -296,8 +304,15 @@ function makeStyles(C: AppColors) {
       paddingBottom: Theme.spacing.sm,
     },
     countText: { fontSize: Theme.fontSize.sm, color: C.text3 },
-    list: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 100 },
+    list: {
+      paddingHorizontal: Theme.spacing.lg,
+      paddingBottom: 100,
+      maxWidth: 1400,
+      width: '100%',
+      alignSelf: 'center',
+    },
     orgCard: {
+      flex: 1,
       backgroundColor: C.surface,
       borderRadius: Theme.radius.xl,
       borderWidth: 0.5,

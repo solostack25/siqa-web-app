@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  useWindowDimensions,
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,6 +15,7 @@ import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Theme, HEADER_TOP_PADDING } from "../../constants/theme";
+import { useIsDesktopWeb } from "../../components/DesktopShell";
 
 type Fundraiser = {
   id: string;
@@ -50,6 +52,13 @@ const CATEGORIES = [
 
 export default function SeedsScreen() {
   const { colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
+  const { width: windowWidth } = useWindowDimensions();
+  // These cards are content-heavy (video, org row, story text, 5 stats,
+  // a button) — much richer than a simple product tile — so even on a
+  // wide desktop screen this stays at 2-3 columns rather than the 4+ a
+  // lighter card could support, or the cards themselves get cramped.
+  const numColumns = isDesktopWeb ? (windowWidth > 1500 ? 3 : 2) : 1;
   const styles = makeStyles(C);
 
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
@@ -421,9 +430,12 @@ export default function SeedsScreen() {
         </View>
       ) : (
         <FlatList
+          key={numColumns}
           data={filtered}
           keyExtractor={(item) => item.id}
           renderItem={renderCard}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.lg } : undefined}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -512,8 +524,12 @@ function makeStyles(C: AppColors) {
       padding: Theme.spacing.lg,
       gap: Theme.spacing.lg,
       paddingBottom: 100,
+      maxWidth: 1400,
+      width: '100%',
+      alignSelf: 'center',
     },
     card: {
+      flex: 1,
       backgroundColor: C.surface,
       borderRadius: Theme.radius.xl,
       borderWidth: 0.5,
