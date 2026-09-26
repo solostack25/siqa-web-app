@@ -390,30 +390,40 @@ export default function SpeakerProfileScreen() {
         {isDesktopWeb ? (
           // ---- Desktop channel header: banner, avatar + name + stats in one row ----
           <>
-            <TouchableOpacity
-              style={styles.coverDesktop}
-              activeOpacity={canEdit ? 0.85 : 1}
-              onPress={canEdit ? pickBanner : undefined}
-            >
-              {speaker.banner_url && (
-                <Image source={{ uri: speaker.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              )}
-              {canEdit && (
-                <View style={styles.editBannerBtn}>
-                  {uploadingBanner ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Icon name="camera-outline" size={14} color="#fff" />
-                      <Text style={styles.editBannerText}>Edit Banner</Text>
-                    </>
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
-            <View style={styles.headerRowDesktop}>
+            {/* Avatar overlapping the banner and the name/info text below
+                it were previously coupled through one flex row's shared
+                alignment — first attempt (alignItems + a smaller negative
+                margin) reduced the overlap but left the text only ~2px
+                below the banner, which still reads as touching it.
+                Decoupling them properly: the avatar is its own
+                absolutely-positioned element anchored to the bottom of
+                this relative wrapper, independent of the text below,
+                which now flows completely normally with real padding —
+                the standard pattern, not a flex-alignment balancing act. */}
+            <View style={styles.coverWrapDesktop}>
               <TouchableOpacity
-                style={[styles.avatar, styles.avatarDesktop]}
+                style={styles.coverDesktop}
+                activeOpacity={canEdit ? 0.85 : 1}
+                onPress={canEdit ? pickBanner : undefined}
+              >
+                {speaker.banner_url && (
+                  <Image source={{ uri: speaker.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                )}
+                {canEdit && (
+                  <View style={styles.editBannerBtn}>
+                    {uploadingBanner ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Icon name="camera-outline" size={14} color="#fff" />
+                        <Text style={styles.editBannerText}>Edit Banner</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.avatar, styles.avatarDesktop, styles.avatarDesktopOverlap]}
                 activeOpacity={canEdit ? 0.85 : 1}
                 onPress={canEdit ? pickAvatar : undefined}
               >
@@ -428,6 +438,9 @@ export default function SpeakerProfileScreen() {
                   </View>
                 )}
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.headerRowDesktop}>
               <View style={styles.headerInfoDesktop}>
                 <View style={styles.nameRow}>
                   <Text style={styles.nameDesktop}>{speaker.display_name}</Text>
@@ -630,23 +643,31 @@ function makeStyles(C: AppColors) {
     },
 
     // Desktop header
-    coverDesktop: { height: 160, backgroundColor: C.bg3, marginHorizontal: 32, marginTop: 24, borderRadius: Theme.radius.xl, overflow: 'hidden' },
+    // position:relative so the avatar (position:absolute) anchors to
+    // THIS box specifically — the bottom edge of the banner — rather
+    // than to some other, larger ancestor.
+    coverWrapDesktop: { position: 'relative', marginHorizontal: 32, marginTop: 24 },
+    coverDesktop: { height: 160, backgroundColor: C.bg3, borderRadius: Theme.radius.xl, overflow: 'hidden' },
     editBannerBtn: {
       position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6,
       backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
     },
     editBannerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-    // Was alignItems:'center' with the whole row pulled up -32px — that
-    // centered the name text vertically against the full 96px avatar
-    // height inside a row already shifted up into the banner, so the
-    // text ended up overlapping the banner edge along with the avatar,
-    // not just the avatar the way it should. flex-end + a smaller
-    // overlap means only the avatar's top portion breaches the banner;
-    // the text sits on its own baseline below it, same as YouTube's.
+    // The text row now flows completely normally below the banner —
+    // no negative margin, no shared alignment with the avatar — so
+    // this is just a plain, predictable top gap.
     headerRowDesktop: {
-      flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 32, marginTop: -20, marginBottom: 16, gap: 20,
+      flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 32, marginTop: 16, marginBottom: 16, gap: 20,
     },
     avatarDesktop: { width: 96, height: 96, borderRadius: 24 },
+    // Anchored to the bottom of coverWrapDesktop, overlapping upward by
+    // half its own height — independent of any sibling, so it can't
+    // drag the text along with it the way sharing one flex row's
+    // alignment did.
+    avatarDesktopOverlap: {
+      position: 'absolute', left: 32, bottom: -48, zIndex: 2,
+      borderWidth: 3, borderColor: C.bg,
+    },
     avatarTextDesktop: { fontSize: 34, color: C.gold, fontWeight: '700' },
     // Was flex:1, which stretches this to eat all remaining row width —
     // on a wide desktop window that pushes the Follow button (a plain
@@ -654,8 +675,10 @@ function makeStyles(C: AppColors) {
     // edge, disconnected from the name it belongs next to. Capping the
     // width instead keeps the whole avatar+name+button cluster
     // together on the left, with empty space on the right where
-    // YouTube's own layout also just leaves it empty.
-    headerInfoDesktop: { gap: 4, maxWidth: 480 },
+    // YouTube's own layout also just leaves it empty. paddingLeft
+    // clears the absolutely-positioned avatar, which no longer takes
+    // up space in this row's normal flow.
+    headerInfoDesktop: { gap: 4, maxWidth: 480, paddingLeft: 116 },
     nameDesktop: { fontSize: 26, fontWeight: '700', color: C.text },
     statsDesktopRow: {
       flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 32, marginBottom: 16, flexWrap: 'wrap',
