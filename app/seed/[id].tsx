@@ -188,7 +188,7 @@ export default function SeedDetailScreen() {
   return (
     <DesktopShell>
       <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { maxWidth: contentWidth }]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
@@ -354,7 +354,14 @@ export default function SeedDetailScreen() {
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: C.bg },
+    container: {
+      flex: 1,
+      backgroundColor: C.bg,
+      // 100vh is viewport-relative and, unlike position:fixed, isn't
+      // affected by an ancestor's transform — so this stays reliable
+      // even inside Expo Router's animated screen wrapper.
+      ...(Platform.OS === 'web' ? ({ height: '100vh' } as any) : null),
+    },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 12 },
     emptyText: { color: C.text3, fontSize: 14 },
     backBtnCenter: { paddingHorizontal: 16, paddingVertical: 10 },
@@ -449,15 +456,17 @@ function makeStyles(C: AppColors) {
     donorTime: { fontSize: 10, color: C.text3, marginTop: 3 },
 
     footer: {
-      // 'absolute' needs every ancestor up to the page root to be
-      // explicitly height-constrained, which Expo Router's web screen
-      // wrapper doesn't guarantee — so it was tracking content height
-      // instead of the viewport, and drifted as you scrolled. 'fixed'
-      // anchors straight to the browser viewport, no ancestor chain
-      // required. Native doesn't support 'fixed', so keep 'absolute'
-      // there where the OS navigator already sizes the screen correctly.
-      position: Platform.OS === 'web' ? 'fixed' as any : 'absolute',
-      bottom: 0, left: 0, right: 0,
+      // Both 'absolute' and 'fixed' turned out wrong here: 'absolute'
+      // needs a height-constrained ancestor chain Expo Router's web
+      // wrapper doesn't provide, and 'fixed' needs a transform-free
+      // ancestor chain, which Expo Router's slide_from_right screen
+      // animation breaks (any ancestor transform creates a new
+      // containing block, making 'fixed' behave like 'absolute').
+      // No position trick at all: container is a fixed-height flex
+      // column (height: 100vh on web), the ScrollView is a flex:1
+      // child that scrolls its own content, and this footer is just
+      // the next sibling after it — it visually sits at the bottom
+      // because there's nothing below it, not because it's pinned.
       backgroundColor: C.bg, borderTopWidth: 0.5, borderTopColor: C.border2,
       paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.md, paddingBottom: 28,
       alignItems: 'center',
