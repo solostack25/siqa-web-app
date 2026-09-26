@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Share,
   useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useEffect, useState } from 'react';
@@ -448,7 +449,15 @@ function makeStyles(C: AppColors) {
     donorTime: { fontSize: 10, color: C.text3, marginTop: 3 },
 
     footer: {
-      position: 'absolute', bottom: 0, left: 0, right: 0,
+      // 'absolute' needs every ancestor up to the page root to be
+      // explicitly height-constrained, which Expo Router's web screen
+      // wrapper doesn't guarantee — so it was tracking content height
+      // instead of the viewport, and drifted as you scrolled. 'fixed'
+      // anchors straight to the browser viewport, no ancestor chain
+      // required. Native doesn't support 'fixed', so keep 'absolute'
+      // there where the OS navigator already sizes the screen correctly.
+      position: Platform.OS === 'web' ? 'fixed' as any : 'absolute',
+      bottom: 0, left: 0, right: 0,
       backgroundColor: C.bg, borderTopWidth: 0.5, borderTopColor: C.border2,
       paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.md, paddingBottom: 28,
       alignItems: 'center',
