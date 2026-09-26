@@ -31,7 +31,7 @@ type ProductDetail = {
   category: string | null;
 };
 
-type Seller = { id: string; shop_name: string; bio: string | null; avatar_url: string | null };
+type Seller = { id: string; user_id: string; shop_name: string; bio: string | null; avatar_url: string | null };
 type Review = { id: string; rating: number; comment: string | null; created_at: string };
 type RelatedProduct = { id: string; title: string; price_cents: number; images: string[] | null };
 
@@ -57,6 +57,7 @@ export default function ProductDetailScreen() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [messagingBusy, setMessagingBusy] = useState(false);
 
   useEffect(() => {
     if (id) load(id);
@@ -72,7 +73,7 @@ export default function ProductDetailScreen() {
     setProduct(productData as any);
 
     const [{ data: sellerData }, { data: reviewData }, { data: relatedData }, { data: { session } }] = await Promise.all([
-      supabase.from('marketplace_sellers').select('id, shop_name, bio, avatar_url').eq('id', productData.seller_id).single(),
+      supabase.from('marketplace_sellers').select('id, user_id, shop_name, bio, avatar_url').eq('id', productData.seller_id).single(),
       supabase.from('marketplace_reviews').select('id, rating, comment, created_at').eq('product_id', productId).order('created_at', { ascending: false }),
       supabase.from('marketplace_products').select('id, title, price_cents, images').eq('seller_id', productData.seller_id).eq('status', 'active').neq('id', productId).limit(6),
       supabase.auth.getSession(),
@@ -149,6 +150,42 @@ export default function ProductDetailScreen() {
       { text: 'Keep Browsing', style: 'cancel' },
       { text: 'View Cart', onPress: () => router.push('/cart' as any) },
     ]);
+  }
+
+  async function messageSeller() {
+    if (!product) return;
+    const userId = await requireSignedIn();
+    if (!userId) return;
+
+    if (userId === seller?.user_id) return; // sellers can't message themselves via their own listing
+
+    setMessagingBusy(true);
+    // Reuse an existing thread for this product+buyer if one's already open.
+    const { data: existing } = await supabase
+      .from('marketplace_threads')
+      .select('id')
+      .eq('product_id', product.id)
+      .eq('buyer_id', userId)
+      .maybeSingle();
+
+    if (existing) {
+      setMessagingBusy(false);
+      router.push({ pathname: '/messages/[id]', params: { id: existing.id } } as any);
+      return;
+    }
+
+    const { data: newThread, error } = await supabase
+      .from('marketplace_threads')
+      .insert({ product_id: product.id, seller_id: product.seller_id, buyer_id: userId })
+      .select('id')
+      .single();
+
+    setMessagingBusy(false);
+    if (error || !newThread) {
+      Alert.alert('Error', "Couldn't start a conversation. Please try again.");
+      return;
+    }
+    router.push({ pathname: '/messages/[id]', params: { id: newThread.id } } as any);
   }
 
   async function buyNow() {
@@ -229,7 +266,7 @@ export default function ProductDetailScreen() {
 
           <View style={styles.body}>
             {seller && (
-              <TouchableOpacity style={styles.sellerRow}>
+              <View style={styles.sellerRow}>
                 <View style={styles.sellerAvatar}>
                   {seller.avatar_url ? (
                     <Image source={{ uri: seller.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -238,7 +275,17 @@ export default function ProductDetailScreen() {
                   )}
                 </View>
                 <Text style={styles.sellerName}>{seller.shop_name}</Text>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.messageSellerBtn} onPress={messageSeller} disabled={messagingBusy}>
+                  {messagingBusy ? (
+                    <ActivityIndicator size="small" color={C.text} />
+                  ) : (
+                    <>
+                      <Icon name="chatbubble-outline" size={13} color={C.text2} />
+                      <Text style={styles.messageSellerBtnText}>Message</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             )}
 
             <Text style={styles.title}>{product.title}</Text>
@@ -372,6 +419,12 @@ function makeStyles(C: AppColors) {
 
     body: { paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.lg },
     sellerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    messageSellerBtn: {
+      marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 5,
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+      backgroundColor: C.surface2, borderWidth: 0.5, borderColor: C.border2,
+    },
+    messageSellerBtnText: { fontSize: 12, fontWeight: '600', color: C.text2 },
     sellerAvatar: {
       width: 26, height: 26, borderRadius: 13, backgroundColor: C.goldBg,
       alignItems: 'center', justifyContent: 'center', overflow: 'hidden',

@@ -104,14 +104,19 @@ export default function MarketplaceScreen() {
           <Text style={styles.headerTitle}>Marketplace</Text>
           <Text style={styles.headerSub}>Support Muslim-owned shops</Text>
         </View>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
-          <Icon name="cart-outline" size={20} color={C.text} />
-          {cartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/messages' as any)}>
+            <Icon name="chatbubble-outline" size={19} color={C.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
+            <Icon name="cart-outline" size={20} color={C.text} />
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.searchWrap}>
