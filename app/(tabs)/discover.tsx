@@ -10,7 +10,7 @@ import {
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { useTheme, type AppColors } from '../../lib/theme';
-import { Theme } from '../../constants/theme';
+import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 
 type ContentCategory = {
   key: string;
@@ -162,7 +162,7 @@ export default function DiscoverScreen() {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
-    header: { paddingHorizontal: Theme.spacing.xl, paddingTop: 60, paddingBottom: Theme.spacing.lg },
+    header: { paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING, paddingBottom: Theme.spacing.lg },
     title: { fontSize: Theme.fontSize.xxxl, fontWeight: Theme.fontWeight.bold, color: C.text },
     subtitle: { fontSize: Theme.fontSize.base, color: C.text2, marginTop: 4 },
 

@@ -14,7 +14,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
-import { Theme } from '../../constants/theme';
+import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 
 type Profile = {
@@ -1037,7 +1037,7 @@ function makeStyles(C: AppColors) {
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
     scroll: { paddingBottom: 20 },
-    header: { paddingHorizontal: Theme.spacing.xl, paddingTop: 60, paddingBottom: Theme.spacing.md },
+    header: { paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING, paddingBottom: Theme.spacing.md },
     logo: { fontSize: 28, color: C.gold },
     logoSub: { fontSize: 9, color: C.text3, letterSpacing: 3, marginTop: -4 },
 

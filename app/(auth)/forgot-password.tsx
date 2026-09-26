@@ -12,7 +12,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
-import { Theme } from '../../constants/theme';
+import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -115,7 +115,7 @@ export default function ForgotPasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  wrap: { flex: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: 60 },
+  wrap: { flex: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING },
   backLink: { marginBottom: Theme.spacing.xl },
   backLinkText: { fontSize: Theme.fontSize.base, color: Colors.gold, fontWeight: '600' },
   logoArabic: { fontSize: 48, color: Colors.gold, marginBottom: Theme.spacing.lg },

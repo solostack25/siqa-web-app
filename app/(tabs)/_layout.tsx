@@ -35,7 +35,10 @@ export default function TabsLayout() {
         tabBarStyle: isDesktopWeb
           ? { display: 'none' }
           : {
-              backgroundColor: C.bg2,
+              // Was C.bg2 - a visibly different shade from every screen's
+              // content background (C.bg), which showed up as a seam/gap
+              // right above the tab bar wherever content didn't reach it.
+              backgroundColor: C.bg,
               borderTopColor: C.border,
               borderTopWidth: 0.5,
               height: 80,

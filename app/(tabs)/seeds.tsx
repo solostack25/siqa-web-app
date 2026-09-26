@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
-import { Theme } from "../../constants/theme";
+import { Theme, HEADER_TOP_PADDING } from "../../constants/theme";
 
 type Fundraiser = {
   id: string;
@@ -456,7 +456,7 @@ function makeStyles(C: AppColors) {
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: Theme.spacing.xl,
-      paddingTop: 60,
+      paddingTop: HEADER_TOP_PADDING,
       paddingBottom: Theme.spacing.md,
     },
     headerTitle: {

@@ -13,7 +13,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
-import { Theme } from '../constants/theme';
+import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -413,7 +413,7 @@ function makeStyles(C: AppColors) {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Theme.spacing.lg,
-    paddingTop: 60,
+    paddingTop: HEADER_TOP_PADDING,
     paddingBottom: Theme.spacing.lg,
     gap: Theme.spacing.md,
   },

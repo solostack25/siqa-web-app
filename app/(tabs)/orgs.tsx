@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
-import { Theme } from '../../constants/theme';
+import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 
 type Org = {
   id: string;
@@ -236,7 +236,7 @@ function makeStyles(C: AppColors) {
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: Theme.spacing.xl,
-      paddingTop: 60,
+      paddingTop: HEADER_TOP_PADDING,
       paddingBottom: Theme.spacing.md,
     },
     title: { fontSize: Theme.fontSize.xxl, fontWeight: '600', color: C.text },
