@@ -1,7 +1,7 @@
 export let currentIsDark = true;
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Colors } from '../constants/colors';
@@ -84,6 +84,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   currentIsDark = isDark;
 
   const colors = isDark ? DarkColors : LightColors;
+
+  // The root app/+html.tsx document has no way to know the in-app theme
+  // choice at static-render time — it can only guess via the OS-level
+  // prefers-color-scheme, which is a *different* setting from this
+  // toggle and often won't match it. That mismatch left html/body a
+  // fixed color regardless of what the person actually picked here, so
+  // any area taller than the app's own content (or a browser overscroll
+  // bounce) revealed the wrong one. Set the real DOM background directly
+  // from the resolved theme instead, every time it changes.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    document.documentElement.style.backgroundColor = colors.bg;
+    document.body.style.backgroundColor = colors.bg;
+  }, [colors.bg]);
 
   return (
     <ThemeContext.Provider value={{ mode, isDark, colors, setMode }}>
