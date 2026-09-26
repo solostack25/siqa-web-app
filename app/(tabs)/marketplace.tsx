@@ -114,14 +114,21 @@ export default function MarketplaceScreen() {
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/messages' as any)}>
             <Icon name="chatbubble-outline" size={19} color={C.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
-            <Icon name="cart-outline" size={20} color={C.text} />
-            {cartCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* The global DesktopTopBar already has a cart icon with a live
+              count, visible on every page — this page-level one was
+              built before that existed and is now a literal duplicate
+              on desktop. Mobile has no top bar at all, so it still
+              needs this as its only way to reach the cart from here. */}
+          {!isDesktopWeb && (
+            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
+              <Icon name="cart-outline" size={20} color={C.text} />
+              {cartCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
