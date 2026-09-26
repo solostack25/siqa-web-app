@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
+import { Icon, type SiqaIconName } from '../components/Icon';
 
 type Profile = {
   id: string;
@@ -43,7 +44,7 @@ function Section({
   onToggle,
   children,
 }: {
-  icon: string;
+  icon: SiqaIconName;
   label: string;
   sublabel?: string;
   open: boolean;
@@ -55,12 +56,16 @@ function Section({
   return (
     <View style={styles.card}>
       <TouchableOpacity style={styles.sectionRow} onPress={onToggle} activeOpacity={0.7}>
-        <Text style={styles.sectionIcon}>{icon}</Text>
+        <View style={styles.sectionIconWrap}>
+          <Icon name={icon} size={18} color={C.text2} />
+        </View>
         <View style={styles.sectionTextWrap}>
           <Text style={styles.sectionLabel}>{label}</Text>
           {sublabel ? <Text style={styles.sectionSublabel}>{sublabel}</Text> : null}
         </View>
-        <Text style={[styles.chevron, open && styles.chevronOpen]}>⌄</Text>
+        <View style={open ? styles.chevronOpen : undefined}>
+          <Icon name="chevron-down" size={16} color={C.text3} />
+        </View>
       </TouchableOpacity>
       {open && <View style={styles.sectionBody}>{children}</View>}
     </View>
@@ -162,7 +167,7 @@ export default function SettingsScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
-            <Text style={styles.backIcon}>←</Text>
+            <Icon name="arrow-back" size={22} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
@@ -171,12 +176,12 @@ export default function SettingsScreen() {
             the reference: an action you take immediately, not a category
             to open. */}
         <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut} activeOpacity={0.7}>
-          <Text style={styles.sectionIcon}>🚪</Text>
+          <Icon name="log-out-outline" size={18} color="#e84545" />
           <Text style={styles.signOutLabel}>Sign Out</Text>
         </TouchableOpacity>
 
         <Section
-          icon="👤"
+          icon="person-outline"
           label="Account"
           sublabel={profile.full_name || profile.email || undefined}
           open={openSection === 'account'}
@@ -206,14 +211,17 @@ export default function SettingsScreen() {
         </Section>
 
         <Section
-          icon="🎨"
+          icon="color-palette-outline"
           label="Appearance"
           sublabel={mode.charAt(0).toUpperCase() + mode.slice(1)}
           open={openSection === 'appearance'}
           onToggle={() => toggle('appearance')}
         >
           <View style={[styles.row, { borderBottomWidth: 0 }]}>
-            <Text style={styles.rowLabel}>🌙 Theme</Text>
+            <View style={styles.rowLabelWithIcon}>
+              <Icon name="moon-outline" size={16} color={C.text2} />
+              <Text style={styles.rowLabel}>Theme</Text>
+            </View>
             <View style={styles.themeSeg}>
               {(['light', 'dark', 'system'] as const).map(m => (
                 <TouchableOpacity
@@ -232,7 +240,7 @@ export default function SettingsScreen() {
 
         {speaker && (
           <Section
-            icon="🎙️"
+            icon="mic-outline"
             label="Speaker"
             sublabel={speaker.display_name}
             open={openSection === 'speaker'}
@@ -250,14 +258,14 @@ export default function SettingsScreen() {
 
         {canCreateSeeds && (
           <Section
-            icon="🏢"
+            icon="business-outline"
             label="Organization"
             sublabel={organization?.org_name}
             open={openSection === 'organization'}
             onToggle={() => toggle('organization')}
           >
             <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/seed-create' as any)}>
-              <Text style={styles.menuIcon}>🌱</Text>
+              <Icon name="leaf-outline" size={18} color={C.text2} />
               <View style={styles.menuTextWrap}>
                 <Text style={styles.menuLabel}>Create Seed</Text>
                 <Text style={styles.menuSubLabel}>Post a donation appeal for your nonprofit or masjid</Text>
@@ -269,7 +277,7 @@ export default function SettingsScreen() {
                 style={[styles.menuItem, { borderBottomWidth: 0 }]}
                 onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
               >
-                <Text style={styles.menuIcon}>🏢</Text>
+                <Icon name="business-outline" size={18} color={C.text2} />
                 <View style={styles.menuTextWrap}>
                   <Text style={styles.menuLabel}>Organization Profile</Text>
                   <Text style={styles.menuSubLabel}>{organization.org_name}</Text>
@@ -282,7 +290,7 @@ export default function SettingsScreen() {
 
         {isAdminRole(role) && (
           <Section
-            icon="🛡️"
+            icon="shield-checkmark-outline"
             label="Admin"
             open={openSection === 'admin'}
             onToggle={() => toggle('admin')}
@@ -291,7 +299,7 @@ export default function SettingsScreen() {
               style={[styles.menuItem, { borderBottomWidth: 0 }]}
               onPress={() => router.push('/admin' as any)}
             >
-              <Text style={styles.menuIcon}>🛡️</Text>
+              <Icon name="shield-checkmark-outline" size={18} color={C.text2} />
               <View style={styles.menuTextWrap}>
                 <Text style={styles.menuLabel}>Moderation Queue</Text>
                 <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
@@ -302,13 +310,13 @@ export default function SettingsScreen() {
         )}
 
         <Section
-          icon="⋯"
+          icon="ellipsis-horizontal"
           label="More"
           open={openSection === 'more'}
           onToggle={() => toggle('more')}
         >
           <TouchableOpacity style={styles.menuItem}>
-            <Text style={styles.menuIcon}>🔔</Text>
+            <Icon name="notifications-outline" size={18} color={C.text2} />
             <Text style={styles.menuLabel}>Notifications</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
@@ -316,7 +324,7 @@ export default function SettingsScreen() {
             style={[styles.menuItem, { borderBottomWidth: 0 }]}
             onPress={() => router.push('/org-register' as any)}
           >
-            <Text style={styles.menuIcon}>🏢</Text>
+            <Icon name="business-outline" size={18} color={C.text2} />
             <Text style={styles.menuLabel}>Register Organization</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
@@ -363,11 +371,10 @@ function makeStyles(C: AppColors) {
       flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md,
       paddingHorizontal: Theme.spacing.lg, paddingVertical: Theme.spacing.md, minHeight: 56,
     },
-    sectionIcon: { fontSize: 18, width: 22, textAlign: 'center' },
+    sectionIconWrap: { width: 22, alignItems: 'center' },
     sectionTextWrap: { flex: 1 },
     sectionLabel: { fontSize: Theme.fontSize.base, color: C.text, fontWeight: '500' },
     sectionSublabel: { fontSize: 11, color: C.text3, marginTop: 1 },
-    chevron: { color: C.text3, fontSize: 16, transform: [{ rotate: '0deg' }] },
     chevronOpen: { transform: [{ rotate: '180deg' }] },
     sectionBody: { borderTopWidth: 0.5, borderTopColor: C.border2 },
 
@@ -376,7 +383,8 @@ function makeStyles(C: AppColors) {
       paddingHorizontal: Theme.spacing.lg, paddingVertical: Theme.spacing.md,
       borderBottomWidth: 0.5, borderBottomColor: C.border2, minHeight: 48,
     },
-    rowLabel: { fontSize: Theme.fontSize.base, color: C.text2, flex: 1 },
+    rowLabel: { fontSize: Theme.fontSize.base, color: C.text2 },
+    rowLabelWithIcon: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
     rowRight: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
     rowValue: { fontSize: Theme.fontSize.base, color: C.text3, textAlign: 'right', flex: 1 },
     rowLink: { fontSize: Theme.fontSize.base, color: C.gold, fontWeight: '500' },

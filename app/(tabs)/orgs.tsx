@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
+import { Icon } from '../../components/Icon';
 
 type Org = {
   id: string;
@@ -160,7 +161,7 @@ export default function OrgsScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Icon name="search-outline" size={16} color={C.text3} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search organizations..."

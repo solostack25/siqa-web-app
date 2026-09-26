@@ -16,6 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
+import { Icon } from '../../components/Icon';
 
 type Profile = {
   id: string;
@@ -363,7 +364,7 @@ export default function DashboardScreen() {
           <Text style={styles.logoSub}>SIQA</Text>
         </View>
         <TouchableOpacity style={styles.gearBtn} onPress={() => router.push('/settings' as any)}>
-          <Text style={styles.gearBtnIcon}>⚙️</Text>
+          <Icon name="settings-outline" size={17} color={C.text} />
         </TouchableOpacity>
       </View>
 
@@ -920,7 +921,10 @@ export default function DashboardScreen() {
           <Text style={styles.settingsSectionLabel}>APPEARANCE</Text>
           <View style={styles.settingsCard}>
             <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.settingsRowLabel}>🌙 Theme</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Icon name="moon-outline" size={16} color={C.text2} />
+              <Text style={styles.settingsRowLabel}>Theme</Text>
+            </View>
               <View style={styles.themeSeg}>
                 {(['light', 'dark', 'system'] as const).map(m => (
                   <TouchableOpacity
@@ -942,7 +946,7 @@ export default function DashboardScreen() {
               <Text style={styles.settingsSectionLabel}>ADMIN</Text>
               <View style={styles.settingsCard}>
                 <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push('/admin' as any)}>
-                  <Text style={styles.menuIcon}>🛡️</Text>
+                  <Icon name="shield-checkmark-outline" size={18} color={C.text2} />
                   <View style={styles.menuTextWrap}>
                     <Text style={styles.menuLabel}>Moderation Queue</Text>
                     <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
@@ -956,12 +960,12 @@ export default function DashboardScreen() {
           <Text style={styles.settingsSectionLabel}>MORE</Text>
           <View style={styles.settingsCard}>
             <TouchableOpacity style={styles.menuItem}>
-              <Text style={styles.menuIcon}>🔔</Text>
+              <Icon name="notifications-outline" size={18} color={C.text2} />
               <Text style={styles.menuLabel}>Notifications</Text>
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push('/org-register' as any)}>
-              <Text style={styles.menuIcon}>🏢</Text>
+              <Icon name="business-outline" size={18} color={C.text2} />
               <Text style={styles.menuLabel}>Register Organization</Text>
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>

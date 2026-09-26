@@ -14,6 +14,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
+import { Icon } from '../components/Icon';
 
 type QueueVideo = {
   id: string;
@@ -317,7 +318,9 @@ export default function AdminScreen() {
   if (!allowed) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.lockIcon}>🔒</Text>
+        <View style={styles.lockIcon}>
+          <Icon name="lock-closed-outline" size={42} color={C.text3} />
+        </View>
         <Text style={styles.title}>Admin access required</Text>
         <Text style={styles.sub}>This area is only for Siqa moderators and admins.</Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={() => router.back()}>
@@ -450,7 +453,7 @@ function makeStyles(C: AppColors) {
     screen: { flex: 1, backgroundColor: C.bg },
     content: { padding: Theme.spacing.xl, paddingTop: 58 },
     centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 28 },
-    lockIcon: { fontSize: 42, marginBottom: 12 },
+    lockIcon: { marginBottom: 12 },
     title: { fontSize: 22, fontWeight: '800', color: C.text, marginBottom: 8, textAlign: 'center' },
     sub: { fontSize: 14, color: C.text2, textAlign: 'center', lineHeight: 20, marginBottom: 22 },
     primaryBtn: { backgroundColor: C.gold, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 14 },
