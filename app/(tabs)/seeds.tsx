@@ -308,11 +308,11 @@ export default function SeedsScreen() {
         <TouchableOpacity
           onPress={() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any)}
         >
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={[styles.title, numColumns > 1 && styles.titleCompact]} numberOfLines={2}>
             {item.title}
           </Text>
           {item.story || item.description ? (
-            <Text style={styles.story} numberOfLines={3}>
+            <Text style={[styles.story, numColumns > 1 && styles.storyCompact]} numberOfLines={3}>
               {item.story || item.description}
             </Text>
           ) : null}
@@ -326,21 +326,21 @@ export default function SeedsScreen() {
 
         <View style={styles.stats}>
           <View style={styles.stat}>
-            <Text style={styles.statVal}>
+            <Text style={[styles.statVal, numColumns > 1 && styles.statValCompact]}>
               {formatMoney(item.raised_amount)}
             </Text>
             <Text style={styles.statLabel}>RAISED</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statVal}>{formatMoney(item.goal_amount)}</Text>
+            <Text style={[styles.statVal, numColumns > 1 && styles.statValCompact]}>{formatMoney(item.goal_amount)}</Text>
             <Text style={styles.statLabel}>GOAL</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statVal}>{pct}%</Text>
+            <Text style={[styles.statVal, numColumns > 1 && styles.statValCompact]}>{pct}%</Text>
             <Text style={styles.statLabel}>FUNDED</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statVal}>
+            <Text style={[styles.statVal, numColumns > 1 && styles.statValCompact]}>
               {(item.donor_count ?? 0).toLocaleString()}
             </Text>
             <Text style={styles.statLabel}>DONORS</Text>
@@ -348,7 +348,7 @@ export default function SeedsScreen() {
           {left !== null && (
             <View style={styles.stat}>
               <Text
-                style={[styles.statVal, { color: left <= 7 ? C.live : C.gold }]}
+                style={[styles.statVal, numColumns > 1 && styles.statValCompact, { color: left <= 7 ? C.live : C.gold }]}
               >
                 {left}
               </Text>
@@ -634,6 +634,17 @@ function makeStyles(C: AppColors) {
       lineHeight: 28,
       marginBottom: Theme.spacing.sm,
     },
+    // Card width dropped a lot once Seeds went to a multi-column desktop
+    // grid (each card now shares a row instead of taking the full page
+    // width), but the font sizes above didn't account for that — they'd
+    // also just been bumped a second time by the separate app-wide type
+    // scale increase, on top of the LaunchGood-inspired bump already
+    // applied here. That compounding is what made a 25px bold title
+    // wrapping to 2 lines feel oversized in a ~450px column. These only
+    // apply when the grid is actually multi-column (numColumns > 1);
+    // mobile's full-width single card keeps the larger sizes.
+    titleCompact: { fontSize: Theme.fontSize.lg, lineHeight: 23 },
+    storyCompact: { fontSize: Theme.fontSize.sm, lineHeight: 18 },
     story: {
       fontSize: Theme.fontSize.base,
       color: C.text2,
@@ -664,6 +675,7 @@ function makeStyles(C: AppColors) {
       fontWeight: Theme.fontWeight.bold,
       color: C.gold,
     },
+    statValCompact: { fontSize: Theme.fontSize.base },
     statLabel: {
       fontSize: Theme.fontSize.xs,
       color: C.text3,
