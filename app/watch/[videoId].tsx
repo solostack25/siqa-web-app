@@ -13,7 +13,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/colors';
+import { useTheme, type AppColors } from '../../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
 import { shareVideo } from '../../lib/share';
@@ -68,6 +68,8 @@ function timeAgo(ts: string | null) {
 }
 
 export default function WatchScreen() {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   const { videoId } = useLocalSearchParams<{ videoId: string }>();
   const { width: windowWidth } = useWindowDimensions();
   const isDesktopWeb = useIsDesktopWeb();
@@ -180,7 +182,7 @@ export default function WatchScreen() {
     return (
       <DesktopShell>
         <View style={[styles.screen, { alignItems: 'center', justifyContent: 'center' }]}>
-          <ActivityIndicator color={Colors.gold} />
+          <ActivityIndicator color={C.gold} />
         </View>
       </DesktopShell>
     );
@@ -297,11 +299,12 @@ export default function WatchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.bg },
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.bg },
   // Fixed player wrapper — never scrolls. Capped width on wide screens so
   // it doesn't stretch to an absurd size on an ultrawide monitor; centered.
-  playerWrapFixed: { backgroundColor: Colors.black, alignItems: 'center' },
+  playerWrapFixed: { backgroundColor: C.black, alignItems: 'center' },
   playerInner: { width: '100%', maxWidth: 1000, aspectRatio: 16 / 9 },
   scrollArea: { flex: 1 },
   scrollContent: { flexGrow: 1 },
@@ -310,13 +313,13 @@ const styles = StyleSheet.create({
   mainCol: { flex: 1 },
   sideCol: { width: 380, padding: Theme.spacing.lg, gap: Theme.spacing.md },
   relatedWideCol: { width: 380, padding: Theme.spacing.lg, gap: Theme.spacing.md },
-  playerWrap: { aspectRatio: 16 / 9, backgroundColor: Colors.black },
+  playerWrap: { aspectRatio: 16 / 9, backgroundColor: C.black },
   player: { width: '100%', height: '100%' },
   body: { padding: Theme.spacing.lg, flex: 1 },
   backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Theme.spacing.sm },
-  backArrow: { color: Colors.text2, fontSize: 22 },
-  backLabel: { color: Colors.text2, fontSize: Theme.fontSize.base, marginLeft: 2 },
-  title: { color: Colors.text, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
+  backArrow: { color: C.text2, fontSize: 22 },
+  backLabel: { color: C.text2, fontSize: Theme.fontSize.base, marginLeft: 2 },
+  title: { color: C.text, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
   creatorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -324,36 +327,37 @@ const styles = StyleSheet.create({
     marginTop: Theme.spacing.md,
   },
   creatorInfo: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
-  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.goldSoft },
-  creatorName: { color: Colors.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
-  creatorMeta: { color: Colors.text2, fontSize: Theme.fontSize.sm },
-  followBtn: { backgroundColor: Colors.gold, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Theme.radius.full },
+  avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.goldSoft },
+  creatorName: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
+  creatorMeta: { color: C.text2, fontSize: Theme.fontSize.sm },
+  followBtn: { backgroundColor: C.gold, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Theme.radius.full },
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
   shareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface2,
+    backgroundColor: C.surface2,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: Theme.radius.full,
   },
-  shareBtnIcon: { color: Colors.text, fontSize: 15 },
-  shareBtnText: { color: Colors.text, fontWeight: Theme.fontWeight.semibold, fontSize: Theme.fontSize.sm },
-  followingBtn: { backgroundColor: Colors.surface2 },
-  followBtnText: { color: Colors.bg, fontWeight: Theme.fontWeight.semibold },
-  followingBtnText: { color: Colors.text },
-  descCard: { backgroundColor: Colors.surface, borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginTop: Theme.spacing.md },
-  descMeta: { color: Colors.text2, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
-  descText: { color: Colors.text, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.sm, lineHeight: 20 },
+  shareBtnIcon: { color: C.text, fontSize: 15 },
+  shareBtnText: { color: C.text, fontWeight: Theme.fontWeight.semibold, fontSize: Theme.fontSize.sm },
+  followingBtn: { backgroundColor: C.surface2 },
+  followBtnText: { color: C.bg, fontWeight: Theme.fontWeight.semibold },
+  followingBtnText: { color: C.text },
+  descCard: { backgroundColor: C.surface, borderRadius: Theme.radius.md, padding: Theme.spacing.md, marginTop: Theme.spacing.md },
+  descMeta: { color: C.text2, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
+  descText: { color: C.text, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.sm, lineHeight: 20 },
   topicRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Theme.spacing.sm, marginTop: Theme.spacing.md },
-  topicChip: { backgroundColor: Colors.surface2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Theme.radius.full },
-  topicText: { color: Colors.text2, fontSize: Theme.fontSize.sm },
-  commentsLabel: { color: Colors.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginTop: Theme.spacing.xl },
-  relatedLabel: { color: Colors.text2, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginBottom: Theme.spacing.sm },
+  topicChip: { backgroundColor: C.surface2, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Theme.radius.full },
+  topicText: { color: C.text2, fontSize: Theme.fontSize.sm },
+  commentsLabel: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginTop: Theme.spacing.xl },
+  relatedLabel: { color: C.text2, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginBottom: Theme.spacing.sm },
   relatedRow: { flexDirection: 'row', gap: Theme.spacing.sm, marginBottom: Theme.spacing.md },
-  relatedThumbWrap: { width: 160, aspectRatio: 16 / 9, borderRadius: Theme.radius.sm, overflow: 'hidden', backgroundColor: Colors.surface },
+  relatedThumbWrap: { width: 160, aspectRatio: 16 / 9, borderRadius: Theme.radius.sm, overflow: 'hidden', backgroundColor: C.surface },
   relatedThumb: { width: '100%', height: '100%' },
-  relatedTitle: { color: Colors.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
-  relatedMeta: { color: Colors.text2, fontSize: Theme.fontSize.xs, marginTop: 2 },
+  relatedTitle: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
+  relatedMeta: { color: C.text2, fontSize: Theme.fontSize.xs, marginTop: 2 },
 });
+}
