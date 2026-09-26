@@ -581,8 +581,8 @@ function makeStyles(C: AppColors) {
     orgAvatarText: { fontSize: 20 },
     orgInfo: { flex: 1 },
     orgName: {
-      fontSize: Theme.fontSize.md,
-      fontWeight: Theme.fontWeight.medium,
+      fontSize: Theme.fontSize.lg,
+      fontWeight: Theme.fontWeight.semibold,
       color: C.text,
     },
     orgMeta: {
@@ -599,25 +599,29 @@ function makeStyles(C: AppColors) {
     },
     verifiedText: {
       color: C.emeraldLight,
-      fontSize: 9,
+      fontSize: 11,
       fontWeight: Theme.fontWeight.bold,
     },
     categoryText: {
-      fontSize: Theme.fontSize.xs,
+      fontSize: Theme.fontSize.sm,
       color: C.text3,
       textTransform: "capitalize",
     },
     title: {
-      fontSize: Theme.fontSize.base,
-      fontWeight: Theme.fontWeight.semibold,
+      // Was Theme.fontSize.base (14) — LaunchGood's campaign titles run
+      // closer to 26-28px bold, and everything below (story text, stat
+      // numbers, labels) was sized down to match that same small base,
+      // which is why the whole card read smaller/flatter than theirs.
+      fontSize: Theme.fontSize.xxl,
+      fontWeight: Theme.fontWeight.bold,
       color: C.text,
-      lineHeight: 20,
+      lineHeight: 28,
       marginBottom: Theme.spacing.sm,
     },
     story: {
-      fontSize: Theme.fontSize.sm,
+      fontSize: Theme.fontSize.base,
       color: C.text2,
-      lineHeight: 19,
+      lineHeight: 22,
       marginBottom: Theme.spacing.md,
     },
     progressWrap: { marginBottom: Theme.spacing.md },
@@ -635,14 +639,19 @@ function makeStyles(C: AppColors) {
     stats: { flexDirection: "row", marginBottom: Theme.spacing.md },
     stat: { flex: 1, alignItems: "center" },
     statVal: {
-      fontSize: Theme.fontSize.base,
+      // Was Theme.fontSize.base (14) — LaunchGood's raised-amount figure
+      // is the single most prominent number on the card, closer to
+      // 32-36px. This isn't quite that large since Siqa fits 5 stats in
+      // a row rather than one big standalone figure, but it needed to
+      // read as a real number, not a caption.
+      fontSize: Theme.fontSize.xl,
       fontWeight: Theme.fontWeight.bold,
       color: C.gold,
     },
     statLabel: {
-      fontSize: 8,
+      fontSize: Theme.fontSize.xs,
       color: C.text3,
-      marginTop: 2,
+      marginTop: 3,
       letterSpacing: 0.5,
     },
     deleteBtn: {
@@ -661,12 +670,13 @@ function makeStyles(C: AppColors) {
     donateBtn: {
       backgroundColor: C.gold,
       borderRadius: Theme.radius.md,
-      padding: Theme.spacing.md,
+      paddingVertical: Theme.spacing.lg,
+      paddingHorizontal: Theme.spacing.md,
       alignItems: "center",
     },
     donateBtnText: {
       color: C.black,
-      fontSize: Theme.fontSize.base,
+      fontSize: Theme.fontSize.lg,
       fontWeight: Theme.fontWeight.bold,
     },
     empty: { alignItems: "center", paddingTop: 60, gap: Theme.spacing.md },
