@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Platform, useWindowDimensions } from 'react-native';
 import { DesktopSidebar } from './DesktopSidebar';
+import { DesktopTopBar } from './DesktopTopBar';
 
 // Kept in one place so the tabs layout and the standalone routes
 // (browse, watch, channel) can't drift out of sync on the breakpoint.
@@ -19,7 +20,10 @@ export function DesktopShell({ children }: { children: React.ReactNode }) {
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>
       <DesktopSidebar />
-      <View style={{ flex: 1 }}>{children}</View>
+      <View style={{ flex: 1, flexDirection: 'column' }}>
+        <DesktopTopBar />
+        <View style={{ flex: 1 }}>{children}</View>
+      </View>
     </View>
   );
 }

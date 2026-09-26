@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
 import { DesktopSidebar } from '../../components/DesktopSidebar';
+import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 
 type TabIconProps = {
@@ -121,7 +122,10 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1, flexDirection: 'row', backgroundColor: C.bg }}>
       <DesktopSidebar />
-      <View style={{ flex: 1 }}>{tabs}</View>
+      <View style={{ flex: 1, flexDirection: 'column' }}>
+        <DesktopTopBar />
+        <View style={{ flex: 1 }}>{tabs}</View>
+      </View>
     </View>
   );
 }
