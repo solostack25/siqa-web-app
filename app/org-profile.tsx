@@ -85,6 +85,8 @@ type Fundraiser = {
   donor_count: number;
   status: string;
   org_id: string | null;
+  cover_image_url: string | null;
+  image_url: string | null;
 };
 
 function orgEmoji(type: string | null) {
@@ -156,7 +158,7 @@ export default function OrgProfileScreen() {
     const [orgRes, docsRes, frRes, sessionRes] = await Promise.all([
       supabase.from('organizations').select('*').eq('id', orgId).single(),
       supabase.from('org_990s').select('*').eq('org_id', orgId).order('tax_year', { ascending: false }),
-      supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(10),
+      supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status,cover_image_url,image_url').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(10),
       supabase.auth.getSession(),
     ]);
     if (orgRes.data) {
@@ -347,6 +349,10 @@ export default function OrgProfileScreen() {
 
   const location = [org.city, org.state].filter(Boolean).join(', ') || 'USA';
   const emoji = orgEmoji(org.org_type);
+  const campaignTotals = fundraisers.reduce(
+    (acc, fr) => ({ raised: acc.raised + (fr.raised_amount || 0), donors: acc.donors + (fr.donor_count || 0) }),
+    { raised: 0, donors: 0 }
+  );
 
   return (
     <DesktopShell>
@@ -602,38 +608,60 @@ export default function OrgProfileScreen() {
         {/* Active Fundraisers */}
         {fundraisers.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Active Campaigns</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Active Campaigns</Text>
+              <View style={styles.campaignStatsRow}>
+                <View style={styles.campaignStat}>
+                  <Text style={styles.campaignStatVal}>{fmtMoney(campaignTotals.raised)}</Text>
+                  <Text style={styles.campaignStatLabel}>RAISED</Text>
+                </View>
+                <View style={styles.campaignStat}>
+                  <Text style={styles.campaignStatVal}>{fundraisers.length}</Text>
+                  <Text style={styles.campaignStatLabel}>ACTIVE</Text>
+                </View>
+                <View style={styles.campaignStat}>
+                  <Text style={styles.campaignStatVal}>{campaignTotals.donors.toLocaleString()}</Text>
+                  <Text style={styles.campaignStatLabel}>DONORS</Text>
+                </View>
+              </View>
+            </View>
             {fundraisers.map(fr => {
               const pct = fr.goal_amount ? Math.min(100, Math.round((fr.raised_amount / fr.goal_amount) * 100)) : 0;
+              const coverUrl = fr.cover_image_url || fr.image_url || null;
               return (
                 <View key={fr.id} style={styles.fundraiserCard}>
-                  <Text style={styles.frCategory}>{fr.cause_category || 'Fundraiser'}</Text>
-                  <Text style={styles.frTitle}>{fr.title}</Text>
-                  <View style={styles.frProgressTrack}>
-                    <View style={[styles.frProgressFill, { width: `${pct}%` as any }]} />
+                  {coverUrl ? (
+                    <Image source={{ uri: coverUrl }} style={styles.frCover} resizeMode="cover" />
+                  ) : null}
+                  <View style={styles.frBody}>
+                    <Text style={styles.frCategory}>{fr.cause_category || 'Fundraiser'}</Text>
+                    <Text style={styles.frTitle}>{fr.title}</Text>
+                    <View style={styles.frProgressTrack}>
+                      <View style={[styles.frProgressFill, { width: `${pct}%` as any }]} />
+                    </View>
+                    <View style={styles.frStats}>
+                      <Text style={styles.frRaised}>{fmtMoney(fr.raised_amount)}</Text>
+                      <Text style={styles.frGoal}>of {fmtMoney(fr.goal_amount)} · {pct}%</Text>
+                      <Text style={styles.frDonors}>{fr.donor_count} donors</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.donateBtn}
+                      onPress={() => router.push({
+                        pathname: '/donate',
+                        params: {
+                          fundraiserId: fr.id,
+                          orgId: fr.org_id ?? org.id,
+                          title: fr.title,
+                          orgStripeAccountId: org.stripe_account_id ?? '',
+                          paymentMethodType: org.payment_method_type ?? '',
+                          paymentMethodUrl: org.payment_method_url ?? '',
+                          paymentMethodLabel: org.payment_method_label ?? '',
+                        },
+                      } as any)}
+                    >
+                      <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.frStats}>
-                    <Text style={styles.frRaised}>{fmtMoney(fr.raised_amount)}</Text>
-                    <Text style={styles.frGoal}>of {fmtMoney(fr.goal_amount)} · {pct}%</Text>
-                    <Text style={styles.frDonors}>{fr.donor_count} donors</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.donateBtn}
-                    onPress={() => router.push({
-                      pathname: '/donate',
-                      params: {
-                        fundraiserId: fr.id,
-                        orgId: fr.org_id ?? org.id,
-                        title: fr.title,
-                        orgStripeAccountId: org.stripe_account_id ?? '',
-                        paymentMethodType: org.payment_method_type ?? '',
-                        paymentMethodUrl: org.payment_method_url ?? '',
-                        paymentMethodLabel: org.payment_method_label ?? '',
-                      },
-                    } as any)}
-                  >
-                    <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
-                  </TouchableOpacity>
                 </View>
               );
             })}
@@ -978,14 +1006,25 @@ function makeStyles(C: AppColors) {
   },
   propublicaBtnText: { fontSize: 12, fontWeight: '600', color: C.emeraldLight },
 
+  // Was plain text on a flat card — every campaign shown on the actual
+  // Seeds tab has a real cover image, so campaigns on the org's own
+  // profile looked noticeably flatter than the same content everywhere
+  // else in the app.
   fundraiserCard: {
     backgroundColor: C.surface,
     borderRadius: Theme.radius.xl,
     borderWidth: 0.5,
     borderColor: C.border2,
-    padding: 14,
     marginBottom: 10,
+    overflow: 'hidden',
   },
+  frCover: { width: '100%', aspectRatio: 16 / 9, backgroundColor: C.surface2 },
+  frBody: { padding: 14 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  campaignStatsRow: { flexDirection: 'row', gap: 16 },
+  campaignStat: { alignItems: 'flex-end' },
+  campaignStatVal: { fontSize: 14, fontWeight: '700', color: C.gold },
+  campaignStatLabel: { fontSize: 8, color: C.text3, letterSpacing: 0.5 },
   frCategory: { fontSize: 10, color: C.gold, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   frTitle: { fontSize: 14, fontWeight: '600', color: C.text, lineHeight: 20, marginBottom: 10 },
   frProgressTrack: { height: 5, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
