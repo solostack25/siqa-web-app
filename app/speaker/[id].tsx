@@ -5,17 +5,17 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
+  useWindowDimensions,
   Image,
 } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
+import { useTheme, AppColors } from '../../lib/theme';
+import { DesktopShell, useIsDesktopWeb, DESKTOP_BREAKPOINT } from '../../components/DesktopShell';
 
-const { width } = Dimensions.get('window');
-const CLIP_WIDTH = (width - 28 - 8) / 2;
+const SIDEBAR_WIDTH = 220;
 
 type Speaker = {
   id: string;
@@ -69,6 +69,11 @@ function speakerInitial(name: string) {
 export default function SpeakerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
+  const { colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
+  const { width: windowWidth } = useWindowDimensions();
+  const contentWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
+
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +105,7 @@ export default function SpeakerProfileScreen() {
       .eq('is_published', true)
       .not('video_url', 'is', null)
       .order('published_at', { ascending: false })
-      .limit(6);
+      .limit(isDesktopWeb ? 12 : 6);
 
     if (vids) setVideos(vids);
     setLoading(false);
@@ -112,287 +117,303 @@ export default function SpeakerProfileScreen() {
     }
   }
 
+  const styles = makeStyles(C);
+
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={Colors.gold} size="large" />
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
     );
   }
 
   if (!speaker) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.errorText}>Speaker not found</Text>
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>Speaker not found</Text>
+        </View>
+      </DesktopShell>
     );
   }
 
   const initial = speakerInitial(speaker.display_name);
   const location = [speaker.denomination, speaker.state].filter(Boolean).join(' · ');
 
+  // Desktop: wider cards, more per row, computed off the actual content
+  // width (window minus sidebar) instead of a fixed 2-up mobile grid.
+  const GRID_GAP = 12;
+  const cols = isDesktopWeb ? Math.max(3, Math.min(6, Math.floor(contentWidth / 200))) : 2;
+  const gridPadding = isDesktopWeb ? 32 : 28;
+  const clipWidth = (contentWidth - gridPadding - GRID_GAP * (cols - 1)) / cols;
+
+  const statsRow = [
+    { val: formatCount(speaker.follower_count), label: 'Followers' },
+    { val: formatRaised(speaker.total_raised), label: 'Raised' },
+    { val: speaker.events_count?.toString() || '0', label: 'Events/yr' },
+    { val: '5.0★', label: 'Rating' },
+  ];
+
+  const gemsGrid = videos.length > 0 && (
+    <>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>GEMS</Text>
+          <Text style={styles.sectionLink}>See all →</Text>
+        </View>
+        <View style={[styles.clipsGrid, { gap: GRID_GAP }]}>
+          {videos.map(v => (
+            <TouchableOpacity key={v.id} style={[styles.clipCard, { width: clipWidth }]} activeOpacity={0.8}>
+              <View style={styles.clipThumb}>
+                {v.thumbnail_url ? (
+                  <Image
+                    source={{ uri: v.thumbnail_url }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <View style={styles.clipPlayOverlay}>
+                  <Text style={styles.clipPlayIcon}>▶</Text>
+                </View>
+              </View>
+              <View style={styles.clipInfo}>
+                <Text style={styles.clipTitle} numberOfLines={2}>{v.title}</Text>
+                <Text style={styles.clipViews}>{formatViews(v.view_count)} views</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+      <View style={styles.divider} />
+    </>
+  );
+
   return (
-    <View style={styles.container}>
+    <DesktopShell>
       <ScrollView
+        style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
         scrollEventThrottle={16}
       >
-        {/* Cover */}
-        <View style={styles.cover}>
-          <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.8}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Profile row */}
-        <View style={styles.profileRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-          <View style={styles.profileBtns}>
-            <TouchableOpacity
-              style={[styles.followBtn, following && styles.followBtnActive]}
-              onPress={() => setFollowing(!following)}
-            >
-              <Text style={styles.followBtnText}>
-                {following ? 'Following' : 'Follow'}
-              </Text>
-            </TouchableOpacity>
-
-          </View>
-        </View>
-
-        {/* Info */}
-        <View style={styles.info}>
-          <View style={styles.nameRow}>
-            <Text style={styles.name}>{speaker.display_name}</Text>
-            {speaker.is_verified && (
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>✓ VERIFIED</Text>
-              </View>
-            )}
-          </View>
-          {location ? <Text style={styles.handle}>{location}</Text> : null}
-          {speaker.bio ? <Text style={styles.bio}>{speaker.bio}</Text> : null}
-          <View style={styles.metaRow}>
-            <Text style={styles.metaText}>📡 Fundraising</Text>
-            <Text style={styles.metaText}>📅 {speaker.is_available ? 'Available' : 'Contact'}</Text>
-            <Text style={styles.metaText}>⭐ 5.0</Text>
-          </View>
-        </View>
-
-        {/* Stats */}
-        <View style={styles.stats}>
-          {[
-            { val: formatCount(speaker.follower_count), label: 'Followers' },
-            { val: formatRaised(speaker.total_raised), label: 'Raised' },
-            { val: speaker.events_count?.toString() || '0', label: 'Events/yr' },
-            { val: '5.0★', label: 'Rating' },
-          ].map((s, i) => (
-            <View key={i} style={[styles.stat, i < 3 && styles.statBorder]}>
-              <Text style={styles.statVal}>{s.val}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Topics */}
-        {speaker.topics?.length > 0 && (
-          <View style={styles.topics}>
-            {speaker.topics.map(t => (
-              <View key={t} style={styles.topic}>
-                <Text style={styles.topicText}>{t}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        <View style={styles.divider} />
-
-        {/* Featured Video removed: Siqa now uses Bunny/native Gem videos only. */}
-
-        {/* Gems Grid */}
-        {videos.length > 0 && (
+        {isDesktopWeb ? (
+          // ---- Desktop channel header: banner, avatar + name + stats in one row ----
           <>
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>GEMS</Text>
-                <Text style={styles.sectionLink}>See all →</Text>
+            <View style={styles.coverDesktop} />
+            <View style={styles.headerRowDesktop}>
+              <View style={[styles.avatar, styles.avatarDesktop]}>
+                <Text style={styles.avatarTextDesktop}>{initial}</Text>
               </View>
-              <View style={styles.clipsGrid}>
-                {videos.map(v => (
-                  <TouchableOpacity key={v.id} style={styles.clipCard} activeOpacity={0.8}>
-                    <View style={styles.clipThumb}>
-                      {v.thumbnail_url ? (
-                        <Image
-                          source={{ uri: v.thumbnail_url }}
-                          style={StyleSheet.absoluteFill}
-                          resizeMode="cover"
-                        />
-                      ) : null}
-                      <View style={styles.clipPlayOverlay}>
-                        <Text style={styles.clipPlayIcon}>▶</Text>
-                      </View>
+              <View style={styles.headerInfoDesktop}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.nameDesktop}>{speaker.display_name}</Text>
+                  {speaker.is_verified && (
+                    <View style={styles.verifiedBadge}>
+                      <Text style={styles.verifiedText}>✓ VERIFIED</Text>
                     </View>
-                    <View style={styles.clipInfo}>
-                      <Text style={styles.clipTitle} numberOfLines={2}>{v.title}</Text>
-                      <Text style={styles.clipViews}>{formatViews(v.view_count)} views</Text>
-                    </View>
-                  </TouchableOpacity>
+                  )}
+                </View>
+                {location ? <Text style={styles.handle}>{location}</Text> : null}
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaText}>📡 Fundraising</Text>
+                  <Text style={styles.metaText}>📅 {speaker.is_available ? 'Available' : 'Contact'}</Text>
+                  <Text style={styles.metaText}>⭐ 5.0</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={[styles.followBtn, following && styles.followBtnActive]}
+                onPress={() => setFollowing(!following)}
+              >
+                <Text style={styles.followBtnText}>{following ? 'Following' : 'Follow'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.statsDesktopRow}>
+              {statsRow.map((s, i) => (
+                <View key={i} style={styles.statDesktop}>
+                  <Text style={styles.statVal}>{s.val}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+              ))}
+              {speaker.bio ? <Text style={styles.bioDesktop} numberOfLines={2}>{speaker.bio}</Text> : null}
+            </View>
+
+            {speaker.topics?.length > 0 && (
+              <View style={styles.topics}>
+                {speaker.topics.map(t => (
+                  <View key={t} style={styles.topic}>
+                    <Text style={styles.topicText}>{t}</Text>
+                  </View>
                 ))}
               </View>
+            )}
+
+            <View style={styles.divider} />
+            {gemsGrid}
+          </>
+        ) : (
+          // ---- Mobile: original stacked layout ----
+          <>
+            <View style={styles.cover}>
+              <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.8}>
+                <Text style={styles.backIcon}>←</Text>
+              </TouchableOpacity>
             </View>
+
+            <View style={styles.profileRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initial}</Text>
+              </View>
+              <View style={styles.profileBtns}>
+                <TouchableOpacity
+                  style={[styles.followBtn, following && styles.followBtnActive]}
+                  onPress={() => setFollowing(!following)}
+                >
+                  <Text style={styles.followBtnText}>{following ? 'Following' : 'Follow'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.info}>
+              <View style={styles.nameRow}>
+                <Text style={styles.name}>{speaker.display_name}</Text>
+                {speaker.is_verified && (
+                  <View style={styles.verifiedBadge}>
+                    <Text style={styles.verifiedText}>✓ VERIFIED</Text>
+                  </View>
+                )}
+              </View>
+              {location ? <Text style={styles.handle}>{location}</Text> : null}
+              {speaker.bio ? <Text style={styles.bio}>{speaker.bio}</Text> : null}
+              <View style={styles.metaRow}>
+                <Text style={styles.metaText}>📡 Fundraising</Text>
+                <Text style={styles.metaText}>📅 {speaker.is_available ? 'Available' : 'Contact'}</Text>
+                <Text style={styles.metaText}>⭐ 5.0</Text>
+              </View>
+            </View>
+
+            <View style={styles.stats}>
+              {statsRow.map((s, i) => (
+                <View key={i} style={[styles.stat, i < 3 && styles.statBorder]}>
+                  <Text style={styles.statVal}>{s.val}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {speaker.topics?.length > 0 && (
+              <View style={styles.topics}>
+                {speaker.topics.map(t => (
+                  <View key={t} style={styles.topic}>
+                    <Text style={styles.topicText}>{t}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.divider} />
+            {gemsGrid}
             <View style={styles.divider} />
           </>
         )}
-        <View style={styles.divider} />
-
-
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </View>
+    </DesktopShell>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bg },
-  errorText: { color: Colors.text3, fontSize: 14 },
-  scroll: { paddingBottom: 20 },
-  cover: {
-    height: 200,
-    backgroundColor: '#071410',
-    overflow: 'hidden',
-  },
-  backBtn: {
-    position: 'absolute',
-    top: 54,
-    left: 14,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIcon: { color: '#fff', fontSize: 18 },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: -38,
-    marginBottom: 12,
-    zIndex: 2,
-  },
-  avatar: {
-    width: 78,
-    height: 78,
-    borderRadius: 22,
-    backgroundColor: Colors.emerald,
-    borderWidth: 3,
-    borderColor: Colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { fontSize: 28, color: Colors.gold, fontWeight: '700' },
-  profileBtns: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
-  followBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 100,
-    borderWidth: 0.5,
-    borderColor: Colors.goldDim,
-  },
-  followBtnActive: { backgroundColor: Colors.goldBg },
-  followBtnText: { color: Colors.gold, fontSize: 13, fontWeight: '600' },
-  info: { paddingHorizontal: 16, paddingBottom: 14 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 },
-  name: { fontSize: 21, fontWeight: '700', color: Colors.text },
-  verifiedBadge: {
-    backgroundColor: Colors.gold,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  verifiedText: { color: '#000', fontSize: 9, fontWeight: '800' },
-  handle: { fontSize: 12, color: Colors.text3, marginBottom: 8 },
-  bio: { fontSize: 13, color: Colors.text2, lineHeight: 20, marginBottom: 10 },
-  metaRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
-  metaText: { fontSize: 12, color: Colors.text3 },
-  stats: {
-    flexDirection: 'row',
-    marginHorizontal: 14,
-    marginBottom: 14,
-    backgroundColor: Colors.surface,
-    borderWidth: 0.5,
-    borderColor: Colors.border2,
-    borderRadius: Theme.radius.lg,
-    overflow: 'hidden',
-  },
-  stat: { flex: 1, paddingVertical: 11, paddingHorizontal: 4, alignItems: 'center' },
-  statBorder: { borderRightWidth: 0.5, borderRightColor: Colors.border2 },
-  statVal: { fontSize: 16, fontWeight: '700', color: Colors.gold },
-  statLabel: { fontSize: 8, color: Colors.text3, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.8 },
-  topics: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingHorizontal: 16, marginBottom: 14 },
-  topic: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 100,
-    backgroundColor: Colors.emeraldBg,
-    borderWidth: 0.5,
-    borderColor: 'rgba(61,190,138,0.15)',
-  },
-  topicText: { fontSize: 11, color: Colors.emeraldLight, fontWeight: '500' },
-  divider: { height: 0.5, backgroundColor: Colors.border2, marginHorizontal: 14, marginBottom: 16 },
-  section: { paddingHorizontal: 14, marginBottom: 16 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { fontSize: 10, fontWeight: '700', color: Colors.text3, letterSpacing: 1.8, textTransform: 'uppercase' },
-  sectionBadge: { fontSize: 11, color: Colors.gold },
-  sectionLink: { fontSize: 12, color: Colors.gold },
-  featuredCard: { backgroundColor: Colors.surface, borderRadius: Theme.radius.lg, overflow: 'hidden' },
-  featuredThumb: {
-    aspectRatio: 16 / 9,
-    backgroundColor: Colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  webview: { flex: 1 },
-  featuredOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)' },
-  featuredPlayBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(201,168,76,0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  featuredPlayIcon: { color: '#000', fontSize: 20, marginLeft: 3 },
-  featuredInfo: { padding: 12 },
-  featuredLabel: { fontSize: 9, color: Colors.gold, fontWeight: '700', letterSpacing: 1, marginBottom: 3 },
-  featuredTitle: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  clipsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  clipCard: { width: CLIP_WIDTH, backgroundColor: Colors.surface, borderRadius: Theme.radius.lg, overflow: 'hidden' },
-  clipThumb: {
-    aspectRatio: 9 / 16,
-    backgroundColor: Colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  clipPlayOverlay: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(201,168,76,0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clipPlayIcon: { color: '#000', fontSize: 14, marginLeft: 2 },
-  clipInfo: { padding: 10 },
-  clipTitle: { fontSize: 11, fontWeight: '500', color: Colors.text, lineHeight: 15, marginBottom: 3 },
-  clipViews: { fontSize: 10, color: Colors.text3 },
-});
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+    errorText: { color: C.text3, fontSize: 14 },
+    scroll: { paddingBottom: 20 },
+
+    // Mobile cover/header
+    cover: { height: 200, backgroundColor: C.bg3, overflow: 'hidden' },
+    backBtn: {
+      position: 'absolute', top: 54, left: 14, width: 34, height: 34, borderRadius: 17,
+      backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
+    },
+    backIcon: { color: '#fff', fontSize: 18 },
+    profileRow: {
+      flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+      paddingHorizontal: 16, marginTop: -38, marginBottom: 12, zIndex: 2,
+    },
+    avatar: {
+      width: 78, height: 78, borderRadius: 22, backgroundColor: C.emerald,
+      borderWidth: 3, borderColor: C.bg, alignItems: 'center', justifyContent: 'center',
+    },
+    avatarText: { fontSize: 28, color: C.gold, fontWeight: '700' },
+    profileBtns: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
+
+    // Desktop header
+    coverDesktop: { height: 160, backgroundColor: C.bg3, marginHorizontal: 32, marginTop: 24, borderRadius: Theme.radius.xl },
+    headerRowDesktop: {
+      flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, marginTop: -32, marginBottom: 16, gap: 20,
+    },
+    avatarDesktop: { width: 96, height: 96, borderRadius: 24 },
+    avatarTextDesktop: { fontSize: 34, color: C.gold, fontWeight: '700' },
+    headerInfoDesktop: { flex: 1, gap: 4 },
+    nameDesktop: { fontSize: 26, fontWeight: '700', color: C.text },
+    statsDesktopRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 32, marginBottom: 16, flexWrap: 'wrap',
+    },
+    statDesktop: { alignItems: 'flex-start' },
+    bioDesktop: { flex: 1, minWidth: 240, fontSize: 13, color: C.text2, lineHeight: 20 },
+
+    followBtn: {
+      paddingHorizontal: 18, paddingVertical: 8, borderRadius: 100, borderWidth: 0.5, borderColor: C.goldDim,
+    },
+    followBtnActive: { backgroundColor: C.goldBg },
+    followBtnText: { color: C.gold, fontSize: 13, fontWeight: '600' },
+
+    info: { paddingHorizontal: 16, paddingBottom: 14 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 },
+    name: { fontSize: 21, fontWeight: '700', color: C.text },
+    verifiedBadge: { backgroundColor: C.gold, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 },
+    verifiedText: { color: '#000', fontSize: 9, fontWeight: '800' },
+    handle: { fontSize: 12, color: C.text3, marginBottom: 8 },
+    bio: { fontSize: 13, color: C.text2, lineHeight: 20, marginBottom: 10 },
+    metaRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
+    metaText: { fontSize: 12, color: C.text3 },
+
+    stats: {
+      flexDirection: 'row', marginHorizontal: 14, marginBottom: 14, backgroundColor: C.surface,
+      borderWidth: 0.5, borderColor: C.border2, borderRadius: Theme.radius.lg, overflow: 'hidden',
+    },
+    stat: { flex: 1, paddingVertical: 11, paddingHorizontal: 4, alignItems: 'center' },
+    statBorder: { borderRightWidth: 0.5, borderRightColor: C.border2 },
+    statVal: { fontSize: 16, fontWeight: '700', color: C.gold },
+    statLabel: { fontSize: 8, color: C.text3, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.8 },
+
+    topics: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingHorizontal: 16, marginBottom: 14 },
+    topic: {
+      paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, backgroundColor: C.emeraldBg,
+      borderWidth: 0.5, borderColor: 'rgba(61,190,138,0.15)',
+    },
+    topicText: { fontSize: 11, color: C.emeraldLight, fontWeight: '500' },
+    divider: { height: 0.5, backgroundColor: C.border2, marginHorizontal: 14, marginBottom: 16 },
+
+    section: { paddingHorizontal: 14, marginBottom: 16 },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    sectionTitle: { fontSize: 10, fontWeight: '700', color: C.text3, letterSpacing: 1.8, textTransform: 'uppercase' },
+    sectionLink: { fontSize: 12, color: C.gold },
+
+    clipsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+    clipCard: { backgroundColor: C.surface, borderRadius: Theme.radius.lg, overflow: 'hidden' },
+    clipThumb: {
+      aspectRatio: 9 / 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    clipPlayOverlay: {
+      width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(201,168,76,0.9)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    clipPlayIcon: { color: '#000', fontSize: 14, marginLeft: 2 },
+    clipInfo: { padding: 10 },
+    clipTitle: { fontSize: 11, fontWeight: '500', color: C.text, lineHeight: 15, marginBottom: 3 },
+    clipViews: { fontSize: 10, color: C.text3 },
+  });
+}
