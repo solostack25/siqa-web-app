@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import { Icon } from './Icon';
+import { useSearchContext } from '../contexts/SearchContext';
 
 // The desktop sidebar had no top-level search, notifications, or
 // account access anywhere — search only existed buried inside
@@ -14,7 +15,11 @@ import { Icon } from './Icon';
 export function DesktopTopBar() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
+  const { registration } = useSearchContext();
 
+  // Fallback state/behavior for whenever no screen has registered its
+  // own search (nothing focused that has one, or on a detail page) —
+  // same as before: type, hit enter, land on /browse's general search.
   const [query, setQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null } | null>(null);
@@ -60,10 +65,10 @@ export function DesktopTopBar() {
         <Icon name="search-outline" size={16} color={C.text3} />
         <TextInput
           style={styles.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={submitSearch}
-          placeholder="Search Siqa..."
+          value={registration ? registration.value : query}
+          onChangeText={registration ? registration.onChangeText : setQuery}
+          onSubmitEditing={registration ? registration.onSubmit : submitSearch}
+          placeholder={registration ? registration.placeholder : 'Search Siqa...'}
           placeholderTextColor={C.text3}
           returnKeyType="search"
         />

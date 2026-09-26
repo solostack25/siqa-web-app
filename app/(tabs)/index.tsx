@@ -18,6 +18,7 @@ import { useTheme, type AppColors } from "../../lib/theme";
 import { Theme } from "../../constants/theme";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { SearchIcon, ClearIcon } from "../../components/Siqa";
+import { useSearchContext } from "../../contexts/SearchContext";
 
 type LongVideo = {
   id: string;
@@ -117,6 +118,24 @@ export default function HomeScreen() {
       router.push(`/browse?search=${encodeURIComponent(trimmed)}` as any);
     }
   }
+
+  const { registerSearch, unregisterSearch } = useSearchContext();
+  useFocusEffect(
+    useCallback(() => {
+      if (!isDesktopWeb) return;
+      // Home's own search box did exactly the same thing as the global
+      // top bar (navigate to /browse?search=...) — this hands that
+      // behavior to the top bar instead of keeping a second identical
+      // box on screen.
+      registerSearch({
+        placeholder: 'Search videos',
+        value: searchQuery,
+        onChangeText: setSearchQuery,
+        onSubmit: handleSearchSubmit,
+      });
+      return () => unregisterSearch();
+    }, [isDesktopWeb, searchQuery])
+  );
 
   async function checkAuth() {
     const {
@@ -219,23 +238,32 @@ export default function HomeScreen() {
       onEndReachedThreshold={0.4}
       ListHeaderComponent={
         <>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.logo}>صِقا</Text>
-              <Text style={styles.logoSub}>SIQA</Text>
+          {/* Both of these duplicate what's already permanently on
+              screen once the desktop top bar/sidebar exist: the Siqa
+              wordmark is always in the sidebar, the account pill is
+              now the avatar in the top bar, and the search box below
+              is registered into the top bar's search instead. Mobile
+              has none of that, so it still needs all three. */}
+          {!isDesktopWeb && (
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.logo}>صِقا</Text>
+                <Text style={styles.logoSub}>SIQA</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.authBtn}
+                onPress={() =>
+                  router.push(userName ? "/(tabs)/dashboard" : ("/(auth)/login" as any))
+                }
+              >
+                <Text style={[styles.authBtnText, userName && styles.authBtnTextActive]}>
+                  {userName ?? "Sign In"}
+                </Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.authBtn}
-              onPress={() =>
-                router.push(userName ? "/(tabs)/dashboard" : ("/(auth)/login" as any))
-              }
-            >
-              <Text style={[styles.authBtnText, userName && styles.authBtnTextActive]}>
-                {userName ?? "Sign In"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          )}
 
+          {!isDesktopWeb && (
           <View style={styles.searchWrap}>
             <SearchIcon size={16} color={C.text3} />
             <TextInput
@@ -254,6 +282,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+          )}
 
           <FlatList
             horizontal

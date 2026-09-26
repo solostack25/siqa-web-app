@@ -9,13 +9,14 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
-import { useEffect, useState } from 'react';
-import { router } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { Icon } from '../../components/Icon';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
+import { useSearchContext } from '../../contexts/SearchContext';
 
 type Org = {
   id: string;
@@ -67,6 +68,21 @@ export default function OrgsScreen() {
   useEffect(() => {
     applyFilters();
   }, [query, activeFilter, orgs]);
+
+  const { registerSearch, unregisterSearch } = useSearchContext();
+  useFocusEffect(
+    useCallback(() => {
+      if (!isDesktopWeb) return;
+      // Plain useEffect cleanup only runs on unmount, not on losing
+      // focus — since tab screens stay mounted in the background when
+      // you switch tabs, that would leave this registration "stuck"
+      // active on, say, Marketplace after you'd navigated away from
+      // Orgs. useFocusEffect's cleanup fires on blur too, which is
+      // what this actually needs.
+      registerSearch({ placeholder: 'Search organizations...', value: query, onChangeText: setQuery });
+      return () => unregisterSearch();
+    }, [isDesktopWeb, query])
+  );
 
   async function loadOrgs() {
     const { data } = await supabase
@@ -171,22 +187,24 @@ export default function OrgsScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.searchWrap}>
-        <Icon name="search-outline" size={16} color={C.text3} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search organizations..."
-          placeholderTextColor={C.text3}
-          value={query}
-          onChangeText={setQuery}
-          autoCapitalize="none"
-        />
-        {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery('')}>
-            <Text style={styles.clearBtn}>✕</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+      {!isDesktopWeb && (
+        <View style={styles.searchWrap}>
+          <Icon name="search-outline" size={16} color={C.text3} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search organizations..."
+            placeholderTextColor={C.text3}
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')}>
+              <Text style={styles.clearBtn}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <FlatList
         data={FILTERS}

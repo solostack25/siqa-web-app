@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
+import { SearchProvider } from '../contexts/SearchContext';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -116,7 +117,9 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <SearchProvider>
+        <AppContent />
+      </SearchProvider>
     </ThemeProvider>
   );
 }

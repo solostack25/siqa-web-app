@@ -15,6 +15,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { useSearchContext } from '../../contexts/SearchContext';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
@@ -62,6 +63,21 @@ export default function MarketplaceScreen() {
       load();
       loadCartCount();
     }, [category])
+  );
+
+  const { registerSearch, unregisterSearch } = useSearchContext();
+  useFocusEffect(
+    useCallback(() => {
+      if (!isDesktopWeb) return;
+      // This page's search filters the already-loaded product list
+      // live as you type (see `filtered` below) — a different, real
+      // behavior from the top bar's default of navigating to /browse,
+      // which is exactly why this couldn't just be deleted in favor of
+      // the top bar. Registering it means the top bar drives this
+      // page's actual filtering instead of duplicating a second box.
+      registerSearch({ placeholder: 'Search products...', value: query, onChangeText: setQuery });
+      return () => unregisterSearch();
+    }, [isDesktopWeb, query])
   );
 
   async function loadCartCount() {
@@ -132,17 +148,19 @@ export default function MarketplaceScreen() {
         </View>
       </View>
 
-      <View style={styles.searchWrap}>
-        <Icon name="search-outline" size={16} color={C.text3} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search products..."
-          placeholderTextColor={C.text3}
-          value={query}
-          onChangeText={setQuery}
-          autoCapitalize="none"
-        />
-      </View>
+      {!isDesktopWeb && (
+        <View style={styles.searchWrap}>
+          <Icon name="search-outline" size={16} color={C.text3} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search products..."
+            placeholderTextColor={C.text3}
+            value={query}
+            onChangeText={setQuery}
+            autoCapitalize="none"
+          />
+        </View>
+      )}
 
       <FlatList
         horizontal
