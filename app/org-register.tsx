@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
 
 const ORG_TYPES = [
@@ -69,6 +70,7 @@ const INITIAL: FormData = {
 
 export default function OrgRegisterScreen() {
   const { colors: C } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(INITIAL);
@@ -196,6 +198,7 @@ export default function OrgRegisterScreen() {
   const progress = (step / 3) * 100;
 
   return (
+    <DesktopShell>
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -223,7 +226,7 @@ export default function OrgRegisterScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isDesktopWeb && styles.scrollContentDesktop]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -498,6 +501,7 @@ export default function OrgRegisterScreen() {
         </View>
       )}
     </KeyboardAvoidingView>
+    </DesktopShell>
   );
 }
 
@@ -565,6 +569,7 @@ function makeStyles(C: AppColors) {
   },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 40 },
+  scrollContentDesktop: { maxWidth: 640, width: '100%', alignSelf: 'center' },
   stepWrap: { gap: Theme.spacing.lg },
   stepTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: C.text },
   stepSubtitle: { fontSize: Theme.fontSize.sm, color: C.text3, lineHeight: 20, marginTop: -8 },
