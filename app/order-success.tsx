@@ -68,7 +68,7 @@ function makeStyles(C: AppColors) {
       borderWidth: 1.5, borderColor: C.gold, alignItems: 'center', justifyContent: 'center',
     },
     icon: { fontSize: 44 },
-    content: { width: '100%', alignItems: 'center', gap: Theme.spacing.md },
+    content: { width: '100%', maxWidth: 420, alignItems: 'center', gap: Theme.spacing.md },
     heading: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: C.text, textAlign: 'center' },
     sub: { fontSize: Theme.fontSize.base, color: C.text3, textAlign: 'center' },
     amountCard: {

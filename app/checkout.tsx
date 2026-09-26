@@ -243,7 +243,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
-    scroll: { paddingBottom: 140 },
+    scroll: { paddingBottom: 140, maxWidth: 600, width: '100%', alignSelf: 'center' },
 
     header: {
       flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md,

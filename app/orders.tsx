@@ -227,7 +227,7 @@ function makeStyles(C: AppColors) {
     },
     headerTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: C.text },
 
-    list: { paddingHorizontal: Theme.spacing.lg, gap: 12 },
+    list: { paddingHorizontal: Theme.spacing.lg, gap: 12, maxWidth: 760, width: '100%', alignSelf: 'center' },
     card: {
       backgroundColor: C.surface, borderRadius: Theme.radius.lg, padding: 12,
       borderWidth: 0.5, borderColor: C.border2,

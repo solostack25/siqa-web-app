@@ -202,7 +202,7 @@ function makeStyles(C: AppColors) {
     },
     headerTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: C.text },
 
-    list: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 20 },
+    list: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 20, maxWidth: 760, width: '100%', alignSelf: 'center' },
     row: {
       flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
       borderBottomWidth: 0.5, borderBottomColor: C.border2,

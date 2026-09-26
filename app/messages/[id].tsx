@@ -165,21 +165,27 @@ export default function ThreadScreen() {
         </ScrollView>
 
         <View style={styles.inputRow}>
-          <TextInput
-            style={styles.input}
-            placeholder="Type a message..."
-            placeholderTextColor={C.text3}
-            value={body}
-            onChangeText={setBody}
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, (!body.trim() || sending) && { opacity: 0.5 }]}
-            onPress={handleSend}
-            disabled={!body.trim() || sending}
-          >
-            <Icon name="send" size={16} color={C.black} />
-          </TouchableOpacity>
+          {/* The divider/background spans full width intentionally (a
+              footer bar reads fine edge-to-edge), but the actual input
+              + button need the same cap as the message list above them
+              or they'd sit wider than the conversation itself. */}
+          <View style={styles.inputRowInner}>
+            <TextInput
+              style={styles.input}
+              placeholder="Type a message..."
+              placeholderTextColor={C.text3}
+              value={body}
+              onChangeText={setBody}
+              multiline
+            />
+            <TouchableOpacity
+              style={[styles.sendBtn, (!body.trim() || sending) && { opacity: 0.5 }]}
+              onPress={handleSend}
+              disabled={!body.trim() || sending}
+            >
+              <Icon name="send" size={16} color={C.black} />
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </DesktopShell>
@@ -211,7 +217,7 @@ function makeStyles(C: AppColors) {
     productTitle: { fontSize: 12, fontWeight: '600', color: C.text },
     productPrice: { fontSize: 11, color: C.gold, fontWeight: '700', marginTop: 1 },
 
-    messagesList: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 20, gap: 8, flexGrow: 1 },
+    messagesList: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 20, gap: 8, flexGrow: 1, maxWidth: 760, width: '100%', alignSelf: 'center' },
     emptyMessages: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
     emptyText: { color: C.text3, fontSize: 13, textAlign: 'center' },
 
@@ -226,9 +232,12 @@ function makeStyles(C: AppColors) {
     bubbleTimeOwn: { fontSize: 10, color: 'rgba(0,0,0,0.5)', marginTop: 3 },
 
     inputRow: {
-      flexDirection: 'row', alignItems: 'flex-end', gap: 8,
       paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.sm, paddingBottom: 28,
       borderTopWidth: 0.5, borderTopColor: C.border2, backgroundColor: C.bg,
+    },
+    inputRowInner: {
+      flexDirection: 'row', alignItems: 'flex-end', gap: 8,
+      maxWidth: 760, width: '100%', alignSelf: 'center',
     },
     input: {
       flex: 1, maxHeight: 100, backgroundColor: C.surface, borderRadius: Theme.radius.lg,

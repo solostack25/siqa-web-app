@@ -271,7 +271,7 @@ function makeStyles(C: AppColors) {
     tabText: { fontSize: 12, fontWeight: '700', color: C.text3 },
     tabTextActive: { color: C.black },
 
-    body: { paddingHorizontal: Theme.spacing.lg, gap: 12 },
+    body: { paddingHorizontal: Theme.spacing.lg, gap: 12, maxWidth: 760, width: '100%', alignSelf: 'center' },
     empty: { alignItems: 'center', paddingTop: 60, gap: 10 },
     emptyEmoji: { fontSize: 36 },
     emptyText: { color: C.text3, fontSize: 14, fontWeight: '600' },

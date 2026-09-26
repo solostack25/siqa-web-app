@@ -205,7 +205,11 @@ function makeStyles(C: AppColors) {
     },
     headerTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: C.text },
 
-    list: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 20, gap: 16 },
+    // Was full-width with no cap — a plain vertical list of line items
+    // stretched edge-to-edge on desktop instead of staying a readable
+    // width, same "mobile layout just wider" problem Seeds/Orgs/Settings
+    // had before those got fixed.
+    list: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 20, gap: 16, maxWidth: 760, width: '100%', alignSelf: 'center' },
     row: { flexDirection: 'row', gap: 12 },
     rowImage: {
       width: 72, height: 72, borderRadius: Theme.radius.md, backgroundColor: C.surface2,
