@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
 import { DesktopSidebar } from '../../components/DesktopSidebar';
@@ -42,8 +42,12 @@ export default function TabsLayout() {
               borderTopColor: C.border,
               borderTopWidth: 0.5,
               height: 80,
-              paddingBottom: 16,
-              paddingTop: 8,
+              // Native needs the extra bottom padding to clear the phone's
+              // gesture bar / home indicator; web has no such overlay, so
+              // that asymmetry (8 top / 16 bottom) was just pushing the
+              // icon+label content 4px above true vertical center.
+              paddingBottom: Platform.OS === 'web' ? 12 : 16,
+              paddingTop: Platform.OS === 'web' ? 12 : 8,
             },
         tabBarItemStyle: {
           alignItems: 'center',

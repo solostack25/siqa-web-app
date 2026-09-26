@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Share,
   useWindowDimensions,
-  Platform,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useEffect, useState } from 'react';
@@ -335,18 +334,20 @@ export default function SeedDetailScreen() {
                 </View>
               )}
             </View>
+
+            {/* This was a "sticky" footer via position:fixed/absolute in
+                earlier versions — three attempts, none actually reliable
+                against Expo Router's web screen wrapper (see commit
+                history). Rather than try a fourth positioning trick,
+                this is now just a normal element at the true end of the
+                scrollable content: guaranteed correct, no overlay risk,
+                at the cost of not following you while you scroll. */}
+            <TouchableOpacity style={styles.donateBtnBottom} onPress={goToDonate}>
+              <Text style={styles.donateBtnBottomText}>🌱 Plant a Seed</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
-
-      {/* Sticky donate CTA */}
-      <View style={styles.footer}>
-        <View style={[styles.footerInner, { maxWidth: contentWidth }]}>
-          <TouchableOpacity style={styles.donateBtn} onPress={goToDonate}>
-            <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
       </View>
     </DesktopShell>
   );
@@ -354,19 +355,12 @@ export default function SeedDetailScreen() {
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: C.bg,
-      // 100vh is viewport-relative and, unlike position:fixed, isn't
-      // affected by an ancestor's transform — so this stays reliable
-      // even inside Expo Router's animated screen wrapper.
-      ...(Platform.OS === 'web' ? ({ height: '100vh' } as any) : null),
-    },
+    container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 12 },
     emptyText: { color: C.text3, fontSize: 14 },
     backBtnCenter: { paddingHorizontal: 16, paddingVertical: 10 },
     backBtnCenterText: { color: C.gold, fontWeight: '600' },
-    scroll: { paddingBottom: 120 },
+    scroll: { paddingBottom: 40 },
     inner: { width: '100%', alignSelf: 'center' },
 
     header: {
@@ -455,24 +449,10 @@ function makeStyles(C: AppColors) {
     donorMessage: { fontSize: 12, color: C.text2, marginTop: 2, lineHeight: 17 },
     donorTime: { fontSize: 10, color: C.text3, marginTop: 3 },
 
-    footer: {
-      // Both 'absolute' and 'fixed' turned out wrong here: 'absolute'
-      // needs a height-constrained ancestor chain Expo Router's web
-      // wrapper doesn't provide, and 'fixed' needs a transform-free
-      // ancestor chain, which Expo Router's slide_from_right screen
-      // animation breaks (any ancestor transform creates a new
-      // containing block, making 'fixed' behave like 'absolute').
-      // No position trick at all: container is a fixed-height flex
-      // column (height: 100vh on web), the ScrollView is a flex:1
-      // child that scrolls its own content, and this footer is just
-      // the next sibling after it — it visually sits at the bottom
-      // because there's nothing below it, not because it's pinned.
-      backgroundColor: C.bg, borderTopWidth: 0.5, borderTopColor: C.border2,
-      paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.md, paddingBottom: 28,
-      alignItems: 'center',
+    donateBtnBottom: {
+      backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 15,
+      alignItems: 'center', marginTop: 8,
     },
-    footerInner: { width: '100%' },
-    donateBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 15, alignItems: 'center' },
-    donateBtnText: { color: C.black, fontSize: 16, fontWeight: '800' },
+    donateBtnBottomText: { color: C.black, fontSize: 16, fontWeight: '800' },
   });
 }
