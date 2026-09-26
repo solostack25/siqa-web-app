@@ -135,6 +135,17 @@ function makeStyles(C: any) {
       backgroundColor: C.bg,
       borderBottomWidth: 0.5,
       borderBottomColor: C.border2,
+      // z-index only has any effect on a positioned element, and only
+      // stacks against siblings that share the same stacking context.
+      // The dropdown menu below is position:absolute with its own
+      // z-index, but that was being compared against the page content
+      // area (a later, normal-flow sibling of this bar) rather than
+      // reliably painting above it. Making the bar itself positioned
+      // and elevated gives everything inside it — including the
+      // dropdown — a stacking context that sits above the content
+      // below, regardless of DOM order.
+      position: 'relative',
+      zIndex: 100,
     },
     searchWrap: {
       flexDirection: 'row',

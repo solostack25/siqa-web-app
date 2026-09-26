@@ -192,6 +192,15 @@ export default function SpeakerProfileScreen() {
 
   return (
     <DesktopShell>
+      {/* Every other detail page (seed, product, org-profile, cart,
+          orders...) wraps its ScrollView in a container with an
+          explicit backgroundColor: C.bg — this one went straight from
+          DesktopShell to a bare ScrollView with no themed background
+          of its own, so it fell back to whatever happened to be
+          painted behind it instead of declaring its own, which is why
+          everything below the (correctly dark) banner read as plain
+          white regardless of theme. */}
+      <View style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
@@ -321,6 +330,7 @@ export default function SpeakerProfileScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </View>
     </DesktopShell>
   );
 }
