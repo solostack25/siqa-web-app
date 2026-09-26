@@ -183,6 +183,13 @@ export default function OrgProfileScreen() {
   const [projectImageUri, setProjectImageUri] = useState<string | null>(null);
   const [projectStatus, setProjectStatus] = useState<'ongoing' | 'completed'>('ongoing');
   const [savingProject, setSavingProject] = useState(false);
+  // Everything below the header used to be one long vertical stack —
+  // Details, Trust, Payment, Mission, 990s, Campaigns, Endorsements,
+  // Projects, Services all competing for the same scroll, which reads
+  // as a form rather than a profile no matter how the sections are
+  // ordered. Real tabs (matching LinkedIn's Home/About/Posts split)
+  // group them into digestible views instead.
+  const [activeTab, setActiveTab] = useState<'about' | 'campaigns' | 'community'>('about');
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
@@ -616,6 +623,24 @@ export default function OrgProfileScreen() {
           </View>
         </View>
 
+        <View style={styles.orgTabs}>
+          {([
+            { key: 'about', label: 'About' },
+            { key: 'campaigns', label: `Campaigns${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
+            { key: 'community', label: 'Community' },
+          ] as const).map(t => (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.orgTab, activeTab === t.key && styles.orgTabActive]}
+              onPress={() => setActiveTab(t.key)}
+            >
+              <Text style={[styles.orgTabText, activeTab === t.key && styles.orgTabTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {activeTab === 'about' && (
+        <>
         {/* Details — was way down the page, after Endorsements/Projects/
             Services, essentially buried. LinkedIn puts this exact kind
             of identity info (type, location, status) in one compact
@@ -781,9 +806,13 @@ export default function OrgProfileScreen() {
             ) : null}
           </View>
         </View>
+        </>
+        )}
 
+        {activeTab === 'campaigns' && (
+        <>
         {/* Active Fundraisers */}
-        {fundraisers.length > 0 && (
+        {fundraisers.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Active Campaigns</Text>
@@ -843,8 +872,14 @@ export default function OrgProfileScreen() {
               );
             })}
           </View>
+        ) : (
+          <Text style={styles.emptySectionText}>No active campaigns right now — check back soon.</Text>
+        )}
+        </>
         )}
 
+        {activeTab === 'community' && (
+        <>
         {/* Endorsements — speakers vouching for this org, like a LinkedIn
             recommendation. Anyone with a speaker profile can endorse an
             org they haven't already endorsed; they can also remove
@@ -1004,6 +1039,8 @@ export default function OrgProfileScreen() {
             ))
           )}
         </View>
+        </>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1443,6 +1480,17 @@ function makeStyles(C: AppColors) {
     paddingVertical: 15, alignItems: 'center', marginTop: 4,
   },
   sheetSaveBtnText: { color: C.black, fontSize: 15, fontWeight: '900' },
+
+  // Tab bar — same pill-tab convention as the dashboard's Gems/Seeds/
+  // Saved/Donations tabs, for visual consistency across the app.
+  orgTabs: {
+    flexDirection: 'row', gap: 6, marginHorizontal: 16, marginBottom: 16,
+    backgroundColor: C.surface2, borderRadius: Theme.radius.full, padding: 4,
+  },
+  orgTab: { flex: 1, paddingVertical: 9, borderRadius: Theme.radius.full, alignItems: 'center' },
+  orgTabActive: { backgroundColor: C.gold },
+  orgTabText: { color: C.text3, fontWeight: '600', fontSize: 12 },
+  orgTabTextActive: { color: C.bg },
 
   // Endorsements / Projects / Services (LinkedIn-style profile additions)
   sectionAction: { fontSize: 12, fontWeight: '700', color: C.gold },
