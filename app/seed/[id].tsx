@@ -186,7 +186,8 @@ export default function SeedDetailScreen() {
 
   return (
     <DesktopShell>
-      <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
+      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll}>
         <View style={[styles.inner, { maxWidth: contentWidth }]}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
@@ -344,6 +345,7 @@ export default function SeedDetailScreen() {
             <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
           </TouchableOpacity>
         </View>
+      </View>
       </View>
     </DesktopShell>
   );
