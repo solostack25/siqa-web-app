@@ -127,6 +127,14 @@ export default function OrgProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  // Editing (logo, banner, payment setup) was gated on strict ownership
+  // (organizations.profile_id === you) alone. That's correct for the
+  // org you registered yourself, but seeded/demo orgs have a placeholder
+  // profile_id that will never match any real account — an admin
+  // couldn't fix those profiles at all otherwise, which is the actual
+  // ask here. Admins get the same edit access as the literal owner.
+  const canEditOrg = isOwner || isAdmin;
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
 
@@ -160,6 +168,14 @@ export default function OrgProfileScreen() {
       setOrg(orgRes.data);
       const uid = sessionRes.data?.session?.user?.id;
       setIsOwner(!!uid && orgRes.data.profile_id === uid);
+
+      if (uid) {
+        const { data: profileData } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+        const role = String(profileData?.role || '').toLowerCase();
+        setIsAdmin(['admin', 'owner', 'moderator', 'super_admin'].includes(role));
+      } else {
+        setIsAdmin(false);
+      }
     }
     if (docsRes.data) setDocs(docsRes.data);
     if (frRes.data) setFundraisers(frRes.data);
@@ -326,15 +342,15 @@ export default function OrgProfileScreen() {
         {/* Cover / Banner */}
         <TouchableOpacity
           style={styles.cover}
-          onPress={isOwner ? pickBanner : undefined}
-          activeOpacity={isOwner ? 0.85 : 1}
+          onPress={canEditOrg ? pickBanner : undefined}
+          activeOpacity={canEditOrg ? 0.85 : 1}
         >
           {org.banner_url ? (
             <Image source={{ uri: org.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           ) : (
             <View style={styles.coverPattern} />
           )}
-          {isOwner && (
+          {canEditOrg && (
             <View style={styles.bannerEditOverlay}>
               {uploadingBanner
                 ? <ActivityIndicator color="#fff" size="small" />
@@ -347,8 +363,8 @@ export default function OrgProfileScreen() {
         {/* Profile row */}
         <View style={styles.profileRow}>
           <TouchableOpacity
-            onPress={isOwner ? pickLogo : undefined}
-            activeOpacity={isOwner ? 0.85 : 1}
+            onPress={canEditOrg ? pickLogo : undefined}
+            activeOpacity={canEditOrg ? 0.85 : 1}
             style={styles.orgLogoWrap}
           >
             {org.logo_url ? (
@@ -358,7 +374,7 @@ export default function OrgProfileScreen() {
                 <Text style={styles.orgLogoText}>{initials}</Text>
               </View>
             )}
-            {isOwner && (
+            {canEditOrg && (
               <View style={styles.logoEditOverlay}>
                 {uploadingLogo
                   ? <ActivityIndicator color="#fff" size="small" />
@@ -430,7 +446,7 @@ export default function OrgProfileScreen() {
         </View>
 
         {/* Payment Setup — owner only */}
-        {isOwner && (
+        {canEditOrg && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment Setup</Text>
             <View style={styles.payCard}>
