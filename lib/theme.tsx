@@ -24,7 +24,7 @@ export const LightColors = {
   // rgba(139,107,40,...) — literally brown) which cast a beige tone over
   // every card and divider in the app. Swapped for true neutral gray,
   // closer to how YouTube/most modern apps do a light theme.
-  bg: '#FAFAF9',
+  bg: '#FFFFFF',
   bg2: '#F2F2F0',
   bg3: '#EAEAE8',
   surface: '#FFFFFF',
