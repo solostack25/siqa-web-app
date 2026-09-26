@@ -189,7 +189,7 @@ export default function OrgProfileScreen() {
   // as a form rather than a profile no matter how the sections are
   // ordered. Real tabs (matching LinkedIn's Home/About/Posts split)
   // group them into digestible views instead.
-  const [activeTab, setActiveTab] = useState<'about' | 'campaigns' | 'community'>('about');
+  const [activeTab, setActiveTab] = useState<'about' | 'seeds' | 'community'>('about');
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
@@ -626,7 +626,7 @@ export default function OrgProfileScreen() {
         <View style={styles.orgTabs}>
           {([
             { key: 'about', label: 'About' },
-            { key: 'campaigns', label: `Campaigns${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
+            { key: 'seeds', label: `Seeds${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
             { key: 'community', label: 'Community' },
           ] as const).map(t => (
             <TouchableOpacity
@@ -641,30 +641,10 @@ export default function OrgProfileScreen() {
 
         {activeTab === 'about' && (
         <>
-        {/* Details — was way down the page, after Endorsements/Projects/
-            Services, essentially buried. LinkedIn puts this exact kind
-            of identity info (type, location, status) in one compact
-            line right under the name; this app's version is a fuller
-            table rather than a single line, but the same principle
-            applies — it belongs right under the banner, not after
-            everything else. */}
-        {(org.ein || org.website) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Details</Text>
-            <View style={styles.detailsCard}>
-              {org.ein && <DetailRow label="EIN / Tax ID" value={org.ein} />}
-              {org.org_type && <DetailRow label="Type" value={org.org_type.charAt(0).toUpperCase() + org.org_type.slice(1)} />}
-              {location !== 'USA' && <DetailRow label="Location" value={location} />}
-              {org.website && (
-                <TouchableOpacity onPress={() => Linking.openURL(org.website!)}>
-                  <DetailRow label="Website" value={org.website.replace('https://', '').replace('http://', '')} link />
-                </TouchableOpacity>
-              )}
-              <DetailRow label="Status" value={org.is_verified ? 'Verified ✓' : 'Pending Review'} />
-            </View>
-          </View>
-        )}
-
+        {/* Details section removed — EIN, type, location, and website
+            were already shown compactly in the header under the
+            banner, and the Website button is already one of the top
+            action buttons. This was a second copy of the same facts. */}
         {/* Trust score strip */}
         <View style={styles.trustStrip}>
           <View style={styles.trustScoreBox}>
@@ -809,13 +789,13 @@ export default function OrgProfileScreen() {
         </>
         )}
 
-        {activeTab === 'campaigns' && (
+        {activeTab === 'seeds' && (
         <>
         {/* Active Fundraisers */}
         {fundraisers.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Active Campaigns</Text>
+              <Text style={styles.sectionTitle}>Active Seeds</Text>
               <View style={styles.campaignStatsRow}>
                 <View style={styles.campaignStat}>
                   <Text style={styles.campaignStatVal}>{fmtMoney(campaignTotals.raised)}</Text>
@@ -836,12 +816,19 @@ export default function OrgProfileScreen() {
               const coverUrl = fr.cover_image_url || fr.image_url || null;
               return (
                 <View key={fr.id} style={styles.fundraiserCard}>
-                  {coverUrl ? (
-                    <Image source={{ uri: coverUrl }} style={styles.frCover} resizeMode="cover" />
-                  ) : null}
-                  <View style={styles.frBody}>
-                    <Text style={styles.frCategory}>{fr.cause_category || 'Fundraiser'}</Text>
-                    <Text style={styles.frTitle}>{fr.title}</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fr.id } } as any)}
+                  >
+                    {coverUrl ? (
+                      <Image source={{ uri: coverUrl }} style={styles.frCover} resizeMode="cover" />
+                    ) : null}
+                    <View style={styles.frBody}>
+                      <Text style={styles.frCategory}>{fr.cause_category || 'Fundraiser'}</Text>
+                      <Text style={styles.frTitle}>{fr.title}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <View style={[styles.frBody, { paddingTop: 0 }]}>
                     <View style={styles.frProgressTrack}>
                       <View style={[styles.frProgressFill, { width: `${pct}%` as any }]} />
                     </View>
@@ -850,20 +837,15 @@ export default function OrgProfileScreen() {
                       <Text style={styles.frGoal}>of {fmtMoney(fr.goal_amount)} · {pct}%</Text>
                       <Text style={styles.frDonors}>{fr.donor_count} donors</Text>
                     </View>
+                    {/* Was navigating straight to a bare /donate form —
+                        the actual Seeds feed's "Plant a Seed" button
+                        goes to the full /seed/[id] detail page (story,
+                        donor feed, Zakat badges) first. Matching that
+                        so a seed looks and behaves the same everywhere
+                        it appears in the app. */}
                     <TouchableOpacity
                       style={styles.donateBtn}
-                      onPress={() => router.push({
-                        pathname: '/donate',
-                        params: {
-                          fundraiserId: fr.id,
-                          orgId: fr.org_id ?? org.id,
-                          title: fr.title,
-                          orgStripeAccountId: org.stripe_account_id ?? '',
-                          paymentMethodType: org.payment_method_type ?? '',
-                          paymentMethodUrl: org.payment_method_url ?? '',
-                          paymentMethodLabel: org.payment_method_label ?? '',
-                        },
-                      } as any)}
+                      onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fr.id } } as any)}
                     >
                       <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
                     </TouchableOpacity>
@@ -873,7 +855,7 @@ export default function OrgProfileScreen() {
             })}
           </View>
         ) : (
-          <Text style={styles.emptySectionText}>No active campaigns right now — check back soon.</Text>
+          <Text style={styles.emptySectionText}>No active seeds right now — check back soon.</Text>
         )}
         </>
         )}
@@ -1169,7 +1151,11 @@ function makeStyles(C: AppColors) {
   shareBtnText: { fontSize: 20, color: C.text2 },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 20 },
+  // isDesktopWeb was imported here but never actually applied to
+  // anything — this page has genuinely been the unmodified mobile
+  // layout stretched full-width this whole time, not just narrower
+  // sections within an otherwise-adapted page.
+  scrollContent: { paddingBottom: 20, maxWidth: 900, width: '100%', alignSelf: 'center' },
   scrollContentDesktop: { maxWidth: 760, width: '100%', alignSelf: 'center' },
 
   cover: {
