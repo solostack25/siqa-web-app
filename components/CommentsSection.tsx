@@ -10,7 +10,7 @@ import {
 import { useState, useCallback } from 'react';
 import { useFocusEffect, router } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/colors';
+import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 
 type Comment = {
@@ -35,6 +35,8 @@ function timeAgo(ts: string) {
 }
 
 export function CommentsSection({ videoId }: { videoId: string }) {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -98,7 +100,7 @@ export function CommentsSection({ videoId }: { videoId: string }) {
         <TextInput
           style={styles.input}
           placeholder="Add a comment..."
-          placeholderTextColor={Colors.text3}
+          placeholderTextColor={C.text3}
           value={draft}
           onChangeText={setDraft}
           multiline
@@ -108,12 +110,12 @@ export function CommentsSection({ videoId }: { videoId: string }) {
           onPress={handlePost}
           disabled={!draft.trim() || posting}
         >
-          {posting ? <ActivityIndicator color={Colors.bg} size="small" /> : <Text style={styles.postBtnText}>Post</Text>}
+          {posting ? <ActivityIndicator color={C.bg} size="small" /> : <Text style={styles.postBtnText}>Post</Text>}
         </TouchableOpacity>
       </View>
 
       {loading ? (
-        <ActivityIndicator color={Colors.gold} style={{ marginTop: Theme.spacing.lg }} />
+        <ActivityIndicator color={C.gold} style={{ marginTop: Theme.spacing.lg }} />
       ) : comments.length === 0 ? (
         <Text style={styles.emptyText}>Be the first to comment.</Text>
       ) : (
@@ -136,35 +138,37 @@ export function CommentsSection({ videoId }: { videoId: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
   wrap: { marginTop: Theme.spacing.xl },
-  label: { color: Colors.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginBottom: Theme.spacing.md },
+  label: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginBottom: Theme.spacing.md },
   composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Theme.spacing.sm, marginBottom: Theme.spacing.lg },
   input: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderRadius: Theme.radius.md,
     borderWidth: 0.5,
-    borderColor: Colors.border,
-    color: Colors.text,
+    borderColor: C.border,
+    color: C.text,
     paddingHorizontal: Theme.spacing.md,
     paddingVertical: 10,
     fontSize: Theme.fontSize.base,
     maxHeight: 100,
   },
   postBtn: {
-    backgroundColor: Colors.gold,
+    backgroundColor: C.gold,
     paddingHorizontal: Theme.spacing.lg,
     paddingVertical: 10,
     borderRadius: Theme.radius.full,
   },
   postBtnDisabled: { opacity: 0.4 },
-  postBtnText: { color: Colors.bg, fontWeight: Theme.fontWeight.semibold, fontSize: Theme.fontSize.sm },
-  emptyText: { color: Colors.text3, fontSize: Theme.fontSize.base, paddingVertical: Theme.spacing.lg },
+  postBtnText: { color: C.bg, fontWeight: Theme.fontWeight.semibold, fontSize: Theme.fontSize.sm },
+  emptyText: { color: C.text3, fontSize: Theme.fontSize.base, paddingVertical: Theme.spacing.lg },
   commentRow: { flexDirection: 'row', gap: Theme.spacing.sm, marginBottom: Theme.spacing.lg },
-  avatarPlaceholder: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.goldSoft, flexShrink: 0 },
+  avatarPlaceholder: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.goldSoft, flexShrink: 0 },
   commentMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
-  commentAuthor: { color: Colors.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semibold },
-  commentTime: { color: Colors.text3, fontSize: Theme.fontSize.xs },
-  commentBody: { color: Colors.text2, fontSize: Theme.fontSize.base, marginTop: 2, lineHeight: 20 },
+  commentAuthor: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semibold },
+  commentTime: { color: C.text3, fontSize: Theme.fontSize.xs },
+  commentBody: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: 2, lineHeight: 20 },
 });
+}
