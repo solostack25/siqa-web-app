@@ -636,12 +636,26 @@ function makeStyles(C: AppColors) {
       backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
     },
     editBannerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    // Was alignItems:'center' with the whole row pulled up -32px — that
+    // centered the name text vertically against the full 96px avatar
+    // height inside a row already shifted up into the banner, so the
+    // text ended up overlapping the banner edge along with the avatar,
+    // not just the avatar the way it should. flex-end + a smaller
+    // overlap means only the avatar's top portion breaches the banner;
+    // the text sits on its own baseline below it, same as YouTube's.
     headerRowDesktop: {
-      flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32, marginTop: -32, marginBottom: 16, gap: 20,
+      flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 32, marginTop: -20, marginBottom: 16, gap: 20,
     },
     avatarDesktop: { width: 96, height: 96, borderRadius: 24 },
     avatarTextDesktop: { fontSize: 34, color: C.gold, fontWeight: '700' },
-    headerInfoDesktop: { flex: 1, gap: 4 },
+    // Was flex:1, which stretches this to eat all remaining row width —
+    // on a wide desktop window that pushes the Follow button (a plain
+    // sibling with no flex of its own) all the way to the far right
+    // edge, disconnected from the name it belongs next to. Capping the
+    // width instead keeps the whole avatar+name+button cluster
+    // together on the left, with empty space on the right where
+    // YouTube's own layout also just leaves it empty.
+    headerInfoDesktop: { gap: 4, maxWidth: 480 },
     nameDesktop: { fontSize: 26, fontWeight: '700', color: C.text },
     statsDesktopRow: {
       flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 32, marginBottom: 16, flexWrap: 'wrap',
