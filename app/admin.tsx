@@ -68,6 +68,14 @@ type SpeakerApplication = {
   created_at: string;
 };
 
+type MarketplaceSellerRow = {
+  id: string;
+  shop_name: string;
+  bio: string | null;
+  user_id: string;
+  created_at: string;
+};
+
 const ADMIN_ROLES = ['admin', 'owner', 'moderator', 'super_admin'];
 
 export default function AdminScreen() {
@@ -82,6 +90,8 @@ export default function AdminScreen() {
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [applications, setApplications] = useState<SpeakerApplication[]>([]);
+  const [pendingSellers, setPendingSellers] = useState<MarketplaceSellerRow[]>([]);
+  const [adminId, setAdminId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,7 +119,9 @@ export default function AdminScreen() {
       setAllowed(canModerate);
       if (!canModerate) return;
 
-      const [videosRes, speakersRes, orgsRes, appsRes] = await Promise.all([
+      setAdminId(user.id);
+
+      const [videosRes, speakersRes, appsRes, orgsRes, sellersRes] = await Promise.all([
         supabase
           .from('videos')
           .select('id, title, thumbnail_url, video_url, is_published, status, created_at, speakers(display_name)')
@@ -134,12 +146,19 @@ export default function AdminScreen() {
           .or('is_verified.eq.false,is_verified.is.null')
           .order('created_at', { ascending: false })
           .limit(30),
+        supabase
+          .from('marketplace_sellers')
+          .select('id, shop_name, bio, user_id, created_at')
+          .eq('approval_status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(30),
       ]);
 
       if (videosRes.data) setVideos(videosRes.data as any);
       if (speakersRes.data) setSpeakers(speakersRes.data as any);
       if (orgsRes.data) setOrgs(orgsRes.data as any);
       if (appsRes.data) setApplications(appsRes.data as any);
+      if (sellersRes.data) setPendingSellers(sellersRes.data as any);
 
       const reportsRes = await supabase
         .from('content_reports')
@@ -299,6 +318,37 @@ export default function AdminScreen() {
     setOrgs((prev) => prev.filter((o) => o.id !== id));
   }
 
+  async function approveSeller(seller: MarketplaceSellerRow) {
+    setBusyId(seller.id);
+    const result = await supabase
+      .from('marketplace_sellers')
+      .update({ approval_status: 'approved', approved_at: new Date().toISOString(), approved_by: adminId })
+      .eq('id', seller.id);
+    setBusyId(null);
+    if (result.error) return Alert.alert('Could not approve seller', result.error.message);
+    setPendingSellers(prev => prev.filter(s => s.id !== seller.id));
+  }
+
+  async function rejectSeller(seller: MarketplaceSellerRow) {
+    Alert.alert('Reject Shop?', `Reject "${seller.shop_name}" as a marketplace seller?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: async () => {
+          setBusyId(seller.id);
+          const result = await supabase
+            .from('marketplace_sellers')
+            .update({ approval_status: 'rejected', approved_at: new Date().toISOString(), approved_by: adminId })
+            .eq('id', seller.id);
+          setBusyId(null);
+          if (result.error) return Alert.alert('Could not reject seller', result.error.message);
+          setPendingSellers(prev => prev.filter(s => s.id !== seller.id));
+        },
+      },
+    ]);
+  }
+
   async function closeReport(id: string) {
     setBusyId(id);
     const result = await supabase.from('content_reports').update({ status: 'closed' }).eq('id', id);
@@ -401,6 +451,25 @@ export default function AdminScreen() {
       <QueueSection title="Organization Verification" count={orgs.length} C={C}>
         {orgs.length === 0 ? <Empty text="No organizations waiting for verification." C={C} /> : orgs.map((o) => (
           <SimpleRow key={o.id} title={o.name || 'Unnamed organization'} sub="Organization profile" action="Verify" busy={busyId === o.id} onPress={() => verifyOrg(o.id)} C={C} />
+        ))}
+      </QueueSection>
+
+      <QueueSection title="Pending Sellers" count={pendingSellers.length} C={C}>
+        {pendingSellers.length === 0 ? <Empty text="No shops waiting for approval." C={C} /> : pendingSellers.map((s) => (
+          <View key={s.id} style={styles.queueCard}>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle}>{s.shop_name}</Text>
+              {s.bio ? <Text style={styles.cardMeta} numberOfLines={2}>{s.bio}</Text> : null}
+            </View>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity style={styles.ghostBtn} onPress={() => rejectSeller(s)} disabled={busyId === s.id}>
+                <Text style={styles.ghostBtnText}>Reject</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primarySmallBtn} onPress={() => approveSeller(s)} disabled={busyId === s.id}>
+                <Text style={styles.primarySmallText}>{busyId === s.id ? 'Saving...' : 'Approve'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         ))}
       </QueueSection>
 

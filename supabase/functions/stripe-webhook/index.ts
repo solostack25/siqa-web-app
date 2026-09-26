@@ -137,6 +137,14 @@ Deno.serve(async (req) => {
         .from('organizations')
         .update({ stripe_onboarded: true })
         .eq('stripe_account_id', account.id);
+
+      await supabase
+        .from('marketplace_sellers')
+        .update({
+          stripe_onboarded: true,
+          stripe_charges_enabled: Boolean(account.charges_enabled),
+        })
+        .eq('stripe_account_id', account.id);
     }
   }
 

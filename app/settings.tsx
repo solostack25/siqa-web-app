@@ -79,6 +79,7 @@ export default function SettingsScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [mySeller, setMySeller] = useState<{ id: string; shop_name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [editName, setEditName] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -118,6 +119,13 @@ export default function SettingsScreen() {
       .limit(1)
       .maybeSingle();
     if (orgData) setOrganization(orgData);
+
+    const { data: sellerData } = await supabase
+      .from('marketplace_sellers')
+      .select('id, shop_name')
+      .eq('user_id', uid)
+      .maybeSingle();
+    if (sellerData) setMySeller(sellerData);
 
     setLoading(false);
   }
@@ -287,6 +295,36 @@ export default function SettingsScreen() {
             )}
           </Section>
         )}
+
+        <Section
+          icon="bag-handle-outline"
+          label="Marketplace"
+          sublabel={mySeller?.shop_name}
+          open={openSection === 'marketplace'}
+          onToggle={() => toggle('marketplace')}
+        >
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/orders' as any)}>
+            <Icon name="receipt-outline" size={18} color={C.text2} />
+            <View style={styles.menuTextWrap}>
+              <Text style={styles.menuLabel}>My Orders</Text>
+              <Text style={styles.menuSubLabel}>Track purchases and leave reviews</Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomWidth: 0 }]}
+            onPress={() => router.push((mySeller ? '/seller-dashboard' : '/sell') as any)}
+          >
+            <Icon name="storefront-outline" size={18} color={C.text2} />
+            <View style={styles.menuTextWrap}>
+              <Text style={styles.menuLabel}>{mySeller ? 'Seller Dashboard' : 'Sell on Siqa'}</Text>
+              <Text style={styles.menuSubLabel}>
+                {mySeller ? mySeller.shop_name : 'Turn your craft into a shop'}
+              </Text>
+            </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+        </Section>
 
         {isAdminRole(role) && (
           <Section
