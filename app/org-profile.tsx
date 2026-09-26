@@ -616,6 +616,30 @@ export default function OrgProfileScreen() {
           </View>
         </View>
 
+        {/* Details — was way down the page, after Endorsements/Projects/
+            Services, essentially buried. LinkedIn puts this exact kind
+            of identity info (type, location, status) in one compact
+            line right under the name; this app's version is a fuller
+            table rather than a single line, but the same principle
+            applies — it belongs right under the banner, not after
+            everything else. */}
+        {(org.ein || org.website) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Details</Text>
+            <View style={styles.detailsCard}>
+              {org.ein && <DetailRow label="EIN / Tax ID" value={org.ein} />}
+              {org.org_type && <DetailRow label="Type" value={org.org_type.charAt(0).toUpperCase() + org.org_type.slice(1)} />}
+              {location !== 'USA' && <DetailRow label="Location" value={location} />}
+              {org.website && (
+                <TouchableOpacity onPress={() => Linking.openURL(org.website!)}>
+                  <DetailRow label="Website" value={org.website.replace('https://', '').replace('http://', '')} link />
+                </TouchableOpacity>
+              )}
+              <DetailRow label="Status" value={org.is_verified ? 'Verified ✓' : 'Pending Review'} />
+            </View>
+          </View>
+        )}
+
         {/* Trust score strip */}
         <View style={styles.trustStrip}>
           <View style={styles.trustScoreBox}>
@@ -980,24 +1004,6 @@ export default function OrgProfileScreen() {
             ))
           )}
         </View>
-
-        {/* EIN + legal */}
-        {(org.ein || org.website) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Details</Text>
-            <View style={styles.detailsCard}>
-              {org.ein && <DetailRow label="EIN / Tax ID" value={org.ein} />}
-              {org.org_type && <DetailRow label="Type" value={org.org_type.charAt(0).toUpperCase() + org.org_type.slice(1)} />}
-              {location !== 'USA' && <DetailRow label="Location" value={location} />}
-              {org.website && (
-                <TouchableOpacity onPress={() => Linking.openURL(org.website!)}>
-                  <DetailRow label="Website" value={org.website.replace('https://', '').replace('http://', '')} link />
-                </TouchableOpacity>
-              )}
-              <DetailRow label="Status" value={org.is_verified ? 'Verified ✓' : 'Pending Review'} />
-            </View>
-          </View>
-        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
