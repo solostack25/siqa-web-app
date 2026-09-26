@@ -76,6 +76,29 @@ type Doc990 = {
   created_at: string;
 };
 
+type Endorsement = {
+  id: string;
+  message: string | null;
+  created_at: string;
+  speaker_id: string;
+  speakers: { display_name: string; avatar_url: string | null } | null;
+};
+
+type Project = {
+  id: string;
+  title: string;
+  description: string | null;
+  image_url: string | null;
+  status: 'ongoing' | 'completed';
+};
+
+type Service = {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+};
+
 type Fundraiser = {
   id: string;
   title: string;
@@ -143,6 +166,29 @@ export default function OrgProfileScreen() {
   const [altPayLabel, setAltPayLabel] = useState('');
   const [savingAltPay, setSavingAltPay] = useState(false);
 
+  // Endorsements, Projects, Services — the LinkedIn-style additions:
+  // speakers can endorse an org (a short note, like a recommendation),
+  // and the org can showcase a portfolio of work and a list of
+  // services it offers, distinct from active fundraising campaigns.
+  const [endorsements, setEndorsements] = useState<Endorsement[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [mySpeakerId, setMySpeakerId] = useState<string | null>(null);
+  const [endorseFormOpen, setEndorseFormOpen] = useState(false);
+  const [endorseMessage, setEndorseMessage] = useState('');
+  const [submittingEndorsement, setSubmittingEndorsement] = useState(false);
+  const [addProjectOpen, setAddProjectOpen] = useState(false);
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [projectImageUri, setProjectImageUri] = useState<string | null>(null);
+  const [projectStatus, setProjectStatus] = useState<'ongoing' | 'completed'>('ongoing');
+  const [savingProject, setSavingProject] = useState(false);
+  const [addServiceOpen, setAddServiceOpen] = useState(false);
+  const [serviceName, setServiceName] = useState('');
+  const [serviceDescription, setServiceDescription] = useState('');
+  const [serviceIcon, setServiceIcon] = useState('');
+  const [savingService, setSavingService] = useState(false);
+
   useEffect(() => {
     if (id) loadOrg(id);
   }, [id]);
@@ -155,11 +201,14 @@ export default function OrgProfileScreen() {
 
   async function loadOrg(orgId: string) {
     setLoading(true);
-    const [orgRes, docsRes, frRes, sessionRes] = await Promise.all([
+    const [orgRes, docsRes, frRes, sessionRes, endorsementsRes, projectsRes, servicesRes] = await Promise.all([
       supabase.from('organizations').select('*').eq('id', orgId).single(),
       supabase.from('org_990s').select('*').eq('org_id', orgId).order('tax_year', { ascending: false }),
       supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status,cover_image_url,image_url').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(10),
       supabase.auth.getSession(),
+      supabase.from('org_endorsements').select('id,message,created_at,speaker_id,speakers(display_name,avatar_url)').eq('org_id', orgId).order('created_at', { ascending: false }),
+      supabase.from('org_projects').select('id,title,description,image_url,status').eq('org_id', orgId).order('created_at', { ascending: false }),
+      supabase.from('org_services').select('id,name,description,icon').eq('org_id', orgId).order('created_at', { ascending: true }),
     ]);
     if (orgRes.data) {
       setOrg(orgRes.data);
@@ -170,13 +219,117 @@ export default function OrgProfileScreen() {
         const { data: profileData } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
         const role = String(profileData?.role || '').toLowerCase();
         setIsAdmin(['admin', 'owner', 'moderator', 'super_admin'].includes(role));
+
+        const { data: speakerData } = await supabase.from('speakers').select('id').eq('profile_id', uid).maybeSingle();
+        setMySpeakerId(speakerData?.id ?? null);
       } else {
         setIsAdmin(false);
+        setMySpeakerId(null);
       }
     }
     if (docsRes.data) setDocs(docsRes.data);
     if (frRes.data) setFundraisers(frRes.data);
+    if (endorsementsRes.data) setEndorsements(endorsementsRes.data as any);
+    if (projectsRes.data) setProjects(projectsRes.data as any);
+    if (servicesRes.data) setServices(servicesRes.data as any);
     setLoading(false);
+  }
+
+  const hasEndorsed = Boolean(mySpeakerId && endorsements.some(e => e.speaker_id === mySpeakerId));
+
+  async function submitEndorsement() {
+    if (!mySpeakerId || !org) return;
+    setSubmittingEndorsement(true);
+    const { error } = await supabase.from('org_endorsements').insert({
+      org_id: org.id,
+      speaker_id: mySpeakerId,
+      message: endorseMessage.trim() || null,
+    });
+    setSubmittingEndorsement(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setEndorseFormOpen(false);
+    setEndorseMessage('');
+    loadOrg(org.id);
+  }
+
+  async function deleteEndorsement(endorsementId: string) {
+    if (!org) return;
+    await supabase.from('org_endorsements').delete().eq('id', endorsementId);
+    loadOrg(org.id);
+  }
+
+  async function pickProjectImage() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert('Permission needed', 'Allow Siqa to access your photos.'); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [16, 9], quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setProjectImageUri(result.assets[0].uri);
+  }
+
+  async function submitProject() {
+    if (!org || !projectTitle.trim()) return;
+    setSavingProject(true);
+    try {
+      let imageUrl: string | null = null;
+      if (projectImageUri) {
+        const ext = projectImageUri.split('.').pop()?.split('?')[0] ?? 'jpg';
+        imageUrl = await uploadImageToBunny(projectImageUri, `org-projects/${org.id}_${Date.now()}.${ext}`);
+      }
+      const { error } = await supabase.from('org_projects').insert({
+        org_id: org.id,
+        title: projectTitle.trim(),
+        description: projectDescription.trim() || null,
+        image_url: imageUrl,
+        status: projectStatus,
+      });
+      if (error) throw error;
+      setAddProjectOpen(false);
+      setProjectTitle('');
+      setProjectDescription('');
+      setProjectImageUri(null);
+      setProjectStatus('ongoing');
+      loadOrg(org.id);
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  function deleteProject(projectId: string) {
+    if (!org) return;
+    Alert.alert('Remove project?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => { await supabase.from('org_projects').delete().eq('id', projectId); loadOrg(org.id); } },
+    ]);
+  }
+
+  async function submitService() {
+    if (!org || !serviceName.trim()) return;
+    setSavingService(true);
+    const { error } = await supabase.from('org_services').insert({
+      org_id: org.id,
+      name: serviceName.trim(),
+      description: serviceDescription.trim() || null,
+      icon: serviceIcon.trim() || null,
+    });
+    setSavingService(false);
+    if (error) { Alert.alert('Error', error.message); return; }
+    setAddServiceOpen(false);
+    setServiceName('');
+    setServiceDescription('');
+    setServiceIcon('');
+    loadOrg(org.id);
+  }
+
+  function deleteService(serviceId: string) {
+    if (!org) return;
+    Alert.alert('Remove service?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => { await supabase.from('org_services').delete().eq('id', serviceId); loadOrg(org.id); } },
+    ]);
   }
 
   // allowsEditing/aspect below only do anything on native — that's the
@@ -668,6 +821,166 @@ export default function OrgProfileScreen() {
           </View>
         )}
 
+        {/* Endorsements — speakers vouching for this org, like a LinkedIn
+            recommendation. Anyone with a speaker profile can endorse an
+            org they haven't already endorsed; they can also remove
+            their own. */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Endorsements {endorsements.length > 0 ? `(${endorsements.length})` : ''}</Text>
+            {mySpeakerId && !hasEndorsed && !isOwner && (
+              <TouchableOpacity onPress={() => setEndorseFormOpen(v => !v)}>
+                <Text style={styles.sectionAction}>{endorseFormOpen ? 'Cancel' : '+ Endorse'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {endorseFormOpen && (
+            <View style={styles.endorseForm}>
+              <TextInput
+                style={styles.endorseInput}
+                placeholder="Optional — why do you vouch for this org?"
+                placeholderTextColor={C.text3}
+                value={endorseMessage}
+                onChangeText={setEndorseMessage}
+                multiline
+              />
+              <TouchableOpacity style={styles.smallPrimaryBtn} onPress={submitEndorsement} disabled={submittingEndorsement}>
+                {submittingEndorsement ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.smallPrimaryBtnText}>Post Endorsement</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {endorsements.length === 0 ? (
+            <Text style={styles.emptySectionText}>No endorsements yet.</Text>
+          ) : (
+            endorsements.map(e => (
+              <View key={e.id} style={styles.endorsementCard}>
+                <View style={styles.endorsementAvatar}>
+                  {e.speakers?.avatar_url ? (
+                    <Image source={{ uri: e.speakers.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  ) : (
+                    <Text style={styles.endorsementAvatarText}>{(e.speakers?.display_name || '?').charAt(0).toUpperCase()}</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.endorsementName}>{e.speakers?.display_name || 'A Siqa speaker'}</Text>
+                  {e.message ? <Text style={styles.endorsementMessage}>{e.message}</Text> : null}
+                </View>
+                {mySpeakerId === e.speaker_id && (
+                  <TouchableOpacity onPress={() => deleteEndorsement(e.id)}>
+                    <Text style={styles.endorsementRemove}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Projects — a portfolio of work, distinct from active donation
+            campaigns; things the org has done or is doing. */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Projects {projects.length > 0 ? `(${projects.length})` : ''}</Text>
+            {canEditOrg && (
+              <TouchableOpacity onPress={() => setAddProjectOpen(v => !v)}>
+                <Text style={styles.sectionAction}>{addProjectOpen ? 'Cancel' : '+ Add Project'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {addProjectOpen && (
+            <View style={styles.addForm}>
+              <TouchableOpacity style={styles.addFormImage} onPress={pickProjectImage}>
+                {projectImageUri ? (
+                  <Image source={{ uri: projectImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                ) : (
+                  <Text style={styles.addFormImageText}>📷 Add a photo</Text>
+                )}
+              </TouchableOpacity>
+              <TextInput style={styles.addFormInput} placeholder="Project title" placeholderTextColor={C.text3} value={projectTitle} onChangeText={setProjectTitle} />
+              <TextInput style={[styles.addFormInput, styles.addFormTextarea]} placeholder="What was this project?" placeholderTextColor={C.text3} value={projectDescription} onChangeText={setProjectDescription} multiline />
+              <View style={styles.statusToggleRow}>
+                {(['ongoing', 'completed'] as const).map(s => (
+                  <TouchableOpacity key={s} style={[styles.statusToggle, projectStatus === s && styles.statusToggleActive]} onPress={() => setProjectStatus(s)}>
+                    <Text style={[styles.statusToggleText, projectStatus === s && styles.statusToggleTextActive]}>{s === 'ongoing' ? 'Ongoing' : 'Completed'}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity style={styles.smallPrimaryBtn} onPress={submitProject} disabled={savingProject || !projectTitle.trim()}>
+                {savingProject ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.smallPrimaryBtnText}>Save Project</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {projects.length === 0 ? (
+            <Text style={styles.emptySectionText}>No projects listed yet.</Text>
+          ) : (
+            <View style={styles.projectsGrid}>
+              {projects.map(p => (
+                <View key={p.id} style={styles.projectCard}>
+                  {p.image_url ? <Image source={{ uri: p.image_url }} style={styles.projectImage} resizeMode="cover" /> : <View style={[styles.projectImage, styles.projectImagePlaceholder]} />}
+                  <View style={styles.projectBody}>
+                    <View style={[styles.statusBadge, p.status === 'completed' && styles.statusBadgeCompleted]}>
+                      <Text style={styles.statusBadgeText}>{p.status === 'completed' ? 'Completed' : 'Ongoing'}</Text>
+                    </View>
+                    <Text style={styles.projectTitle}>{p.title}</Text>
+                    {p.description ? <Text style={styles.projectDescription} numberOfLines={3}>{p.description}</Text> : null}
+                    {canEditOrg && (
+                      <TouchableOpacity onPress={() => deleteProject(p.id)}>
+                        <Text style={styles.endorsementRemove}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Services — things the org offers (janazah, nikah, food pantry,
+            counseling...), separate from fundraising and projects. */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Services {services.length > 0 ? `(${services.length})` : ''}</Text>
+            {canEditOrg && (
+              <TouchableOpacity onPress={() => setAddServiceOpen(v => !v)}>
+                <Text style={styles.sectionAction}>{addServiceOpen ? 'Cancel' : '+ Add Service'}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {addServiceOpen && (
+            <View style={styles.addForm}>
+              <TextInput style={styles.addFormInput} placeholder="Emoji (optional), e.g. 🕌" placeholderTextColor={C.text3} value={serviceIcon} onChangeText={setServiceIcon} maxLength={4} />
+              <TextInput style={styles.addFormInput} placeholder="Service name" placeholderTextColor={C.text3} value={serviceName} onChangeText={setServiceName} />
+              <TextInput style={[styles.addFormInput, styles.addFormTextarea]} placeholder="Brief description" placeholderTextColor={C.text3} value={serviceDescription} onChangeText={setServiceDescription} multiline />
+              <TouchableOpacity style={styles.smallPrimaryBtn} onPress={submitService} disabled={savingService || !serviceName.trim()}>
+                {savingService ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.smallPrimaryBtnText}>Save Service</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {services.length === 0 ? (
+            <Text style={styles.emptySectionText}>No services listed yet.</Text>
+          ) : (
+            services.map(s => (
+              <View key={s.id} style={styles.serviceRow}>
+                <Text style={styles.serviceIcon}>{s.icon || '✦'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.serviceName}>{s.name}</Text>
+                  {s.description ? <Text style={styles.serviceDescription}>{s.description}</Text> : null}
+                </View>
+                {canEditOrg && (
+                  <TouchableOpacity onPress={() => deleteService(s.id)}>
+                    <Text style={styles.endorsementRemove}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          )}
+        </View>
+
         {/* EIN + legal */}
         {(org.ein || org.website) && (
           <View style={styles.section}>
@@ -1124,5 +1437,84 @@ function makeStyles(C: AppColors) {
     paddingVertical: 15, alignItems: 'center', marginTop: 4,
   },
   sheetSaveBtnText: { color: C.black, fontSize: 15, fontWeight: '900' },
+
+  // Endorsements / Projects / Services (LinkedIn-style profile additions)
+  sectionAction: { fontSize: 12, fontWeight: '700', color: C.gold },
+  emptySectionText: { fontSize: 13, color: C.text3, fontStyle: 'italic' },
+
+  endorseForm: {
+    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
+    padding: 12, marginBottom: 12, gap: 10,
+  },
+  endorseInput: {
+    backgroundColor: C.bg, borderRadius: Theme.radius.md, borderWidth: 0.5, borderColor: C.border,
+    padding: 10, color: C.text, fontSize: 13, minHeight: 60, textAlignVertical: 'top',
+  },
+  smallPrimaryBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 11, alignItems: 'center' },
+  smallPrimaryBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
+
+  endorsementCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
+    padding: 12, marginBottom: 8,
+  },
+  endorsementAvatar: {
+    width: 36, height: 36, borderRadius: 18, backgroundColor: C.emerald,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
+  },
+  endorsementAvatarText: { color: C.gold, fontSize: 14, fontWeight: '700' },
+  endorsementName: { fontSize: 13, fontWeight: '700', color: C.text },
+  endorsementMessage: { fontSize: 12, color: C.text2, marginTop: 3, lineHeight: 17 },
+  endorsementRemove: { fontSize: 11, color: '#e84545', fontWeight: '600', marginTop: 4 },
+
+  addForm: {
+    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
+    padding: 12, marginBottom: 12, gap: 10,
+  },
+  addFormImage: {
+    height: 120, borderRadius: Theme.radius.md, backgroundColor: C.bg,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    borderWidth: 1, borderColor: C.border, borderStyle: 'dashed',
+  },
+  addFormImageText: { color: C.text3, fontSize: 12 },
+  addFormInput: {
+    backgroundColor: C.bg, borderRadius: Theme.radius.md, borderWidth: 0.5, borderColor: C.border,
+    paddingHorizontal: 12, paddingVertical: 10, color: C.text, fontSize: 13,
+  },
+  addFormTextarea: { minHeight: 60, textAlignVertical: 'top' },
+  statusToggleRow: { flexDirection: 'row', gap: 8 },
+  statusToggle: {
+    flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: 'center',
+    borderWidth: 0.5, borderColor: C.border2, backgroundColor: C.bg,
+  },
+  statusToggleActive: { backgroundColor: C.goldBg, borderColor: C.gold },
+  statusToggleText: { fontSize: 12, color: C.text3, fontWeight: '600' },
+  statusToggleTextActive: { color: C.gold },
+
+  projectsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  projectCard: {
+    width: '100%', backgroundColor: C.surface, borderRadius: Theme.radius.lg,
+    borderWidth: 0.5, borderColor: C.border2, overflow: 'hidden', marginBottom: 8,
+  },
+  projectImage: { width: '100%', aspectRatio: 16 / 9, backgroundColor: C.surface2 },
+  projectImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  projectBody: { padding: 12 },
+  statusBadge: {
+    alignSelf: 'flex-start', backgroundColor: C.goldBg, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6,
+  },
+  statusBadgeCompleted: { backgroundColor: C.emeraldBg },
+  statusBadgeText: { fontSize: 9, fontWeight: '700', color: C.gold, textTransform: 'uppercase' },
+  projectTitle: { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 4 },
+  projectDescription: { fontSize: 12, color: C.text2, lineHeight: 17, marginBottom: 6 },
+
+  serviceRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
+    padding: 12, marginBottom: 8,
+  },
+  serviceIcon: { fontSize: 22 },
+  serviceName: { fontSize: 13, fontWeight: '700', color: C.text },
+  serviceDescription: { fontSize: 12, color: C.text2, marginTop: 2, lineHeight: 16 },
 });
 }
