@@ -4,6 +4,7 @@ import {
   FlatList,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Image,
   ActivityIndicator,
   RefreshControl,
@@ -96,11 +97,23 @@ export default function HomeScreen() {
   // both overestimated space AND was capped at an arbitrary 1600px, which
   // left a dead empty column on wide monitors instead of filling it.
   const availableWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
-  const numColumns = availableWidth > 1100 ? 4 : availableWidth > 800 ? 3 : availableWidth > 520 ? 2 : 1;
+  // Was a fixed "4 columns above 1100px, forever" rule — cards kept
+  // getting narrower as the window grew past that, instead of getting
+  // roomier the way YouTube's actual grid does (it's still only 3-4
+  // per row on a large monitor, not 6-7, because each card has a
+  // minimum width it won't shrink below). This computes columns from
+  // a target minimum card width instead of a hardcoded column count,
+  // so it naturally lands on fewer, wider cards at typical desktop
+  // sizes and still scales up sensibly on very large displays.
+  const CARD_MIN_WIDTH = 420;
+  const GRID_GAP = Theme.spacing.xl;
+  const numColumns = isDesktopWeb
+    ? Math.max(1, Math.floor((availableWidth - Theme.spacing.lg * 2 + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)))
+    : availableWidth > 520 ? 2 : 1;
   const cardWidth =
     numColumns === 1
       ? undefined
-      : (availableWidth - Theme.spacing.lg * 2 - Theme.spacing.md * (numColumns - 1)) / numColumns;
+      : (availableWidth - Theme.spacing.lg * 2 - GRID_GAP * (numColumns - 1)) / numColumns;
 
   const [userName, setUserName] = useState<string | null>(null);
   const [shorts, setShorts] = useState<ShortVideo[]>([]);
@@ -223,7 +236,7 @@ export default function HomeScreen() {
       data={videos}
       keyExtractor={(v) => v.id}
       numColumns={numColumns}
-      columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.md, paddingHorizontal: Theme.spacing.lg } : undefined}
+      columnWrapperStyle={numColumns > 1 ? { gap: GRID_GAP, paddingHorizontal: Theme.spacing.lg } : undefined}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -333,8 +346,20 @@ export default function HomeScreen() {
         </>
       }
       renderItem={({ item }) => (
-        <TouchableOpacity
-          style={[styles.videoCard, numColumns > 1 && { paddingHorizontal: 0, width: cardWidth }]}
+        // TouchableOpacity has no concept of hover — only a press state
+        // — so there was never any feedback for a mouse sitting over a
+        // card on desktop, unlike every YouTube card. Pressable's style
+        // callback gets a real `hovered` flag on web (harmlessly
+        // undefined on native, where hover doesn't apply anyway).
+        <Pressable
+          style={(state: any) => {
+            const hovered = state.hovered;
+            return [
+              styles.videoCard,
+              numColumns > 1 && { paddingHorizontal: 0, width: cardWidth },
+              hovered && styles.videoCardHovered,
+            ];
+          }}
           onPress={() => router.push(`/watch/${item.id}` as any)}
         >
           <View style={styles.thumbWrap}>
@@ -365,7 +390,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           </View>
-        </TouchableOpacity>
+        </Pressable>
       )}
       ListEmptyComponent={
         <View style={styles.emptyState}>
@@ -454,6 +479,17 @@ function makeStyles(C: AppColors) {
     shortTitle: { color: C.text2, fontSize: Theme.fontSize.xs, marginTop: 6 },
 
     videoCard: { paddingHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.xl },
+    // A literal per-thumbnail color-matched glow would need extracting
+    // a dominant color from each image (real, but a much bigger feature
+    // than a hover state) — this is the standard "card lifts toward
+    // you" treatment instead: slight scale, a soft shadow underneath.
+    videoCardHovered: {
+      transform: [{ scale: 1.02 }],
+      shadowColor: '#000',
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+    },
     thumbWrap: { aspectRatio: 16 / 9, borderRadius: Theme.radius.md, overflow: "hidden", backgroundColor: C.surface },
     thumb: { width: "100%", height: "100%" },
     thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
