@@ -12,7 +12,7 @@ import {
 import { useEffect, useState, useCallback } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
-import { Colors } from '../constants/colors';
+import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { SearchIcon, ClearIcon } from '../components/Siqa';
@@ -75,6 +75,8 @@ function timeAgo(ts: string | null) {
 }
 
 export default function BrowseScreen() {
+  const { colors: C } = useTheme();
+  const styles = makeStyles(C);
   const { width: windowWidth } = useWindowDimensions();
   const isDesktopWeb = useIsDesktopWeb();
   const width = isDesktopWeb ? windowWidth - 220 : windowWidth;
@@ -161,11 +163,11 @@ export default function BrowseScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <SearchIcon size={16} color={Colors.text3} />
+        <SearchIcon size={16} color={C.text3} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search videos, creators, categories"
-          placeholderTextColor={Colors.text3}
+          placeholderTextColor={C.text3}
           value={searchQuery}
           onChangeText={setSearchQuery}
           returnKeyType="search"
@@ -173,7 +175,7 @@ export default function BrowseScreen() {
         />
         {searchQuery.length > 0 ? (
           <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
-            <ClearIcon size={16} color={Colors.text3} />
+            <ClearIcon size={16} color={C.text3} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -196,7 +198,7 @@ export default function BrowseScreen() {
       />
 
       {loading ? (
-        <ActivityIndicator color={Colors.gold} style={{ marginTop: Theme.spacing.xxxl }} />
+        <ActivityIndicator color={C.gold} style={{ marginTop: Theme.spacing.xxxl }} />
       ) : videos.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyTitle}>No videos here yet</Text>
@@ -246,8 +248,9 @@ export default function BrowseScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+function makeStyles(C: AppColors) {
+  return StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -256,8 +259,8 @@ const styles = StyleSheet.create({
     paddingTop: Theme.spacing.xl,
     paddingBottom: Theme.spacing.md,
   },
-  backArrow: { color: Colors.text, fontSize: 28, fontWeight: Theme.fontWeight.medium },
-  headerTitle: { color: Colors.text, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
+  backArrow: { color: C.text, fontSize: 28, fontWeight: Theme.fontWeight.medium },
+  headerTitle: { color: C.text, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -266,13 +269,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.md,
     paddingVertical: 9,
     borderRadius: Theme.radius.full,
-    backgroundColor: Colors.surface,
+    backgroundColor: C.surface,
     borderWidth: 0.5,
-    borderColor: Colors.border,
+    borderColor: C.border,
     gap: Theme.spacing.sm,
     maxWidth: 380,
   },
-  searchInput: { flex: 1, color: Colors.text, fontSize: Theme.fontSize.base, padding: 0 },
+  searchInput: { flex: 1, color: C.text, fontSize: Theme.fontSize.base, padding: 0 },
   chipList: { flexGrow: 0, flexShrink: 0 },
   chipRow: {
     paddingHorizontal: Theme.spacing.lg,
@@ -284,14 +287,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Theme.spacing.lg,
     paddingVertical: Theme.spacing.sm,
     borderRadius: Theme.radius.full,
-    backgroundColor: Colors.surface2,
+    backgroundColor: C.surface2,
   },
-  chipActive: { backgroundColor: Colors.gold },
-  chipText: { color: Colors.text2, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.medium },
-  chipTextActive: { color: Colors.bg, fontWeight: Theme.fontWeight.semibold },
+  chipActive: { backgroundColor: C.gold },
+  chipText: { color: C.text2, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.medium },
+  chipTextActive: { color: C.bg, fontWeight: Theme.fontWeight.semibold },
   grid: { padding: Theme.spacing.lg, gap: Theme.spacing.xl },
   card: { marginBottom: Theme.spacing.xl },
-  thumbWrap: { aspectRatio: 16 / 9, borderRadius: Theme.radius.md, overflow: 'hidden', backgroundColor: Colors.surface },
+  thumbWrap: { aspectRatio: 16 / 9, borderRadius: Theme.radius.md, overflow: 'hidden', backgroundColor: C.surface },
   thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   durationBadge: {
@@ -303,15 +306,16 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: Theme.radius.sm,
   },
-  durationText: { color: Colors.white, fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.medium },
+  durationText: { color: C.white, fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.medium },
   cardTitle: {
-    color: Colors.text,
+    color: C.text,
     fontSize: Theme.fontSize.base,
     fontWeight: Theme.fontWeight.semibold,
     marginTop: Theme.spacing.sm,
   },
-  cardMeta: { color: Colors.text2, fontSize: Theme.fontSize.sm, marginTop: 2 },
+  cardMeta: { color: C.text2, fontSize: Theme.fontSize.sm, marginTop: 2 },
   emptyState: { alignItems: 'center', paddingTop: Theme.spacing.xxxl * 2 },
-  emptyTitle: { color: Colors.text, fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.semibold },
-  emptySubtitle: { color: Colors.text2, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.xs },
+  emptyTitle: { color: C.text, fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.semibold },
+  emptySubtitle: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.xs },
 });
+}
