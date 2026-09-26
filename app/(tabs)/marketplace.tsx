@@ -78,7 +78,13 @@ export default function MarketplaceScreen() {
     setLoading(true);
     let q = supabase
       .from('marketplace_products')
-      .select('id, title, price_cents, currency, images, category, marketplace_sellers!inner(shop_name, approval_status)')
+      // marketplace_sellers has its own FK back to marketplace_products
+      // (featured_product_id), so there are two relationships between
+      // these tables — PostgREST can't infer which one without an
+      // explicit hint here, and silently 300s the whole request
+      // instead of just dropping the embed. Naming the real FK
+      // (marketplace_products.seller_id) resolves it.
+      .select('id, title, price_cents, currency, images, category, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
       .eq('status', 'active')
       .eq('marketplace_sellers.approval_status', 'approved')
       .order('created_at', { ascending: false })

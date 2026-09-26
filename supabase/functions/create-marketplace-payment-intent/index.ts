@@ -55,7 +55,10 @@ Deno.serve(async (req: Request) => {
     const productIds = items.map((i: any) => i.productId).filter(Boolean);
     const { data: products, error: productsError } = await supabase
       .from('marketplace_products')
-      .select('id, title, price_cents, currency, inventory_count, is_digital, status, seller_id, marketplace_sellers(id, stripe_account_id, stripe_onboarded)')
+      // Same disambiguation as the browse query in the app — marketplace_sellers
+      // has its own FK back to marketplace_products (featured_product_id), so
+      // this embed is ambiguous without naming the actual FK explicitly.
+      .select('id, title, price_cents, currency, inventory_count, is_digital, status, seller_id, marketplace_sellers!marketplace_products_seller_id_fkey(id, stripe_account_id, stripe_onboarded)')
       .in('id', productIds);
 
     if (productsError || !products || products.length === 0) {
