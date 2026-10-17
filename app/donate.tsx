@@ -8,7 +8,9 @@ import {
   Alert,
   Linking,
   Platform,
+  Switch,
 } from 'react-native';
+import { money, quoteDonation } from '../lib/donationFees';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
@@ -57,6 +59,9 @@ export default function DonateScreen() {
   const { colors: C, isDark } = useTheme();
   const styles = makeStyles(C);
   const [selectedAmount, setSelectedAmount] = useState<number>(2500);
+  // Donor chooses to add the fees on top so the organization gets the full gift.
+  const [coverFees, setCoverFees] = useState(false);
+  const quote = quoteDonation(selectedAmount, coverFees);
   const [loading, setLoading] = useState(false);
   const [webClientSecret, setWebClientSecret] = useState<string | null>(null);
   const [webPaymentIntentId, setWebPaymentIntentId] = useState<string | null>(null);
@@ -93,6 +98,7 @@ export default function DonateScreen() {
           orgStripeAccountId: orgStripeAccountId || null,
           donorName: session?.user?.email ?? 'Anonymous',
           campaignTitle: title,
+          coverFees,
         }),
       });
 
@@ -120,8 +126,8 @@ export default function DonateScreen() {
       donor_profile_id: session?.user?.id ?? null,
       donor_name: session?.user?.email ?? 'Anonymous',
       donor_email: session?.user?.email ?? null,
-      amount: selectedAmount,
-      platform_fee: Math.max(Math.round(selectedAmount * 0.01), 50),
+      amount: quote.charge,
+      platform_fee: quote.platformFee,
       stripe_payment_intent_id: confirmedPaymentIntentId,
       campaign_title: title,
       status: 'completed',
@@ -131,7 +137,7 @@ export default function DonateScreen() {
     setWebClientSecret(null);
     router.replace({
       pathname: '/donate-success',
-      params: { amount: formatAmount(selectedAmount), title },
+      params: { amount: money(quote.charge), title },
     });
   }
 
@@ -161,6 +167,7 @@ export default function DonateScreen() {
             orgStripeAccountId: orgStripeAccountId || null,
             donorName: session?.user?.email ?? 'Anonymous',
             campaignTitle: title,
+            coverFees,
           }),
         }
       );
@@ -205,8 +212,8 @@ if (fnError) throw new Error(fnError);
         donor_profile_id: session?.user?.id ?? null,
         donor_name: session?.user?.email ?? 'Anonymous',
         donor_email: session?.user?.email ?? null,
-        amount: selectedAmount,
-        platform_fee: Math.max(Math.round(selectedAmount * 0.01), 50),
+        amount: quote.charge,
+        platform_fee: quote.platformFee,
         stripe_payment_intent_id: paymentIntentId,
         campaign_title: title,
         status: 'completed',
@@ -217,7 +224,7 @@ if (fnError) throw new Error(fnError);
       router.replace({
         pathname: '/donate-success',
         params: {
-          amount: formatAmount(selectedAmount),
+          amount: money(quote.charge),
           title,
         },
       });
@@ -263,28 +270,57 @@ if (fnError) throw new Error(fnError);
           ))}
         </View>
 
+        {/* Cover the fees */}
+        {!isAltPay && !isNoPayment && (
+          <View style={styles.coverRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.coverTitle}>Cover the fees</Text>
+              <Text style={styles.coverSub}>
+                Add {money(quoteDonation(selectedAmount, true).charge - selectedAmount)} so the organization gets the full {formatAmount(selectedAmount)}.
+              </Text>
+            </View>
+            <Switch
+              value={coverFees}
+              onValueChange={setCoverFees}
+              // A web card form already made for one amount can't change.
+              disabled={loading || Boolean(webClientSecret)}
+              trackColor={{ false: C.surface3, true: C.gold }}
+              thumbColor="#fff"
+              {...({ activeThumbColor: '#fff' } as any)}
+            />
+          </View>
+        )}
+
         {/* Fee breakdown — only show for Stripe */}
         {!isAltPay && (
           <View style={styles.breakdown}>
             <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Your donation</Text>
+              <Text style={styles.breakdownLabel}>Your gift</Text>
               <Text style={styles.breakdownVal}>{formatAmount(selectedAmount)}</Text>
             </View>
-            {/* Fees come out of the gift (the donor pays exactly the amount
-                picked), so they're listed as plain amounts under a "fees"
-                heading rather than as negative numbers. */}
-            <Text style={styles.breakdownSub}>Fees taken from your gift</Text>
+            {/* Fees are listed as plain amounts under a heading (not as
+                negative numbers). Either they come out of the gift, or the
+                donor adds them on top. */}
+            <Text style={styles.breakdownSub}>
+              {coverFees ? 'Fees you\'re covering' : 'Fees taken from your gift'}
+            </Text>
             <View style={styles.breakdownRow}>
               <Text style={styles.breakdownLabel}>Siqa platform fee (1%)</Text>
-              <Text style={styles.breakdownVal}>{formatFee(selectedAmount)}</Text>
+              <Text style={styles.breakdownVal}>{money(quote.platformFee)}</Text>
             </View>
             <View style={styles.breakdownRow}>
               <Text style={styles.breakdownLabel}>Card processing (2.9% + 30¢)</Text>
-              <Text style={styles.breakdownVal}>${((Math.round(selectedAmount * 0.029) + 30) / 100).toFixed(2)}</Text>
+              <Text style={styles.breakdownVal}>{money(quote.cardFee)}</Text>
             </View>
+            {coverFees && (
+              <View style={[styles.breakdownRow, { marginTop: 6 }]}>
+                <Text style={styles.breakdownLabel}>You're charged</Text>
+                <Text style={styles.breakdownVal}>{money(quote.charge)}</Text>
+              </View>
+            )}
             <View style={[styles.breakdownRow, styles.breakdownTotal]}>
               <Text style={styles.breakdownTotalLabel}>Organization receives</Text>
-              <Text style={styles.breakdownTotalVal}>{formatOrgReceives(selectedAmount)}</Text>
+              <Text style={styles.breakdownTotalVal}>{money(quote.orgReceives)}</Text>
             </View>
           </View>
         )}
@@ -357,7 +393,7 @@ if (fnError) throw new Error(fnError);
               {loading ? (
                 <ActivityIndicator color={C.black} />
               ) : (
-                <Text style={styles.donateBtnText}>Donate {formatAmount(selectedAmount)} →</Text>
+                <Text style={styles.donateBtnText}>Donate {coverFees ? money(quote.charge) : formatAmount(selectedAmount)} →</Text>
               )}
             </TouchableOpacity>
           )
@@ -370,7 +406,7 @@ if (fnError) throw new Error(fnError);
             {loading ? (
               <ActivityIndicator color={C.black} />
             ) : (
-              <Text style={styles.donateBtnText}>Donate {formatAmount(selectedAmount)} →</Text>
+              <Text style={styles.donateBtnText}>Donate {coverFees ? money(quote.charge) : formatAmount(selectedAmount)} →</Text>
             )}
           </TouchableOpacity>
         )}
@@ -517,6 +553,20 @@ function makeStyles(C: AppColors) {
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  coverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: Theme.spacing.lg,
+    marginHorizontal: Theme.spacing.lg,
+    marginBottom: Theme.spacing.md,
+    borderRadius: Theme.radius.lg,
+    borderWidth: 0.5,
+    borderColor: C.border2,
+    backgroundColor: C.surface,
+  },
+  coverTitle: { fontSize: 15, fontWeight: '700', color: C.text },
+  coverSub: { fontSize: 12, color: C.text3, marginTop: 3, lineHeight: 17 },
   breakdownSub: {
     fontSize: 11,
     color: C.text3,

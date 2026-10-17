@@ -23,6 +23,22 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+// Same formulas as lib/donationFees.ts in the app — keep in sync.
+// Siqa fee: 1% of the gift (min 50¢). Card processing: 2.9% + 30¢ of the
+// charge; with destination charges Stripe bills Siqa for it, so Siqa's
+// application fee includes it. If the donor covers fees, the charge is
+// grossed up so the organization gets the whole gift.
+function quoteDonation(gift: number, coverFees: boolean) {
+  const platformFee = Math.max(Math.round(gift * 0.01), 50);
+  const cardFee = (charge: number) => Math.round(charge * 0.029) + 30;
+  if (!coverFees) {
+    return { charge: gift, platformFee, orgReceives: gift - platformFee - cardFee(gift) };
+  }
+  let charge = Math.ceil((gift + platformFee + 30) / (1 - 0.029));
+  while (charge - platformFee - cardFee(charge) < gift) charge += 1;
+  return { charge, platformFee, orgReceives: gift };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -33,7 +49,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { amount, fundraiserId, donorName } = await req.json();
+    const { amount, fundraiserId, donorName, coverFees } = await req.json();
     const donationAmount = Number(amount);
 
     if (!Number.isInteger(donationAmount) || donationAmount < 100) {
@@ -66,10 +82,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'This organization is not verified for donations' }, 400);
     }
 
-    const platformFee = Math.max(Math.round(donationAmount * 0.01), 50);
+    // Without a connected account the money would land in Siqa's own
+    // balance instead of going to the organization — refuse instead.
+    if (!org?.stripe_account_id || !org?.stripe_onboarded) {
+      return json({ error: "This organization hasn't set up payments yet." }, 400);
+    }
+
+    const quote = quoteDonation(donationAmount, coverFees === true);
+    const platformFee = quote.platformFee;
+    // Everything except what the organization receives stays with Siqa:
+    // its 1% plus the card processing Stripe charges Siqa.
+    const applicationFee = quote.charge - quote.orgReceives;
 
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
-      amount: donationAmount,
+      amount: quote.charge,
       currency: 'usd',
       metadata: {
         fundraiser_id: fundraiser.id,
@@ -77,15 +103,14 @@ Deno.serve(async (req: Request) => {
         donor_name: typeof donorName === 'string' && donorName.trim() ? donorName.trim() : 'Anonymous',
         campaign_title: fundraiser.title ?? '',
         platform_fee: String(platformFee),
+        gift_amount: String(donationAmount),
+        donor_covers_fees: coverFees === true ? 'true' : 'false',
+        org_receives: String(quote.orgReceives),
       },
     };
 
-    if (org?.stripe_account_id && org?.stripe_onboarded) {
-      paymentIntentParams.application_fee_amount = platformFee;
-      paymentIntentParams.transfer_data = {
-        destination: org.stripe_account_id,
-      };
-    }
+    paymentIntentParams.application_fee_amount = applicationFee;
+    paymentIntentParams.transfer_data = { destination: org.stripe_account_id };
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
@@ -93,6 +118,8 @@ Deno.serve(async (req: Request) => {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       platformFee,
+      chargeAmount: quote.charge,
+      orgReceives: quote.orgReceives,
       fundraiser: {
         id: fundraiser.id,
         title: fundraiser.title,
