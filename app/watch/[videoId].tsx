@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
 import { shareVideo } from '../../lib/share';
+import { CastButton } from '../../components/CastButton';
 import { YouTubeEmbed } from '../../components/YouTubeEmbed';
 import { CommentsSection } from '../../components/CommentsSection';
 
@@ -188,6 +189,20 @@ export default function WatchScreen() {
     );
   }
 
+  // Cast to TV (website only): Siqa's own MP4s. YouTube videos have
+  // YouTube's own cast button inside the embed.
+  const isYouTube = video.platform === 'youtube' && Boolean(video.platform_video_id);
+  const castMedia = {
+    url: video.video_url,
+    title: video.title,
+    subtitle: video.speakers?.display_name ?? 'Siqa',
+    posterUrl: video.thumbnail_url,
+  };
+  const getPlayerVideo = () =>
+    typeof document === 'undefined'
+      ? null
+      : (document.getElementById('siqa-player')?.querySelector('video') as HTMLVideoElement | null) ?? null;
+
   return (
     <DesktopShell>
     <View style={styles.screen}>
@@ -195,7 +210,7 @@ export default function WatchScreen() {
           what keeps it fixed/playing while everything else scrolls under
           it, rather than scrolling away with the page. */}
       <View style={styles.playerWrapFixed}>
-        <View style={styles.playerInner}>
+        <View style={styles.playerInner} nativeID="siqa-player">
           {video.platform === 'youtube' && video.platform_video_id ? (
             <YouTubeEmbed videoId={video.platform_video_id} autoplay />
           ) : (
@@ -209,12 +224,13 @@ export default function WatchScreen() {
               shouldPlay
             />
           )}
+          {!isYouTube && <CastButton variant="overlay" media={castMedia} getVideoElement={getPlayerVideo} />}
         </View>
       </View>
 
       <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
         <View style={isWide ? styles.wideContent : undefined}>
-          <View style={styles.body}>
+          <View style={isWide ? styles.body : styles.bodyStacked}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backRow} hitSlop={8}>
               <Text style={styles.backArrow}>‹</Text>
               <Text style={styles.backLabel}>Back</Text>
@@ -253,6 +269,9 @@ export default function WatchScreen() {
                   <Text style={styles.shareBtnIcon}>↗</Text>
                   <Text style={styles.shareBtnText}>Share</Text>
                 </TouchableOpacity>
+
+                {/* Phones use the cast icon on the player instead (no room here). */}
+                {!isYouTube && isWide && <CastButton media={castMedia} getVideoElement={getPlayerVideo} />}
               </View>
             </View>
 
@@ -275,7 +294,7 @@ export default function WatchScreen() {
             <CommentsSection videoId={video.id} />
           </View>
 
-          <View style={isWide ? styles.relatedWideCol : styles.body}>
+          <View style={isWide ? styles.relatedWideCol : styles.bodyStacked}>
             <Text style={styles.relatedLabel}>Related videos</Text>
             {related.map((r) => (
               <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
@@ -316,6 +335,9 @@ function makeStyles(C: AppColors) {
   playerWrap: { aspectRatio: 16 / 9, backgroundColor: C.black },
   player: { width: '100%', height: '100%' },
   body: { padding: Theme.spacing.lg, flex: 1 },
+  // Phones: sections stack at their natural height. flex: 1 here squeezed
+  // the details and Related videos into each other over the comments.
+  bodyStacked: { padding: Theme.spacing.lg },
   backRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Theme.spacing.sm },
   backArrow: { color: C.text2, fontSize: 22 },
   backLabel: { color: C.text2, fontSize: Theme.fontSize.base, marginLeft: 2 },
@@ -331,7 +353,7 @@ function makeStyles(C: AppColors) {
   creatorName: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
   creatorMeta: { color: C.text2, fontSize: Theme.fontSize.sm },
   followBtn: { backgroundColor: C.gold, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Theme.radius.full },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Theme.spacing.sm },
   shareBtn: {
     flexDirection: 'row',
     alignItems: 'center',
