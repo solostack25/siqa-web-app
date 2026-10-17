@@ -1,0 +1,77 @@
+# Build the Siqa iPhone app on Expo's servers and (optionally) send it to
+# App Store Connect / TestFlight. Run it from GitHub: Actions tab →
+# "iOS build" → Run workflow. Only people with write access can run it.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   EXPO_TOKEN          required. Expo access token (expo.dev → Account settings → Access tokens).
+#   ASC_API_KEY_P8      optional. Contents of the App Store Connect API key (.p8 file).
+#   ASC_API_KEY_ID      optional. That key's Key ID.
+#   ASC_API_ISSUER_ID   optional. The Issuer ID shown on the same page.
+# With the three ASC secrets, Expo can create signing certificates and upload
+# to TestFlight on its own. Without them, Apple signing must already be set up
+# on Expo (one local `eas build -p ios` run does that).
+
+name: iOS build
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: Send the finished build to App Store Connect (TestFlight)
+        type: boolean
+        default: true
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Check Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Add the EXPO_TOKEN secret first (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      - name: App Store Connect key (optional)
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          if [ -n "$ASC_API_KEY_P8" ] && [ -n "$ASC_API_KEY_ID" ] && [ -n "$ASC_API_ISSUER_ID" ]; then
+            printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc_key.p8"
+            {
+              echo "EXPO_ASC_API_KEY_PATH=$RUNNER_TEMP/asc_key.p8"
+              echo "EXPO_ASC_KEY_ID=$ASC_API_KEY_ID"
+              echo "EXPO_ASC_ISSUER_ID=$ASC_API_ISSUER_ID"
+            } >> "$GITHUB_ENV"
+            echo "Using the App Store Connect API key."
+          else
+            echo "No App Store Connect key; using signing already saved on Expo."
+          fi
+
+      - name: Build on Expo
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          SUBMIT=""
+          if [ "${{ inputs.submit }}" = "true" ]; then SUBMIT="--auto-submit"; fi
+          npx --yes eas-cli@latest build -p ios --profile production --non-interactive --no-wait $SUBMIT
+          echo "Build started. Follow it at https://expo.dev (Projects → siqa → Builds)."
