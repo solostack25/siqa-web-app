@@ -3,6 +3,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
@@ -190,7 +191,7 @@ export default function OrgsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.title}>Organizations</Text>
           <Text style={styles.subtitle}>Verified nonprofits & masjids</Text>
         </View>
@@ -221,30 +222,27 @@ export default function OrgsScreen() {
         </View>
       )}
 
-      {/* No explicit style/height was set on this FlatList — only
-          contentContainerStyle — which on web can leave a horizontal
-          FlatList without a reliable box height to size itself against,
-          instead of it sizing naturally to filterPill's own height. An
-          explicit height here (pill height + the container's vertical
-          padding) makes that deterministic rather than left to chance. */}
-      <FlatList
-        data={FILTERS}
-        keyExtractor={f => f}
+      {/* A fixed-height row clipped the pills on phones whose browser
+          enlarges text (Android Chrome), cutting them in half under the
+          count line. The row now sizes to its pills and never shrinks. */}
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.filtersFlatList}
+        style={styles.filtersRow}
         contentContainerStyle={styles.filters}
-        renderItem={({ item: f }) => (
+      >
+        {FILTERS.map(f => (
           <TouchableOpacity
+            key={f}
             style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
             onPress={() => setActiveFilter(f)}
           >
-            <Text style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>
+            <Text numberOfLines={1} style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>
               {f}
             </Text>
           </TouchableOpacity>
-        )}
-      />
+        ))}
+      </ScrollView>
 
       <View style={styles.countRow}>
         <Text style={styles.countText}>
@@ -293,10 +291,14 @@ function makeStyles(C: AppColors) {
       paddingHorizontal: Theme.spacing.xl,
       paddingTop: HEADER_TOP_PADDING,
       paddingBottom: Theme.spacing.md,
+      gap: Theme.spacing.md,
     },
+    // Title side wraps instead of pushing + Register off the screen.
+    headerText: { flex: 1, minWidth: 0 },
     title: { fontSize: Theme.fontSize.xxl, fontWeight: '600', color: C.text },
     subtitle: { fontSize: Theme.fontSize.xs, color: C.text3, marginTop: 2 },
     registerBtn: {
+      flexShrink: 0,
       paddingHorizontal: 14,
       paddingVertical: 7,
       borderRadius: Theme.radius.full,
@@ -320,16 +322,18 @@ function makeStyles(C: AppColors) {
     searchIcon: { fontSize: 16 },
     searchInput: { flex: 1, paddingVertical: Theme.spacing.md, color: C.text, fontSize: Theme.fontSize.base },
     clearBtn: { color: C.text3, fontSize: 14, padding: 4 },
-    filtersFlatList: { flexGrow: 0, height: 32 + Theme.spacing.md },
+    filtersRow: { flexGrow: 0, flexShrink: 0 },
     filters: {
       paddingHorizontal: Theme.spacing.lg,
       paddingBottom: Theme.spacing.md,
       gap: Theme.spacing.sm,
+      alignItems: 'center',
     },
     filterPill: {
       paddingHorizontal: Theme.spacing.md,
-      paddingVertical: 6,
-      height: 32,
+      paddingVertical: 7,
+      minHeight: 32,
+      flexShrink: 0,
       borderRadius: Theme.radius.full,
       backgroundColor: C.surface,
       borderWidth: 0.5,

@@ -494,7 +494,7 @@ function makeStyles(C: AppColors) {
     categoriesList: {
       flexGrow: 0,
       flexShrink: 0,
-      height: 32 + Theme.spacing.md,
+      minHeight: 32 + Theme.spacing.md,
     },
     categories: {
       paddingHorizontal: Theme.spacing.lg,
@@ -504,8 +504,9 @@ function makeStyles(C: AppColors) {
     },
     catPill: {
       paddingHorizontal: Theme.spacing.md,
-      paddingVertical: 6,
-      height: 32,
+      paddingVertical: 7,
+      minHeight: 32,
+      flexShrink: 0,
       borderRadius: Theme.radius.full,
       backgroundColor: C.surface,
       borderWidth: 0.5,

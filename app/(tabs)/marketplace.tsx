@@ -460,10 +460,10 @@ function makeStyles(C: AppColors) {
     },
     searchInput: { flex: 1, color: C.text, fontSize: Theme.fontSize.base, padding: 0 },
 
-    categoriesList: { flexGrow: 0, flexShrink: 0, height: 32 + Theme.spacing.md },
+    categoriesList: { flexGrow: 0, flexShrink: 0, minHeight: 32 + Theme.spacing.md },
     categories: { paddingHorizontal: Theme.spacing.xl, gap: 8, paddingBottom: Theme.spacing.md, alignItems: 'center' },
     catPill: {
-      paddingHorizontal: Theme.spacing.md, paddingVertical: 6, height: 32,
+      paddingHorizontal: Theme.spacing.md, paddingVertical: 7, minHeight: 32, flexShrink: 0,
       borderRadius: Theme.radius.full, backgroundColor: C.surface,
       borderWidth: 0.5, borderColor: C.border2, alignItems: 'center', justifyContent: 'center',
     },
