@@ -7,6 +7,7 @@ import {
   Image,
   ActivityIndicator,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -17,6 +18,8 @@ import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { useSearchContext } from '../../contexts/SearchContext';
 import { formatPrice } from '../../lib/money';
+import { addToCart } from '../../lib/cart';
+import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
@@ -40,8 +43,13 @@ type Product = {
   currency: string | null;
   images: string[] | null;
   category: string | null;
+  inventory_count: number | null;
+  is_digital: boolean | null;
   marketplace_sellers: { shop_name: string; approval_status: string } | null;
 };
+
+type Rating = { avg: number; count: number };
+const LIMITED_STOCK = 5;
 
 
 export default function MarketplaceScreen() {
@@ -61,6 +69,9 @@ export default function MarketplaceScreen() {
   }, [params.category]);
   const [query, setQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
+  const [ratings, setRatings] = useState<Record<string, Rating>>({});
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [added, setAdded] = useState<AddedItem | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,7 +115,7 @@ export default function MarketplaceScreen() {
       // explicit hint here, and silently 300s the whole request
       // instead of just dropping the embed. Naming the real FK
       // (marketplace_products.seller_id) resolves it.
-      .select('id, title, price_cents, currency, images, category, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
+      .select('id, title, price_cents, currency, images, category, inventory_count, is_digital, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
       .eq('status', 'active')
       .eq('marketplace_sellers.approval_status', 'approved')
       .order('created_at', { ascending: false })
@@ -113,8 +124,50 @@ export default function MarketplaceScreen() {
     if (category !== 'All') q = q.eq('category', category);
 
     const { data, error } = await q;
-    if (!error && data) setProducts(data as any);
+    if (!error && data) {
+      setProducts(data as any);
+      loadRatings((data as any[]).map(p => p.id));
+    }
     setLoading(false);
+  }
+
+  // Star rating + review count per card (reviews are public).
+  async function loadRatings(ids: string[]) {
+    if (ids.length === 0) { setRatings({}); return; }
+    const { data } = await supabase.from('marketplace_reviews').select('product_id, rating').in('product_id', ids);
+    const sums: Record<string, { total: number; count: number }> = {};
+    for (const r of (data ?? []) as { product_id: string; rating: number }[]) {
+      const e = (sums[r.product_id] ??= { total: 0, count: 0 });
+      e.total += r.rating;
+      e.count += 1;
+    }
+    const next: Record<string, Rating> = {};
+    for (const [id, e] of Object.entries(sums)) next[id] = { avg: e.total / e.count, count: e.count };
+    setRatings(next);
+  }
+
+  async function handleAddToCart(item: Product) {
+    setAddingId(item.id);
+    const result = await addToCart(item, 1);
+    setAddingId(null);
+    if (!result.ok) {
+      if (result.reason === 'signed_out') router.push('/(auth)/sign-in' as any);
+      else if (result.reason === 'error' && Platform.OS === 'web') window.alert("Couldn't add this to your cart. Please try again.");
+      return;
+    }
+    loadCartCount();
+    setAdded({
+      id: item.id,
+      title: item.title,
+      price_cents: item.price_cents,
+      currency: item.currency,
+      image: item.images?.[0] ?? null,
+      category: item.category,
+    });
+  }
+
+  function moreLikeThis(item: Product) {
+    if (item.category) setCategory(item.category);
   }
 
   const filtered = query.trim()
@@ -122,6 +175,11 @@ export default function MarketplaceScreen() {
     : products;
 
   const numColumns = isDesktopWeb ? 4 : 2;
+  // Pad the last row with empty slots so a short final row keeps normal
+  // card widths instead of stretching (cards are flex: 1 in each row).
+  const remainder = filtered.length % numColumns;
+  const gridData: (Product | null)[] =
+    remainder === 0 ? filtered : [...filtered, ...Array<null>(numColumns - remainder).fill(null)];
 
   return (
     <View style={styles.container}>
@@ -190,8 +248,8 @@ export default function MarketplaceScreen() {
       ) : (
         <FlatList
           key={numColumns}
-          data={filtered}
-          keyExtractor={p => p.id}
+          data={gridData}
+          keyExtractor={(p, i) => p?.id ?? `filler-${i}`}
           numColumns={numColumns}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={{ gap: Theme.spacing.md }}
@@ -205,28 +263,74 @@ export default function MarketplaceScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              activeOpacity={0.85}
-              onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any)}
-            >
-              <View style={styles.cardImage}>
-                {item.images?.[0] ? (
-                  <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.cardImageEmoji}>🛍️</Text>
-                )}
+          renderItem={({ item }) => {
+            if (!item) return <View style={styles.card} />;
+            const rating = ratings[item.id];
+            const soldOut = !item.is_digital && (item.inventory_count ?? 1) <= 0;
+            const limited = !item.is_digital && !soldOut && (item.inventory_count ?? 99) <= LIMITED_STOCK;
+            const openProduct = () => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any);
+            return (
+              <View style={styles.card}>
+                <TouchableOpacity activeOpacity={0.85} onPress={openProduct}>
+                  <View style={styles.cardImage}>
+                    {item.images?.[0] ? (
+                      <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.cardImageEmoji}>🛍️</Text>
+                    )}
+                  </View>
+                  <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                  <View style={styles.metaRow}>
+                    {rating && (
+                      <>
+                        <Text style={styles.metaStrong}>{rating.avg.toFixed(1)}</Text>
+                        <Icon name="star" size={12} color={C.text} />
+                        <Text style={styles.metaText}>({rating.count})</Text>
+                        {item.marketplace_sellers?.shop_name ? <Text style={styles.metaText}>·</Text> : null}
+                      </>
+                    )}
+                    {item.marketplace_sellers?.shop_name ? (
+                      <Text style={styles.metaText} numberOfLines={1}>By {item.marketplace_sellers.shop_name}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.cardPrice}>{formatPrice(item.price_cents, item.currency)}</Text>
+                  {soldOut ? (
+                    <Text style={styles.stockText}>Sold out</Text>
+                  ) : limited ? (
+                    <Text style={styles.stockText}>Limited stock</Text>
+                  ) : null}
+                </TouchableOpacity>
+
+                <View style={styles.cardActions}>
+                  <TouchableOpacity
+                    style={[styles.addBtn, (soldOut || addingId === item.id) && { opacity: 0.5 }]}
+                    onPress={() => handleAddToCart(item)}
+                    disabled={soldOut || addingId === item.id}
+                    accessibilityLabel={`Add ${item.title} to cart`}
+                  >
+                    {addingId === item.id ? (
+                      <ActivityIndicator size="small" color={C.text} />
+                    ) : (
+                      <>
+                        <Icon name="add" size={16} color={C.text} />
+                        <Text style={styles.addBtnText}>{isDesktopWeb ? 'Add to cart' : 'Add'}</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  {isDesktopWeb && item.category && (
+                    <TouchableOpacity style={styles.moreBtn} onPress={() => moreLikeThis(item)}>
+                      <Text style={styles.moreBtnText}>More like this</Text>
+                      <Icon name="arrow-forward" size={14} color={C.text} />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-              <Text style={styles.cardPrice}>{formatPrice(item.price_cents, item.currency)}</Text>
-              {item.marketplace_sellers?.shop_name && (
-                <Text style={styles.cardSeller} numberOfLines={1}>{item.marketplace_sellers.shop_name}</Text>
-              )}
-            </TouchableOpacity>
-          )}
+            );
+          }}
         />
       )}
+
+      <AddedToCartDrawer item={added} onClose={() => setAdded(null)} />
     </View>
   );
 }
@@ -273,18 +377,29 @@ function makeStyles(C: AppColors) {
     catTextActive: { color: C.black, fontWeight: '700' },
 
     grid: { paddingHorizontal: Theme.spacing.xl, paddingBottom: 100, gap: Theme.spacing.md },
-    card: {
-      flex: 1, backgroundColor: C.surface, borderRadius: Theme.radius.lg,
-      borderWidth: 0.5, borderColor: C.border2, overflow: 'hidden', marginBottom: Theme.spacing.md,
-    },
+    // Etsy-style card: borderless, photo on top, then title, rating · shop,
+    // price, stock note, and the Add to cart / More like this actions.
+    card: { flex: 1, marginBottom: Theme.spacing.lg, minWidth: 0 },
     cardImage: {
-      aspectRatio: 1, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      aspectRatio: 1, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', borderRadius: Theme.radius.lg,
     },
     cardImageInner: { width: '100%', height: '100%' },
     cardImageEmoji: { fontSize: 32, opacity: 0.4 },
-    cardTitle: { fontSize: 12, fontWeight: '600', color: C.text, marginTop: 8, marginHorizontal: 8, lineHeight: 16 },
-    cardPrice: { fontSize: 14, fontWeight: '800', color: C.gold, marginTop: 4, marginHorizontal: 8 },
-    cardSeller: { fontSize: 10, color: C.text3, marginTop: 2, marginHorizontal: 8, marginBottom: 10 },
+    cardTitle: { fontSize: 14, color: C.text, marginTop: 8, lineHeight: 19 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'nowrap', overflow: 'hidden' },
+    metaStrong: { fontSize: 12, fontWeight: '700', color: C.text },
+    metaText: { fontSize: 12, color: C.text3, flexShrink: 1 },
+    cardPrice: { fontSize: 16, fontWeight: '800', color: C.text, marginTop: 5 },
+    stockText: { fontSize: 12, fontWeight: '600', color: C.live, marginTop: 2 },
+    cardActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 10, flexWrap: 'wrap' },
+    addBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+      paddingHorizontal: 14, height: 36, minWidth: 80, borderRadius: 999, borderWidth: 1.5, borderColor: C.text,
+    },
+    addBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
+    moreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    moreBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
 
     empty: { alignItems: 'center', paddingTop: 60, gap: 8, width: '100%' },
     emptyEmoji: { fontSize: 40 },

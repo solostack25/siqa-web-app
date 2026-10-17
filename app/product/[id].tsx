@@ -18,6 +18,8 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { formatPrice } from '../../lib/money';
+import { addToCart as addItemToCart } from '../../lib/cart';
+import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -97,7 +99,7 @@ export default function ProductDetailScreen() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
-  const [justAdded, setJustAdded] = useState(false);
+  const [added, setAdded] = useState<AddedItem | null>(null);
   const [messagingBusy, setMessagingBusy] = useState(false);
   const [open, setOpen] = useState({ details: true, policies: false });
 
@@ -108,7 +110,7 @@ export default function ProductDetailScreen() {
     setLoading(true);
     setActiveImage(0);
     setQuantity(1);
-    setJustAdded(false);
+    setAdded(null);
     load(id);
   }, [id]);
 
@@ -217,30 +219,22 @@ export default function ProductDetailScreen() {
     if (!userId) return;
 
     setAddingToCart(true);
-    // One row per (user, product) — bump quantity if it's already there
-    // rather than inserting a duplicate line.
-    const { data: existing } = await supabase
-      .from('marketplace_cart_items')
-      .select('id, quantity')
-      .eq('user_id', userId)
-      .eq('product_id', product.id)
-      .maybeSingle();
-
-    let error: unknown = null;
-    if (existing) {
-      const wanted = existing.quantity + quantity;
-      const next = product.is_digital ? wanted : Math.min(wanted, product.inventory_count);
-      ({ error } = await supabase.from('marketplace_cart_items').update({ quantity: next }).eq('id', existing.id));
-    } else {
-      ({ error } = await supabase.from('marketplace_cart_items').insert({ user_id: userId, product_id: product.id, quantity }));
-    }
+    const result = await addItemToCart(product, quantity);
     setAddingToCart(false);
-    if (error) {
-      notify('Error', "Couldn't add this to your cart. Please try again.");
+    if (!result.ok) {
+      if (result.reason !== 'signed_out') notify('Error', "Couldn't add this to your cart. Please try again.");
       return;
     }
-    // Inline confirmation under the button (works on web too, unlike Alert).
-    setJustAdded(true);
+    // Etsy-style "added to cart" drawer (Alert.alert never showed on web).
+    setAdded({
+      id: product.id,
+      title: product.title,
+      price_cents: product.price_cents,
+      currency: product.currency,
+      image: product.images?.[0] ?? null,
+      category: product.category,
+      quantity,
+    });
   }
 
   async function messageSeller() {
@@ -508,16 +502,6 @@ export default function ProductDetailScreen() {
         )}
       </TouchableOpacity>
 
-      {justAdded && (
-        <View style={styles.addedBanner}>
-          <Icon name="checkmark-circle" size={16} color={C.emeraldLight} />
-          <Text style={styles.addedText}>Added to your cart</Text>
-          <TouchableOpacity onPress={() => router.push('/cart' as any)}>
-            <Text style={styles.addedLink}>View cart →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {!soldOut && (
         <TouchableOpacity style={styles.secondaryBtn} onPress={buyNow}>
           <Text style={styles.secondaryBtnText}>Buy it now</Text>
@@ -716,6 +700,7 @@ export default function ProductDetailScreen() {
             {moreSection}
           </View>
         </ScrollView>
+        <AddedToCartDrawer item={added} onClose={() => setAdded(null)} />
       </View>
     </DesktopShell>
   );
@@ -806,12 +791,6 @@ function makeStyles(C: AppColors) {
     },
     secondaryBtnText: { color: C.text, fontSize: 16, fontWeight: '700' },
     btnDisabled: { opacity: 0.5 },
-    addedBanner: {
-      flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10,
-      padding: 12, borderRadius: Theme.radius.md, backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2,
-    },
-    addedText: { flex: 1, fontSize: 13, fontWeight: '600', color: C.text },
-    addedLink: { fontSize: 13, fontWeight: '700', color: C.gold },
 
     accordionHead: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

@@ -1,10 +1,11 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import { Icon } from './Icon';
 import { useSearchContext } from '../contexts/SearchContext';
+import { onCartChanged } from '../lib/cart';
 
 // The desktop sidebar had no top-level search, notifications, or
 // account access anywhere — search only existed buried inside
@@ -32,6 +33,20 @@ export function DesktopTopBar() {
       load();
     }, [])
   );
+
+  // Keep the cart badge current when something is added without leaving
+  // the page (Marketplace cards, product page).
+  useEffect(() => onCartChanged(refreshCartCount), []);
+
+  async function refreshCartCount() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { setCartCount(0); return; }
+    const { count } = await supabase
+      .from('marketplace_cart_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', session.user.id);
+    setCartCount(count ?? 0);
+  }
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
