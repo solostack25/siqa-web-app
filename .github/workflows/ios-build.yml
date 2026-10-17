@@ -57,15 +57,23 @@ jobs:
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          if [ -n "$APPLE_TEAM_ID" ]; then echo "EXPO_APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"; fi
-          if [ -n "$ASC_API_KEY_P8" ] && [ -n "$ASC_API_KEY_ID" ] && [ -n "$ASC_API_ISSUER_ID" ]; then
-            printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc_key.p8"
+          # Pasted IDs often carry a trailing newline/space; strip all whitespace.
+          TEAM_ID=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+          KEY_ID=$(printf '%s' "$ASC_API_KEY_ID" | tr -d '[:space:]')
+          ISSUER_ID=$(printf '%s' "$ASC_API_ISSUER_ID" | tr -d '[:space:]')
+          if [ -n "$TEAM_ID" ]; then echo "EXPO_APPLE_TEAM_ID=$TEAM_ID" >> "$GITHUB_ENV"; fi
+          if [ -n "$ASC_API_KEY_P8" ] && [ -n "$KEY_ID" ] && [ -n "$ISSUER_ID" ]; then
+            printf '%s\n' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc_key.p8"
+            if ! grep -q "BEGIN PRIVATE KEY" "$RUNNER_TEMP/asc_key.p8"; then
+              echo "::error::ASC_API_KEY_P8 should be the whole .p8 file, including the -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY----- lines."
+              exit 1
+            fi
             {
               echo "EXPO_ASC_API_KEY_PATH=$RUNNER_TEMP/asc_key.p8"
-              echo "EXPO_ASC_KEY_ID=$ASC_API_KEY_ID"
-              echo "EXPO_ASC_ISSUER_ID=$ASC_API_ISSUER_ID"
+              echo "EXPO_ASC_KEY_ID=$KEY_ID"
+              echo "EXPO_ASC_ISSUER_ID=$ISSUER_ID"
             } >> "$GITHUB_ENV"
-            echo "Using the App Store Connect API key."
+            echo "Using the App Store Connect API key (key ${KEY_ID:0:3}…, team ${TEAM_ID:0:3}…)."
           else
             echo "No App Store Connect key; using signing already saved on Expo."
           fi
