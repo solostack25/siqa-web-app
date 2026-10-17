@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
+import { DesktopShell } from '../components/DesktopShell';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -228,6 +229,7 @@ if (fnError) throw new Error(fnError);
   }
 
   return (
+    <DesktopShell>
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
@@ -370,6 +372,7 @@ if (fnError) throw new Error(fnError);
         )}
       </View>
     </View>
+    </DesktopShell>
   );
 }
 
@@ -406,8 +409,13 @@ function makeStyles(C: AppColors) {
     flex: 1,
     backgroundColor: C.bg,
   },
+  // Capped so the form reads as a column on desktop instead of stretching
+  // edge to edge; phones are narrower than the cap so nothing changes there.
   scroll: {
     paddingBottom: 120,
+    maxWidth: 640,
+    width: '100%',
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -555,6 +563,9 @@ function makeStyles(C: AppColors) {
     borderTopColor: C.border2,
   },
   donateBtn: {
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
     backgroundColor: C.gold,
     borderRadius: Theme.radius.md,
     padding: Theme.spacing.lg,

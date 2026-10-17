@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
+import { DesktopShell } from '../components/DesktopShell';
 
 export default function DonateSuccessScreen() {
   const { amount, title } = useLocalSearchParams<{
@@ -36,6 +37,7 @@ export default function DonateSuccessScreen() {
   }, []);
 
   return (
+    <DesktopShell>
     <View style={styles.container}>
 
       {/* Checkmark */}
@@ -86,6 +88,7 @@ export default function DonateSuccessScreen() {
       </Animated.View>
 
     </View>
+    </DesktopShell>
   );
 }
 
@@ -113,6 +116,7 @@ const styles = StyleSheet.create({
   },
   content: {
     width: '100%',
+    maxWidth: 420,
     alignItems: 'center',
     gap: Theme.spacing.md,
   },
@@ -190,6 +194,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     width: '100%',
+    maxWidth: 420,
     gap: Theme.spacing.sm,
   },
   primaryBtn: {

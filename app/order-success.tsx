@@ -3,6 +3,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
+import { DesktopShell } from '../components/DesktopShell';
 
 export default function OrderSuccessScreen() {
   const { total, count } = useLocalSearchParams<{ total: string; count: string }>();
@@ -22,6 +23,7 @@ export default function OrderSuccessScreen() {
   const itemCount = Number(count) || 1;
 
   return (
+    <DesktopShell>
     <View style={styles.container}>
       <Animated.View style={[styles.iconWrap, { transform: [{ scale: scaleAnim }] }]}>
         <Text style={styles.icon}>🛍️</Text>
@@ -54,6 +56,7 @@ export default function OrderSuccessScreen() {
         </TouchableOpacity>
       </Animated.View>
     </View>
+    </DesktopShell>
   );
 }
 
@@ -82,7 +85,9 @@ function makeStyles(C: AppColors) {
       borderWidth: 0.5, borderColor: C.border2, padding: Theme.spacing.lg,
     },
     noteText: { fontSize: Theme.fontSize.sm, color: C.text2, lineHeight: 20, textAlign: 'center' },
-    actions: { width: '100%', gap: Theme.spacing.sm },
+    // Capped to the same width as the content above so the buttons don't
+    // stretch across the whole window on desktop.
+    actions: { width: '100%', maxWidth: 420, gap: Theme.spacing.sm },
     primaryBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, padding: Theme.spacing.lg, alignItems: 'center' },
     primaryBtnText: { color: C.black, fontSize: Theme.fontSize.base, fontWeight: '700' },
     secondaryBtn: {

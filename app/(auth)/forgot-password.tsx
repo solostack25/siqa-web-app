@@ -115,7 +115,9 @@ export default function ForgotPasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  wrap: { flex: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING },
+  // Capped so the form is a centered column on desktop instead of stretching
+  // edge to edge; phones are narrower than the cap, so nothing changes there.
+  wrap: { flex: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING, width: '100%', maxWidth: 440, alignSelf: 'center' },
   backLink: { marginBottom: Theme.spacing.xl },
   backLinkText: { fontSize: Theme.fontSize.base, color: Colors.gold, fontWeight: '600' },
   logoArabic: { fontSize: 48, color: Colors.gold, marginBottom: Theme.spacing.lg },

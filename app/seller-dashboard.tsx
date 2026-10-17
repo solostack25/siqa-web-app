@@ -15,6 +15,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
+import { formatPrice as formatMoney } from '../lib/money';
 
 type Seller = { id: string; shop_name: string; approval_status: string; stripe_onboarded: boolean };
 type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
@@ -33,9 +34,6 @@ function statusColor(status: string, C: AppColors) {
   return C.gold;
 }
 
-function formatMoney(cents: number) {
-  return '$' + (cents / 100).toFixed(2);
-}
 
 export default function SellerDashboardScreen() {
   const { colors: C } = useTheme();
@@ -120,6 +118,9 @@ export default function SellerDashboardScreen() {
   return (
     <DesktopShell>
       <View style={styles.container}>
+        {/* Header, notice and tabs share the list's centered column so the
+            tab switch doesn't stretch across the whole window on desktop. */}
+        <View style={styles.topColumn}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
             <Icon name="arrow-back" size={20} color={C.text} />
@@ -150,6 +151,7 @@ export default function SellerDashboardScreen() {
           <TouchableOpacity style={[styles.tab, tab === 'listings' && styles.tabActive]} onPress={() => setTab('listings')}>
             <Text style={[styles.tabText, tab === 'listings' && styles.tabTextActive]}>Listings ({products.length})</Text>
           </TouchableOpacity>
+        </View>
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body}>
@@ -242,6 +244,7 @@ export default function SellerDashboardScreen() {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
+    topColumn: { maxWidth: 760, width: '100%', alignSelf: 'center' },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
 
     header: {

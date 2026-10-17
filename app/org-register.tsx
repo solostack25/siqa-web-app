@@ -203,8 +203,12 @@ export default function OrgRegisterScreen() {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Header + progress share the form's 640px column on desktop, so the
+          title, progress bar and Continue button line up with the fields
+          instead of spanning the whole window. */}
+      <View style={isDesktopWeb && styles.desktopColumn}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, isDesktopWeb && { paddingTop: 20 }]}>
         {step < 4 && (
           <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.back()} style={styles.backBtn}>
             <Text style={styles.backText}>←</Text>
@@ -223,6 +227,7 @@ export default function OrgRegisterScreen() {
           <View style={[styles.progressFill, { width: `${progress}%` }]} />
         </View>
       )}
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -480,6 +485,7 @@ export default function OrgRegisterScreen() {
       {/* Footer CTA */}
       {step < 4 && (
         <View style={styles.footer}>
+          <View style={[{ gap: 8 }, isDesktopWeb && styles.desktopColumn]}>
           <TouchableOpacity
             style={[styles.nextBtn, submitting && styles.nextBtnDisabled]}
             onPress={step < 3 ? handleNext : handleSubmit}
@@ -498,6 +504,7 @@ export default function OrgRegisterScreen() {
               ? 'Your application will be reviewed within 1–3 business days.'
               : `${3 - step} step${3 - step !== 1 ? 's' : ''} remaining`}
           </Text>
+          </View>
         </View>
       )}
     </KeyboardAvoidingView>
@@ -570,6 +577,7 @@ function makeStyles(C: AppColors) {
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 40 },
   scrollContentDesktop: { maxWidth: 640, width: '100%', alignSelf: 'center' },
+  desktopColumn: { maxWidth: 640, width: '100%', alignSelf: 'center' },
   stepWrap: { gap: Theme.spacing.lg },
   stepTitle: { fontSize: Theme.fontSize.xl, fontWeight: '700', color: C.text },
   stepSubtitle: { fontSize: Theme.fontSize.sm, color: C.text3, lineHeight: 20, marginTop: -8 },

@@ -106,7 +106,9 @@ export default function ResetPasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  wrap: { flex: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: 80 },
+  // Capped so the form is a centered column on desktop instead of stretching
+  // edge to edge; phones are narrower than the cap, so nothing changes there.
+  wrap: { flex: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: 80, width: '100%', maxWidth: 440, alignSelf: 'center' },
   logoArabic: { fontSize: 48, color: Colors.gold, marginBottom: Theme.spacing.lg },
   heading: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: Colors.text, marginBottom: 8 },
   sub: { fontSize: Theme.fontSize.base, color: Colors.text2, lineHeight: 22, marginBottom: Theme.spacing.xl },

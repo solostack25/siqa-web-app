@@ -14,6 +14,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
+import { formatPrice } from '../lib/money';
 
 type CartItem = {
   id: string;
@@ -31,9 +32,6 @@ type CartItem = {
   } | null;
 };
 
-function formatPrice(cents: number) {
-  return '$' + (cents / 100).toFixed(2);
-}
 
 export default function CartScreen() {
   const { colors: C } = useTheme();
@@ -88,6 +86,7 @@ export default function CartScreen() {
   }
 
   const validItems = items.filter(i => i.marketplace_products && i.marketplace_products.status === 'active');
+  const itemCount = validItems.reduce((n, i) => n + i.quantity, 0);
   const subtotal = validItems.reduce((sum, i) => sum + (i.marketplace_products?.price_cents ?? 0) * i.quantity, 0);
 
   if (loading) {
@@ -103,7 +102,7 @@ export default function CartScreen() {
   return (
     <DesktopShell>
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, isDesktopWeb && styles.headerDesktop]}>
           <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
@@ -127,6 +126,70 @@ export default function CartScreen() {
             </TouchableOpacity>
           </View>
         ) : (
+          isDesktopWeb ? (
+            // Desktop: items on the left, order summary card on the right —
+            // instead of a Checkout bar stretched across the whole window.
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.desktopScroll}>
+              <View style={styles.desktopColumns}>
+                <View style={[styles.desktopMain, { gap: 16 }]}>
+              {validItems.map(item => {
+                const p = item.marketplace_products!;
+                const busy = busyId === item.id;
+                return (
+                  <View key={item.id} style={styles.row}>
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/product/[id]', params: { id: p.id } } as any)}>
+                      <View style={styles.rowImage}>
+                        {p.images?.[0] ? (
+                          <Image source={{ uri: p.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        ) : (
+                          <Text style={{ fontSize: 20, opacity: 0.4 }}>🛍️</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowTitle} numberOfLines={2}>{p.title}</Text>
+                      <Text style={styles.rowPrice}>{formatPrice(p.price_cents)}</Text>
+                      <View style={styles.qtyRow}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => updateQuantity(item.id, item.quantity - 1, p.inventory_count)}
+                          disabled={busy}
+                        >
+                          <Icon name="remove" size={14} color={C.text} />
+                        </TouchableOpacity>
+                        <Text style={styles.qtyText}>{item.quantity}</Text>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => updateQuantity(item.id, item.quantity + 1, p.inventory_count)}
+                          disabled={busy || (!p.is_digital && item.quantity >= p.inventory_count)}
+                        >
+                          <Icon name="add" size={14} color={C.text} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.removeBtn} onPress={() => removeItem(item.id)} disabled={busy}>
+                          <Icon name="trash-outline" size={16} color={C.text3} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+                </View>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryTitle}>Order summary</Text>
+                  <View style={styles.subtotalRow}>
+                    <Text style={styles.subtotalLabel}>Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'items'})</Text>
+                    <Text style={styles.subtotalValue}>{formatPrice(subtotal)}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.checkoutBtn} onPress={() => router.push('/checkout' as any)}>
+                    <Text style={styles.checkoutBtnText}>Checkout</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)} style={{ alignItems: 'center' }}>
+                    <Text style={{ color: C.gold, fontWeight: '700', fontSize: 13 }}>Continue shopping</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          ) : (
           <>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.list}>
               {validItems.map(item => {
@@ -182,6 +245,7 @@ export default function CartScreen() {
               </TouchableOpacity>
             </View>
           </>
+          )
         )}
       </View>
     </DesktopShell>
@@ -224,6 +288,16 @@ function makeStyles(C: AppColors) {
     },
     qtyText: { fontSize: 13, fontWeight: '700', color: C.text, minWidth: 16, textAlign: 'center' },
     removeBtn: { marginLeft: 'auto', padding: 4 },
+
+    headerDesktop: { maxWidth: 1100, width: '100%', alignSelf: 'center', paddingHorizontal: Theme.spacing.xxxl + Theme.spacing.lg },
+    desktopScroll: { paddingHorizontal: Theme.spacing.xxxl, paddingBottom: 60, maxWidth: 1100, width: '100%', alignSelf: 'center' },
+    desktopColumns: { flexDirection: 'row', alignItems: 'flex-start', gap: Theme.spacing.xxl },
+    desktopMain: { flex: 1, minWidth: 0 },
+    summaryCard: {
+      width: 340, backgroundColor: C.surface, borderRadius: Theme.radius.lg, padding: Theme.spacing.xl,
+      borderWidth: 0.5, borderColor: C.border2, gap: 14,
+    },
+    summaryTitle: { fontSize: Theme.fontSize.md, fontWeight: '700', color: C.text },
 
     footer: {
       borderTopWidth: 0.5, borderTopColor: C.border2, backgroundColor: C.bg,

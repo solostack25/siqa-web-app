@@ -148,11 +148,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.bg,
   },
+  // Capped so the form is a centered column on desktop instead of stretching
+  // edge to edge; phones are narrower than the cap, so nothing changes there.
   scroll: {
     flexGrow: 1,
     paddingHorizontal: Theme.spacing.xl,
     paddingTop: 80,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
   },
   logoWrap: {
     alignItems: 'center',

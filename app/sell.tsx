@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { DesktopShell } from '../components/DesktopShell';
 
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
@@ -117,15 +118,18 @@ export default function SellScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.gold} size="large" />
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
     );
   }
 
   const step = !seller ? 1 : seller.approval_status !== 'approved' ? 2 : !seller.stripe_onboarded ? 3 : 4;
 
   return (
+    <DesktopShell>
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
@@ -211,6 +215,7 @@ export default function SellScreen() {
         </View>
       )}
     </ScrollView>
+    </DesktopShell>
   );
 }
 
@@ -218,7 +223,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
-    scroll: { paddingBottom: 60, maxWidth: 480, width: '100%', alignSelf: 'center' },
+    scroll: { paddingBottom: 60, maxWidth: 560, width: '100%', alignSelf: 'center' },
 
     header: {
       flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md,

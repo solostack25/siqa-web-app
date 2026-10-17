@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { formatPrice } from '../../lib/money';
 
 type ProductDetail = {
   id: string;
@@ -35,17 +36,13 @@ type Seller = { id: string; user_id: string; shop_name: string; bio: string | nu
 type Review = { id: string; rating: number; comment: string | null; created_at: string };
 type RelatedProduct = { id: string; title: string; price_cents: number; images: string[] | null };
 
-function formatPrice(cents: number, currency?: string | null) {
-  const symbol = (currency || 'USD') === 'USD' ? '$' : (currency || '') + ' ';
-  return symbol + (cents / 100).toFixed(2);
-}
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const { width: windowWidth } = useWindowDimensions();
-  const contentWidth = isDesktopWeb ? Math.min(windowWidth - 220, 760) : windowWidth;
+  const contentWidth = isDesktopWeb ? Math.min(windowWidth - 220, 1100) : windowWidth;
   const styles = makeStyles(C);
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -238,6 +235,11 @@ export default function ProductDetailScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Desktop: gallery on the left, details and buy buttons on the
+              right, like a regular store page. On phones these wrappers
+              have no style, so everything stacks in one column as before. */}
+          <View style={isDesktopWeb ? styles.desktopColumns : undefined}>
+          <View style={isDesktopWeb ? styles.desktopGallery : undefined}>
           <View style={styles.gallery}>
             {images.length > 0 ? (
               <Image source={{ uri: images[activeImage] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -263,8 +265,9 @@ export default function ProductDetailScreen() {
               )}
             />
           )}
+          </View>
 
-          <View style={styles.body}>
+          <View style={isDesktopWeb ? styles.desktopDetails : styles.body}>
             {seller && (
               <View style={styles.sellerRow}>
                 <View style={styles.sellerAvatar}>
@@ -339,7 +342,10 @@ export default function ProductDetailScreen() {
                 <Text style={styles.buyNowBtnText}>Buy Now</Text>
               </TouchableOpacity>
             </View>
+          </View>
+          </View>
 
+          <View style={[styles.body, { paddingTop: isDesktopWeb ? Theme.spacing.xxl : 0 }]}>
             {reviews.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Reviews</Text>
@@ -418,6 +424,12 @@ function makeStyles(C: AppColors) {
     thumbActive: { opacity: 1, borderWidth: 2, borderColor: C.gold },
 
     body: { paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.lg },
+
+    // The gallery keeps its phone-layout side margin, so the row needs no
+    // padding of its own; the details column gets a matching right inset.
+    desktopColumns: { flexDirection: 'row', alignItems: 'flex-start', gap: Theme.spacing.lg },
+    desktopGallery: { flex: 11, minWidth: 0 },
+    desktopDetails: { flex: 9, minWidth: 0, paddingTop: Theme.spacing.xs, paddingRight: Theme.spacing.lg },
     sellerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
     messageSellerBtn: {
       marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 5,

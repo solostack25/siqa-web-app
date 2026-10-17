@@ -30,6 +30,7 @@ import {
   uploadVideoToBunny,
 } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -118,9 +119,20 @@ type DraftPayload = {
   thumbnail: PickedImage | null;
 };
 
+// Every state of this screen (loading, locked, the form) gets the desktop
+// sidebar/top bar from one wrapper instead of wrapping each return.
 export default function GemUploadScreen() {
+  return (
+    <DesktopShell>
+      <GemUploadScreenContent />
+    </DesktopShell>
+  );
+}
+
+function GemUploadScreenContent() {
   const { colors: C, isDark } = useTheme();
-  const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
+  const isDesktopWeb = useIsDesktopWeb();
+  const styles = useMemo(() => makeStyles(C, isDark, isDesktopWeb), [C, isDark, isDesktopWeb]);
   const successScale = useRef(new Animated.Value(0.86)).current;
   const successOpacity = useRef(new Animated.Value(0)).current;
 
@@ -974,12 +986,18 @@ function formatTime(seconds: number) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function makeStyles(C: AppColors, isDark: boolean) {
+function makeStyles(C: AppColors, isDark: boolean, isDesktopWeb = false) {
+  // On desktop the header and form sit in one centered column instead of
+  // stretching across the window; the tall top padding only exists to
+  // clear a phone's status bar, so it's dropped there too.
+  const desktopColumn = isDesktopWeb
+    ? { maxWidth: 760, width: '100%' as const, alignSelf: 'center' as const }
+    : {};
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     header: {
-      paddingTop: 58,
+      paddingTop: isDesktopWeb ? 20 : 58,
       paddingHorizontal: 18,
       paddingBottom: 14,
       borderBottomWidth: 1,
@@ -988,6 +1006,7 @@ function makeStyles(C: AppColors, isDark: boolean) {
       alignItems: 'center',
       justifyContent: 'space-between',
       backgroundColor: C.bg,
+      ...desktopColumn,
     },
     cancel: { color: C.text2, fontSize: 14, fontWeight: '600' },
     headerTitleWrap: { alignItems: 'center' },
@@ -996,7 +1015,7 @@ function makeStyles(C: AppColors, isDark: boolean) {
     postBtn: { backgroundColor: C.gold, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
     postBtnDisabled: { opacity: 0.55 },
     postBtnText: { color: C.black, fontSize: 13, fontWeight: '800' },
-    content: { padding: 16, paddingBottom: 40 },
+    content: { padding: 16, paddingBottom: 40, ...desktopColumn },
     draftRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
     draftBtn: { flex: 1, backgroundColor: C.goldBg, borderColor: C.goldDim, borderWidth: 1, borderRadius: 14, paddingVertical: 11, alignItems: 'center' },
     draftBtnText: { color: C.gold, fontSize: 13, fontWeight: '800' },

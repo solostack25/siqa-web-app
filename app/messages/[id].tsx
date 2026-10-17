@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { formatPrice } from '../../lib/money';
 
 type Thread = {
   id: string;
@@ -135,7 +136,7 @@ export default function ThreadScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.productTitle} numberOfLines={1}>{product.title}</Text>
-              <Text style={styles.productPrice}>${(product.price_cents / 100).toFixed(2)}</Text>
+              <Text style={styles.productPrice}>{formatPrice(product.price_cents)}</Text>
             </View>
             <Icon name="chevron-forward" size={16} color={C.text3} />
           </TouchableOpacity>

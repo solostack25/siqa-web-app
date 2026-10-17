@@ -16,6 +16,7 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { useSearchContext } from '../../contexts/SearchContext';
+import { formatPrice } from '../../lib/money';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
@@ -42,10 +43,6 @@ type Product = {
   marketplace_sellers: { shop_name: string; approval_status: string } | null;
 };
 
-function formatPrice(cents: number, currency?: string | null) {
-  const symbol = (currency || 'USD') === 'USD' ? '$' : (currency || '') + ' ';
-  return symbol + (cents / 100).toFixed(2);
-}
 
 export default function MarketplaceScreen() {
   const { colors: C } = useTheme();

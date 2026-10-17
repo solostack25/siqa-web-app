@@ -18,6 +18,7 @@ import { uploadMarketplaceImage } from '../lib/supabaseStorage';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { DesktopShell } from '../components/DesktopShell';
 
 const CATEGORIES = [
   'Home Decor', 'Books & Media', 'Clothing & Accessories', 'Art & Prints',
@@ -138,13 +139,16 @@ export default function ListingCreateScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.gold} size="large" />
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
     );
   }
 
   return (
+    <DesktopShell>
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
@@ -229,6 +233,7 @@ export default function ListingCreateScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+    </DesktopShell>
   );
 }
 
@@ -236,7 +241,7 @@ function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
-    scroll: { paddingBottom: 60, maxWidth: 480, width: '100%', alignSelf: 'center' },
+    scroll: { paddingBottom: 60, maxWidth: 640, width: '100%', alignSelf: 'center' },
 
     header: {
       flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md,

@@ -15,6 +15,8 @@ import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { formatPrice } from '../lib/money';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 
 // Same platform split as donate.tsx: Stripe's native module doesn't
 // support web, and stripe-js touches browser globals — only load
@@ -37,14 +39,12 @@ type LineItem = {
   image: string | null;
 };
 
-function formatPrice(cents: number) {
-  return '$' + (cents / 100).toFixed(2);
-}
 
 export default function CheckoutScreen() {
   const { productId, quantity } = useLocalSearchParams<{ productId?: string; quantity?: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { colors: C, isDark } = useTheme();
+  const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C);
 
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -162,79 +162,130 @@ export default function CheckoutScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.gold} size="large" />
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
     );
   }
 
   if (lineItems.length === 0) {
     return (
-      <View style={styles.centered}>
-        <Text style={{ color: C.text3 }}>Nothing to check out.</Text>
-      </View>
+      <DesktopShell>
+        <View style={styles.centered}>
+          <Text style={{ color: C.text3 }}>Nothing to check out.</Text>
+        </View>
+      </DesktopShell>
+    );
+  }
+
+  const header = (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
+        <Icon name="arrow-back" size={20} color={C.text} />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Review your order</Text>
+    </View>
+  );
+
+  const itemsCard = (
+    <View style={styles.card}>
+      {isDesktopWeb && <Text style={styles.cardTitle}>Your items</Text>}
+      {lineItems.map(item => (
+        <View key={item.productId} style={styles.itemRow}>
+          <View style={[styles.itemImage, isDesktopWeb && styles.itemImageDesktop]}>
+            {item.image ? (
+              <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : null}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.itemTitle, isDesktopWeb && styles.itemTitleDesktop]} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.itemMeta}>Qty {item.quantity} · {formatPrice(item.price_cents)} each</Text>
+          </View>
+          <Text style={[styles.itemTotal, isDesktopWeb && styles.itemTitleDesktop]}>{formatPrice(item.price_cents * item.quantity)}</Text>
+        </View>
+      ))}
+      {!isDesktopWeb && (
+        <>
+          <View style={styles.divider} />
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total</Text>
+            <Text style={styles.totalValue}>{formatPrice(total)}</Text>
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  const webPaymentForm = Platform.OS === 'web' && webClientSecret ? (
+    <WebDonateForm
+      clientSecret={webClientSecret}
+      colors={C}
+      isDark={isDark}
+      confirmLabel="Confirm purchase"
+      onSuccess={onPaymentSuccess}
+      onCancel={() => setWebClientSecret(null)}
+    />
+  ) : null;
+
+  const payButton = (
+    <TouchableOpacity
+      style={[styles.payBtn, placingOrder && styles.payBtnDisabled]}
+      onPress={createIntent}
+      disabled={placingOrder}
+    >
+      {placingOrder ? (
+        <ActivityIndicator color={C.black} />
+      ) : (
+        <Text style={styles.payBtnText}>Pay {formatPrice(total)}</Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  // Desktop: items on the left, a summary card on the right that holds
+  // the totals, the Pay button and (once started) the card form — the
+  // usual store checkout shape, instead of a phone column with a Pay bar
+  // stretched across the whole bottom of the screen.
+  if (isDesktopWeb) {
+    const itemCount = lineItems.reduce((n, i) => n + i.quantity, 0);
+    return (
+      <DesktopShell>
+        <ScrollView style={styles.container} contentContainerStyle={styles.desktopScroll}>
+          {header}
+          <View style={styles.desktopColumns}>
+            <View style={styles.desktopMain}>{itemsCard}</View>
+            <View style={styles.desktopSide}>
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Order summary</Text>
+                <View style={styles.totalRow}>
+                  <Text style={styles.summaryLabel}>Items ({itemCount})</Text>
+                  <Text style={styles.summaryValue}>{formatPrice(total)}</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>{formatPrice(total)}</Text>
+                </View>
+                {webClientSecret ? webPaymentForm : payButton}
+                <Text style={styles.secureNote}>Payments are processed securely by Stripe.</Text>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </DesktopShell>
     );
   }
 
   return (
     <View style={styles.container}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
-            <Icon name="arrow-back" size={20} color={C.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Review your order</Text>
-        </View>
-
-        <View style={styles.card}>
-          {lineItems.map(item => (
-            <View key={item.productId} style={styles.itemRow}>
-              <View style={styles.itemImage}>
-                {item.image ? (
-                  <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                ) : null}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.itemMeta}>Qty {item.quantity} · {formatPrice(item.price_cents)} each</Text>
-              </View>
-              <Text style={styles.itemTotal}>{formatPrice(item.price_cents * item.quantity)}</Text>
-            </View>
-          ))}
-          <View style={styles.divider} />
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>{formatPrice(total)}</Text>
-          </View>
-        </View>
-
-        {Platform.OS === 'web' && webClientSecret && (
-          <WebDonateForm
-            clientSecret={webClientSecret}
-            colors={C}
-            isDark={isDark}
-            confirmLabel="Confirm purchase"
-            onSuccess={onPaymentSuccess}
-            onCancel={() => setWebClientSecret(null)}
-          />
-        )}
+        {header}
+        {itemsCard}
+        {webPaymentForm}
       </ScrollView>
 
-      {!webClientSecret && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.payBtn, placingOrder && styles.payBtnDisabled]}
-            onPress={createIntent}
-            disabled={placingOrder}
-          >
-            {placingOrder ? (
-              <ActivityIndicator color={C.black} />
-            ) : (
-              <Text style={styles.payBtnText}>Pay {formatPrice(total)}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+      {!webClientSecret && <View style={styles.footer}>{payButton}</View>}
     </View>
   );
 }
@@ -264,6 +315,17 @@ function makeStyles(C: AppColors) {
     itemTitle: { fontSize: 13, fontWeight: '600', color: C.text, lineHeight: 18 },
     itemMeta: { fontSize: 11, color: C.text3, marginTop: 2 },
     itemTotal: { fontSize: 13, fontWeight: '700', color: C.text },
+    cardTitle: { fontSize: Theme.fontSize.md, fontWeight: '700', color: C.text },
+
+    desktopScroll: { paddingHorizontal: Theme.spacing.xxxl, paddingBottom: 60, maxWidth: 1100, width: '100%', alignSelf: 'center' },
+    desktopColumns: { flexDirection: 'row', alignItems: 'flex-start', gap: Theme.spacing.xxl },
+    desktopMain: { flex: 1, minWidth: 0 },
+    desktopSide: { width: 360 },
+    itemImageDesktop: { width: 72, height: 72, borderRadius: Theme.radius.md },
+    itemTitleDesktop: { fontSize: 15 },
+    summaryLabel: { fontSize: 14, color: C.text2 },
+    summaryValue: { fontSize: 14, fontWeight: '600', color: C.text },
+    secureNote: { fontSize: 12, color: C.text3, textAlign: 'center' },
     divider: { height: 0.5, backgroundColor: C.border2 },
     totalRow: { flexDirection: 'row', justifyContent: 'space-between' },
     totalLabel: { fontSize: 15, color: C.text },

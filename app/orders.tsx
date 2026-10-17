@@ -16,6 +16,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
+import { formatPrice as formatMoney } from '../lib/money';
 
 type Order = {
   id: string;
@@ -27,9 +28,6 @@ type Order = {
   marketplace_products: { title: string; images: string[] | null } | null;
 };
 
-function formatMoney(cents: number) {
-  return '$' + (cents / 100).toFixed(2);
-}
 
 function statusColor(status: string, C: AppColors) {
   if (status === 'completed') return C.emeraldLight;

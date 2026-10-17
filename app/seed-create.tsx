@@ -20,6 +20,7 @@ import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { makeBunnySeedThumbnailPath, makeBunnySeedVideoPath, uploadThumbnailToBunny, uploadVideoToBunny } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -81,9 +82,20 @@ function isOrgRole(role?: string | null) {
   return ['org', 'organization', 'nonprofit', 'masjid'].includes(String(role || '').toLowerCase());
 }
 
+// Every state of this screen (loading, locked, the form) gets the desktop
+// sidebar/top bar from one wrapper instead of wrapping each return.
 export default function SeedCreateScreen() {
+  return (
+    <DesktopShell>
+      <SeedCreateScreenContent />
+    </DesktopShell>
+  );
+}
+
+function SeedCreateScreenContent() {
   const { colors: C, isDark } = useTheme();
-  const styles = useMemo(() => makeStyles(C, isDark), [C, isDark]);
+  const isDesktopWeb = useIsDesktopWeb();
+  const styles = useMemo(() => makeStyles(C, isDark, isDesktopWeb), [C, isDark, isDesktopWeb]);
   const successScale = useRef(new Animated.Value(0.88)).current;
   const successOpacity = useRef(new Animated.Value(0)).current;
 
@@ -656,12 +668,18 @@ export default function SeedCreateScreen() {
   );
 }
 
-function makeStyles(C: AppColors, isDark: boolean) {
+function makeStyles(C: AppColors, isDark: boolean, isDesktopWeb = false) {
+  // On desktop the header and form sit in one centered column instead of
+  // stretching across the window; the tall top padding only exists to
+  // clear a phone's status bar, so it's dropped there too.
+  const desktopColumn = isDesktopWeb
+    ? { maxWidth: 760, width: '100%' as const, alignSelf: 'center' as const }
+    : {};
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     header: {
-      paddingTop: 54,
+      paddingTop: isDesktopWeb ? 20 : 54,
       paddingHorizontal: 18,
       paddingBottom: 14,
       flexDirection: 'row',
@@ -670,6 +688,7 @@ function makeStyles(C: AppColors, isDark: boolean) {
       borderBottomWidth: 0.5,
       borderBottomColor: C.border2,
       backgroundColor: C.bg,
+      ...desktopColumn,
     },
     cancel: { color: C.text2, fontSize: 14, fontWeight: '600', minWidth: 56 },
     headerTitleWrap: { alignItems: 'center' },
@@ -678,7 +697,7 @@ function makeStyles(C: AppColors, isDark: boolean) {
     postBtn: { backgroundColor: C.gold, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999 },
     postBtnDisabled: { opacity: 0.62 },
     postBtnText: { color: C.black, fontSize: 13, fontWeight: '900' },
-    content: { padding: 18, paddingBottom: 120, gap: 14 },
+    content: { padding: 18, paddingBottom: 120, gap: 14, ...desktopColumn },
     draftRow: { flexDirection: 'row', gap: 10 },
     draftBtn: { flex: 1, backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldDim, borderRadius: 14, padding: 12, alignItems: 'center' },
     draftBtnText: { color: C.gold, fontWeight: '800' },

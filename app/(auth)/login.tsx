@@ -208,7 +208,9 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  scroll: { flexGrow: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: 80, paddingBottom: 40 },
+  // Capped so the form is a centered column on desktop instead of stretching
+  // edge to edge; phones are narrower than the cap, so nothing changes there.
+  scroll: { flexGrow: 1, paddingHorizontal: Theme.spacing.xl, paddingTop: 80, paddingBottom: 40, width: '100%', maxWidth: 440, alignSelf: 'center' },
   logoWrap: { alignItems: 'center', marginBottom: Theme.spacing.xxxl },
   logoArabic: { fontSize: 64, color: Colors.gold, lineHeight: 72 },
   logoEn: { fontSize: 11, color: Colors.text3, letterSpacing: 6, marginTop: -4, marginBottom: Theme.spacing.lg },
