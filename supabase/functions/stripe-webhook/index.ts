@@ -203,11 +203,14 @@ async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIn
 }
 
 /**
- * Refunds. A full refund pulls back whatever each seller still holds and
- * cancels unpaid payouts. Partial refunds made from siqa-admin ("Cancel &
- * refund" on one order) already adjust that seller's payout themselves and
- * are tagged handled_by=siqa-admin; any other partial refund (e.g. made in
- * the Stripe dashboard) is flagged on the payouts for a person to review.
+ * Refunds. Refunds made by Siqa's own per-item flows — siqa-admin "Cancel &
+ * refund" (handled_by=siqa-admin) and the seller's Cancel & refund
+ * (handled_by=siqa-seller) — already adjust that seller's payout and the
+ * Stripe Tax record item by item, so they're skipped here, even when the
+ * last item makes the charge fully refunded (re-reversing would double up).
+ * Any other full refund pulls back whatever each seller still holds and
+ * reverses the checkout's tax; any other partial refund (e.g. made in the
+ * Stripe dashboard) is flagged on the payouts for a person to review.
  */
 async function reverseCheckout(supabase: SupabaseClient, charge: Stripe.Charge) {
   const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
@@ -219,11 +222,12 @@ async function reverseCheckout(supabase: SupabaseClient, charge: Stripe.Charge) 
   if (!payouts || payouts.length === 0) return;
 
   const fullyRefunded = charge.amount_refunded >= charge.amount;
+  const refunds = charge.refunds?.data ?? [];
+  const allHandledBySiqa =
+    refunds.length > 0 && refunds.every((r: Stripe.Refund) => String(r.metadata?.handled_by ?? '').startsWith('siqa-'));
+  if (allHandledBySiqa) return;
 
   if (!fullyRefunded) {
-    const refunds = charge.refunds?.data ?? [];
-    const allFromAdmin = refunds.length > 0 && refunds.every((r: Stripe.Refund) => r.metadata?.handled_by === 'siqa-admin');
-    if (allFromAdmin) return;
     for (const p of payouts) {
       await supabase.from('marketplace_seller_payouts')
         .update({ error: `Partial refund of $${(charge.amount_refunded / 100).toFixed(2)} made outside siqa-admin — review which seller it applies to` })
@@ -238,7 +242,15 @@ async function reverseCheckout(supabase: SupabaseClient, charge: Stripe.Charge) 
     .select('id, tax_transaction_id, tax_status')
     .eq('payment_intent_id', piId)
     .maybeSingle();
-  if (checkout?.tax_transaction_id && checkout.tax_status !== 'reversed') {
+  if (checkout?.tax_transaction_id && checkout.tax_status === 'partially_reversed') {
+    // Some items were already reversed one by one; a full reversal on top
+    // would double them. Leave the rest for a person to reverse in Stripe Tax.
+    for (const p of payouts) {
+      await supabase.from('marketplace_seller_payouts')
+        .update({ error: 'Full refund after item-level tax reversals — reverse the remaining sales tax in Stripe Tax' })
+        .eq('id', p.id);
+    }
+  } else if (checkout?.tax_transaction_id && checkout.tax_status !== 'reversed') {
     try {
       await stripe.tax.transactions.createReversal(
         { mode: 'full', original_transaction: checkout.tax_transaction_id, reference: `siqa_checkout_${checkout.id}-refund` },

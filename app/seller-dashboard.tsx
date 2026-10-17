@@ -24,7 +24,8 @@ type Product = { id: string; title: string; price_cents: number; images: string[
 type Order = {
   id: string; status: string; total_cents: number; quantity: number; created_at: string;
   siqa_fee_cents: number | null; processing_fee_cents: number | null; seller_payout_cents: number | null;
-  shipping_cents: number | null; tax_fee_cents: number | null;
+  shipping_cents: number | null; tax_fee_cents: number | null; tax_cents: number | null;
+  cancel_reason: string | null; refunded_cents: number | null;
   shipping_name: string | null; shipping_address: { line1?: string; line2?: string; city?: string; state?: string; postal_code?: string } | null;
   marketplace_products: { title: string; images: string[] | null } | null;
 };
@@ -32,6 +33,7 @@ type Order = {
 const NEXT_STATUS: Record<string, string> = { paid: 'shipped', shipped: 'completed' };
 const NEXT_LABEL: Record<string, string> = { paid: 'Mark Shipped', shipped: 'Mark Completed' };
 const CANCELLABLE = ['pending', 'paid'];
+const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 
 function statusColor(status: string, C: AppColors) {
   if (status === 'completed') return C.emeraldLight;
@@ -53,6 +55,9 @@ export default function SellerDashboardScreen() {
   const [shippingInput, setShippingInput] = useState('');
   const [editingShipping, setEditingShipping] = useState(false);
   const [savingShipping, setSavingShipping] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,7 +84,7 @@ export default function SellerDashboardScreen() {
 
     const [{ data: productsData }, { data: ordersData }] = await Promise.all([
       supabase.from('marketplace_products').select('id, title, price_cents, images, status, inventory_count').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
-      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, shipping_cents, tax_fee_cents, shipping_name, shipping_address, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
+      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, shipping_cents, tax_fee_cents, tax_cents, cancel_reason, refunded_cents, shipping_name, shipping_address, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
     ]);
 
     if (productsData) setProducts(productsData as any);
@@ -113,11 +118,36 @@ export default function SellerDashboardScreen() {
     setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, status } : o)));
   }
 
-  function cancelOrder(orderId: string) {
-    Alert.alert('Cancel order?', 'This cannot be undone.', [
-      { text: 'Back', style: 'cancel' },
-      { text: 'Cancel Order', style: 'destructive', onPress: () => updateOrderStatus(orderId, 'cancelled') },
-    ]);
+  // Cancel & refund runs on the server (cancel-marketplace-order): it
+  // refunds the buyer this item's price + shipping share + tax, takes the
+  // payout back from the shop, reverses the sales tax and saves the reason.
+  // A paid order can't be cancelled any other way.
+  async function confirmCancel(order: Order) {
+    if (!cancelReason.trim()) {
+      setCancelError('Add a short reason for the buyer.');
+      return;
+    }
+    setBusyId(order.id);
+    setCancelError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/cancel-marketplace-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token ?? ''}` },
+        body: JSON.stringify({ orderId: order.id, reason: cancelReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Could not cancel the order.');
+      setOrders(prev => prev.map(o => (o.id === order.id
+        ? { ...o, status: 'cancelled', cancel_reason: cancelReason.trim(), refunded_cents: data.refundedCents ?? 0 }
+        : o)));
+      setCancellingId(null);
+      setCancelReason('');
+    } catch (err: any) {
+      setCancelError(err.message);
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function toggleListing(product: Product) {
@@ -265,16 +295,61 @@ export default function SellerDashboardScreen() {
                         </View>
                       )}
                       <Text style={[styles.orderStatus, { color: statusColor(order.status, C) }]}>{order.status.toUpperCase()}</Text>
-                      {(nextStatus || canCancel) && (
+                      {order.status === 'cancelled' && (order.refunded_cents || order.cancel_reason) ? (
+                        <Text style={styles.orderMeta}>
+                          {(order.refunded_cents ?? 0) > 0 ? `Refunded ${formatMoney(order.refunded_cents)} to the buyer` : 'Not charged'}
+                          {order.cancel_reason ? ` · "${order.cancel_reason}"` : ''}
+                        </Text>
+                      ) : null}
+                      {cancellingId === order.id && (
+                        <View style={styles.cancelPanel}>
+                          <Text style={styles.cancelTitle}>
+                            {order.status === 'pending'
+                              ? 'Cancel this unpaid order?'
+                              : `Refund the buyer ${formatMoney(order.total_cents + (order.shipping_cents ?? 0) + (order.tax_cents ?? 0))}?`}
+                          </Text>
+                          {order.status !== 'pending' && (
+                            <Text style={styles.cancelHint}>
+                              The buyer gets this item's price, shipping and tax back. Your payout for it
+                              {order.seller_payout_cents != null ? ` (${formatMoney(order.seller_payout_cents)})` : ''} is taken back.
+                            </Text>
+                          )}
+                          <TextInput
+                            style={styles.cancelInput}
+                            value={cancelReason}
+                            onChangeText={setCancelReason}
+                            placeholder="Reason for the buyer (e.g. out of stock)"
+                            placeholderTextColor={C.text3}
+                            maxLength={500}
+                            multiline
+                          />
+                          {cancelError && <Text style={styles.cancelErrorText}>{cancelError}</Text>}
+                          <View style={styles.orderActions}>
+                            <TouchableOpacity style={styles.dangerBtn} onPress={() => confirmCancel(order)} disabled={busyId === order.id}>
+                              {busyId === order.id
+                                ? <ActivityIndicator size="small" color="#fff" />
+                                : <Text style={styles.dangerBtnText}>{order.status === 'pending' ? 'Cancel order' : 'Cancel & refund'}</Text>}
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.smallBtnGhost} onPress={() => setCancellingId(null)} disabled={busyId === order.id}>
+                              <Text style={styles.smallBtnGhostText}>Keep order</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                      {(nextStatus || canCancel) && cancellingId !== order.id && (
                         <View style={styles.orderActions}>
                           {nextStatus && (
                             <TouchableOpacity style={styles.smallBtn} onPress={() => updateOrderStatus(order.id, nextStatus)} disabled={busyId === order.id}>
                               <Text style={styles.smallBtnText}>{busyId === order.id ? '...' : NEXT_LABEL[order.status]}</Text>
                             </TouchableOpacity>
                           )}
-                          {canCancel && (
-                            <TouchableOpacity style={styles.smallBtnGhost} onPress={() => cancelOrder(order.id)} disabled={busyId === order.id}>
-                              <Text style={styles.smallBtnGhostText}>Cancel</Text>
+                          {canCancel && cancellingId !== order.id && (
+                            <TouchableOpacity
+                              style={styles.smallBtnGhost}
+                              onPress={() => { setCancellingId(order.id); setCancelReason(''); setCancelError(null); }}
+                              disabled={busyId === order.id}
+                            >
+                              <Text style={styles.smallBtnGhostText}>{order.status === 'pending' ? 'Cancel' : 'Cancel & refund'}</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -375,6 +450,19 @@ function makeStyles(C: AppColors) {
     orderImage: { width: 56, height: 56, borderRadius: Theme.radius.md, backgroundColor: C.surface2, overflow: 'hidden' },
     orderTitle: { fontSize: 13, fontWeight: '700', color: C.text },
     orderMeta: { fontSize: 11, color: C.text3, marginTop: 2 },
+    cancelPanel: {
+      marginTop: 10, padding: 10, borderRadius: 10, gap: 8,
+      backgroundColor: C.surface2, borderWidth: 0.5, borderColor: C.border2,
+    },
+    cancelTitle: { fontSize: 13, fontWeight: '700', color: C.text },
+    cancelHint: { fontSize: 12, color: C.text2, lineHeight: 17 },
+    cancelInput: {
+      minHeight: 56, borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 8,
+      fontSize: 13, color: C.text, backgroundColor: C.bg, textAlignVertical: 'top',
+    },
+    cancelErrorText: { fontSize: 12, color: C.live },
+    dangerBtn: { backgroundColor: C.live, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, minWidth: 110, alignItems: 'center' },
+    dangerBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
     shipTo: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: C.surface2 },
     shipToLabel: { fontSize: 10, fontWeight: '700', color: C.text3, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
     shipToText: { fontSize: 12, color: C.text, lineHeight: 17 },

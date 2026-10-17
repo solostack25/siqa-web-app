@@ -21,6 +21,8 @@ import { formatPrice as formatMoney } from '../lib/money';
 type Order = {
   id: string;
   status: string;
+  cancel_reason?: string | null;
+  refunded_cents?: number | null;
   total_cents: number;
   quantity: number;
   created_at: string;
@@ -62,7 +64,7 @@ export default function OrdersScreen() {
 
     const { data } = await supabase
       .from('marketplace_orders')
-      .select('id, status, total_cents, quantity, created_at, product_id, marketplace_products(title, images)')
+      .select('id, status, total_cents, quantity, created_at, product_id, cancel_reason, refunded_cents, marketplace_products(title, images)')
       .eq('buyer_id', session.user.id)
       .order('created_at', { ascending: false });
 
@@ -149,6 +151,12 @@ export default function OrdersScreen() {
                       <Text style={styles.cardTitle} numberOfLines={1}>{product?.title ?? 'Product'}</Text>
                       <Text style={styles.cardMeta}>Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
                       <Text style={[styles.cardStatus, { color: statusColor(order.status, C) }]}>{order.status.toUpperCase()}</Text>
+                      {order.status === 'cancelled' && ((order.refunded_cents ?? 0) > 0 || order.cancel_reason) ? (
+                        <Text style={styles.cancelNote}>
+                          {(order.refunded_cents ?? 0) > 0 ? `Refunded ${formatMoney(order.refunded_cents!)}` : 'Cancelled'}
+                          {order.cancel_reason ? ` — ${order.cancel_reason}` : ''}
+                        </Text>
+                      ) : null}
                     </View>
                   </TouchableOpacity>
 
@@ -254,6 +262,7 @@ function makeStyles(C: AppColors) {
     },
     reviewFormActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 16 },
     cancelReviewText: { fontSize: 12, color: C.text3, fontWeight: '600' },
+    cancelNote: { fontSize: 12, color: C.text2, marginTop: 2 },
     submitReviewBtn: { backgroundColor: C.gold, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
     submitReviewBtnText: { fontSize: 12, fontWeight: '800', color: C.black },
   });
