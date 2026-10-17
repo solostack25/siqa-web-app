@@ -1,12 +1,16 @@
 // Pure money math for splitting one marketplace checkout between sellers.
 // No Stripe or database calls here, so it can be unit-tested on its own.
 //
-// Etsy-style fees: Siqa keeps 6.5% of each seller's items, and the seller
-// also covers their share of Stripe's processing fee for the charge. Every
+// Etsy-style fees: Siqa keeps 6.5% of each seller's items + shipping, and
+// the seller also covers their share of Stripe's processing fee for the
+// charge and of the Stripe Tax fee. Sales tax itself goes to Siqa to remit.
+// Every
 // split is done with largest-remainder rounding so the parts always add up
 // to the whole, to the cent.
 
 export const SIQA_FEE_RATE = 0.065;
+/** Stripe Tax pay-as-you-go: $0.50 per recorded tax transaction (includes 10 calculations). */
+export const STRIPE_TAX_FEE_CENTS = 50;
 
 export type OrderLine = {
   id: string;
@@ -17,8 +21,10 @@ export type OrderLine = {
 
 export type LineSplit = {
   id: string;
+  shipping_cents: number;       // this line's share of its shop's shipping
   siqa_fee_cents: number;
   processing_fee_cents: number;
+  tax_fee_cents: number;        // this line's share of the Stripe Tax fee
   seller_payout_cents: number;
 };
 
@@ -26,9 +32,12 @@ export type SellerSplit = {
   seller_id: string;
   order_ids: string[];
   item_count: number;
-  gross_cents: number;
+  items_cents: number;
+  shipping_cents: number;
+  gross_cents: number;          // items + shipping
   siqa_fee_cents: number;
   processing_fee_cents: number;
+  tax_fee_cents: number;
   payout_cents: number;
   lines: LineSplit[];
 };
@@ -52,13 +61,25 @@ export function allocate(total: number, weights: number[]): number[] {
   return floors;
 }
 
+export type SplitOptions = {
+  /** Flat shipping each shop charged on this checkout, by seller id. */
+  shippingBySeller?: Record<string, number>;
+  /** Stripe's actual processing fee on the whole charge (covers tax too). */
+  stripeFeeCents: number;
+  /** Stripe Tax fee for this checkout (0 if no tax transaction recorded). */
+  taxFeeCents?: number;
+  /** Siqa's cut of items + shipping (default 6.5%). */
+  feeRate?: number;
+};
+
 /**
- * Split a paid checkout between its sellers.
- * @param lines          the checkout's order rows (one per product)
- * @param stripeFeeCents Stripe's actual processing fee on the charge
- * @param feeRate        Siqa's cut of item revenue (default 6.5%)
+ * Split a paid checkout between its sellers. Sales tax is not part of any
+ * seller's money (Siqa remits it), but the processing and Stripe Tax fees
+ * that come with it are passed to sellers in proportion to their sales.
  */
-export function splitCheckout(lines: OrderLine[], stripeFeeCents: number, feeRate = SIQA_FEE_RATE): SellerSplit[] {
+export function splitCheckout(lines: OrderLine[], opts: SplitOptions): SellerSplit[] {
+  const feeRate = opts.feeRate ?? SIQA_FEE_RATE;
+  const shippingBySeller = opts.shippingBySeller ?? {};
   const sellers: string[] = [];
   const bySeller = new Map<string, OrderLine[]>();
   for (const line of lines) {
@@ -66,39 +87,49 @@ export function splitCheckout(lines: OrderLine[], stripeFeeCents: number, feeRat
     bySeller.get(line.seller_id)!.push(line);
   }
 
-  const grosses = sellers.map(s => bySeller.get(s)!.reduce((sum, l) => sum + l.total_cents, 0));
-  const processingShares = allocate(Math.max(0, stripeFeeCents), grosses);
+  const items = sellers.map(s => bySeller.get(s)!.reduce((sum, l) => sum + l.total_cents, 0));
+  const shipping = sellers.map(s => Math.max(0, shippingBySeller[s] ?? 0));
+  const grosses = sellers.map((_, i) => items[i] + shipping[i]);
+  const processingShares = allocate(Math.max(0, opts.stripeFeeCents), grosses);
+  const taxFeeShares = allocate(Math.max(0, opts.taxFeeCents ?? 0), grosses);
 
   return sellers.map((sellerId, idx) => {
     const sellerLines = bySeller.get(sellerId)!;
     const gross = grosses[idx];
     const siqaFee = Math.round(gross * feeRate);
     const processing = processingShares[idx];
-    const payout = Math.max(0, gross - siqaFee - processing);
+    const taxFee = taxFeeShares[idx];
+    const payout = Math.max(0, gross - siqaFee - processing - taxFee);
 
-    // Spread the seller's fees across their lines for the per-order breakdown.
-    const weights = sellerLines.map(l => l.total_cents);
-    const lineSiqa = allocate(siqaFee, weights);
-    const lineProcessing = allocate(processing, weights);
-    // Each line's payout is what's left of that line, so every line adds up
-    // on its own (price = Siqa fee + processing + seller payout). Only if
-    // fees exceed the seller's total (tiny orders) is it clamped to zero.
+    // Per-line breakdown: each line carries a share of the shop's shipping,
+    // then a share of each fee, and its payout is what's left — so every
+    // line adds up on its own and the lines add up to the seller's totals.
+    const lineShipping = allocate(shipping[idx], sellerLines.map(l => l.total_cents));
+    const lineGross = sellerLines.map((l, i) => l.total_cents + lineShipping[i]);
+    const lineSiqa = allocate(siqaFee, lineGross);
+    const lineProcessing = allocate(processing, lineGross);
+    const lineTaxFee = allocate(taxFee, lineGross);
     const linePayout = payout === 0
       ? sellerLines.map(() => 0)
-      : sellerLines.map((l, i) => l.total_cents - lineSiqa[i] - lineProcessing[i]);
+      : sellerLines.map((_, i) => lineGross[i] - lineSiqa[i] - lineProcessing[i] - lineTaxFee[i]);
 
     return {
       seller_id: sellerId,
       order_ids: sellerLines.map(l => l.id),
       item_count: sellerLines.reduce((n, l) => n + l.quantity, 0),
+      items_cents: items[idx],
+      shipping_cents: shipping[idx],
       gross_cents: gross,
       siqa_fee_cents: siqaFee,
       processing_fee_cents: processing,
+      tax_fee_cents: taxFee,
       payout_cents: payout,
       lines: sellerLines.map((l, i) => ({
         id: l.id,
+        shipping_cents: lineShipping[i],
         siqa_fee_cents: lineSiqa[i],
         processing_fee_cents: lineProcessing[i],
+        tax_fee_cents: lineTaxFee[i],
         seller_payout_cents: linePayout[i],
       })),
     };

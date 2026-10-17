@@ -22,7 +22,7 @@ import { addToCart, notifyCartChanged } from '../lib/cart';
 // and Save for later / Remove. "Save for later" moves the item to the
 // buyer's favorites, which are listed underneath with a Move to cart link.
 
-type Shop = { id: string; shop_name: string; avatar_url: string | null };
+type Shop = { id: string; shop_name: string; avatar_url: string | null; shipping_cents?: number | null };
 type Product = {
   id: string;
   title: string;
@@ -42,7 +42,7 @@ type ShopRating = { avg: number; count: number };
 
 const PRODUCT_FIELDS =
   'id, title, price_cents, currency, images, inventory_count, is_digital, status, category, seller_id, ' +
-  'marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, avatar_url)';
+  'marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, avatar_url, shipping_cents)';
 
 export default function CartScreen() {
   const { colors: C } = useTheme();
@@ -190,6 +190,12 @@ export default function CartScreen() {
     g.items.push(item);
   }
 
+  // Flat shipping is charged once per shop, and only when that shop has a
+  // physical item in the cart (same rule the checkout function uses).
+  const shippingFor = (g: { shop: Shop; items: CartItem[] }) =>
+    g.items.some(i => !i.marketplace_products?.is_digital) ? Math.max(0, g.shop.shipping_cents ?? 0) : 0;
+  const shippingTotal = groups.reduce((n, g) => n + shippingFor(g), 0);
+
   function openProduct(id: string) {
     router.push({ pathname: '/product/[id]', params: { id } } as any);
   }
@@ -206,8 +212,11 @@ export default function CartScreen() {
 
   const imgSize = isDesktopWeb ? 140 : 88;
 
-  const shopCards = groups.map(({ shop, items: shopItems }) => {
+  const shopCards = groups.map(group => {
+    const { shop, items: shopItems } = group;
     const rating = shopRatings[shop.id];
+    const shipping = shippingFor(group);
+    const hasPhysical = shopItems.some(i => !i.marketplace_products?.is_digital);
     return (
       <View key={shop.id} style={styles.shopCard}>
         <View style={styles.shopHead}>
@@ -225,6 +234,9 @@ export default function CartScreen() {
               <Text style={styles.shopRatingText}>{rating.avg.toFixed(1)}</Text>
               <Text style={styles.shopRatingCount}>({rating.count})</Text>
             </View>
+          )}
+          {hasPhysical && (
+            <Text style={styles.shopShipping}>{shipping > 0 ? `Shipping ${formatPrice(shipping)}` : 'Free shipping'}</Text>
           )}
         </View>
 
@@ -352,13 +364,17 @@ export default function CartScreen() {
         <Text style={styles.summaryValue}>{formatPrice(subtotal)}</Text>
       </View>
       <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Shops</Text>
-        <Text style={styles.summaryValue}>{groups.length}</Text>
+        <Text style={styles.summaryLabel}>Shipping</Text>
+        <Text style={styles.summaryValue}>{shippingTotal > 0 ? formatPrice(shippingTotal) : 'Free'}</Text>
+      </View>
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryLabel}>Sales tax</Text>
+        <Text style={styles.summaryHint}>Calculated at checkout</Text>
       </View>
       <View style={styles.summaryDivider} />
       <View style={styles.summaryRow}>
         <Text style={styles.totalLabel}>Subtotal</Text>
-        <Text style={styles.totalValue}>{formatPrice(subtotal)}</Text>
+        <Text style={styles.totalValue}>{formatPrice(subtotal + shippingTotal)}</Text>
       </View>
       <TouchableOpacity style={styles.checkoutBtn} onPress={() => router.push('/checkout' as any)}>
         <Text style={styles.checkoutBtnText}>Proceed to checkout</Text>
@@ -460,6 +476,7 @@ function makeStyles(C: AppColors) {
     shopRating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
     shopRatingText: { fontSize: 14, fontWeight: '700', color: C.text },
     shopRatingCount: { fontSize: 13, color: C.text3 },
+    shopShipping: { marginLeft: 'auto', fontSize: 13, color: C.text2, fontWeight: '600' },
 
     // Item
     itemRow: { flexDirection: 'row', gap: Theme.spacing.lg },
@@ -507,6 +524,7 @@ function makeStyles(C: AppColors) {
     summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     summaryLabel: { fontSize: 14, color: C.text2 },
     summaryValue: { fontSize: 14, fontWeight: '600', color: C.text },
+    summaryHint: { fontSize: 13, color: C.text3 },
     summaryDivider: { height: 0.5, backgroundColor: C.border2 },
     totalLabel: { fontSize: 15, fontWeight: '700', color: C.text },
     totalValue: { fontSize: 19, fontWeight: '800', color: C.text },

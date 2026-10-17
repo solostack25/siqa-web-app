@@ -1,6 +1,6 @@
 import Stripe from 'https://esm.sh/stripe@13.11.0?target=deno';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { splitCheckout, SIQA_FEE_RATE, type OrderLine } from './payouts.ts';
+import { splitCheckout, SIQA_FEE_RATE, STRIPE_TAX_FEE_CENTS, type OrderLine } from './payouts.ts';
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') ?? '', {
   apiVersion: '2023-10-16',
@@ -85,6 +85,41 @@ async function sendPayout(supabase: SupabaseClient, payout: Payout) {
   }
 }
 
+type Checkout = {
+  id: string;
+  tax_calculation_id: string | null;
+  tax_transaction_id: string | null;
+  tax_status: string;
+  shipping_by_seller: Record<string, number> | null;
+};
+
+async function loadCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIntent): Promise<Checkout | null> {
+  const q = supabase
+    .from('marketplace_checkouts')
+    .select('id, tax_calculation_id, tax_transaction_id, tax_status, shipping_by_seller');
+  const { data } = intent.metadata.checkout_id
+    ? await q.eq('id', intent.metadata.checkout_id).maybeSingle()
+    : await q.eq('payment_intent_id', intent.id).maybeSingle();
+  return (data as Checkout | null) ?? null;
+}
+
+/**
+ * Record the sales tax with Stripe Tax (once) so it shows up in Stripe's tax
+ * reports for filing. Returns the Stripe Tax fee to pass on to sellers.
+ */
+async function recordTax(supabase: SupabaseClient, checkout: Checkout | null): Promise<number> {
+  if (!checkout?.tax_calculation_id) return 0;
+  if (checkout.tax_transaction_id) return STRIPE_TAX_FEE_CENTS; // already recorded on an earlier attempt
+  const tx = await stripe.tax.transactions.createFromCalculation(
+    { calculation: checkout.tax_calculation_id, reference: `siqa_checkout_${checkout.id}` },
+    { idempotencyKey: `tax-transaction-${checkout.id}` },
+  );
+  await supabase.from('marketplace_checkouts')
+    .update({ tax_transaction_id: tx.id, tax_status: 'recorded' })
+    .eq('id', checkout.id);
+  return STRIPE_TAX_FEE_CENTS;
+}
+
 /** Create (once) the per-seller payout rows for a paid checkout, then pay them. */
 async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIntent, orderIds: string[]) {
   // Stripe's actual fee lives on the charge's balance transaction.
@@ -96,16 +131,28 @@ async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIn
     throw new Error(`Balance transaction not ready for ${intent.id}`);
   }
 
+  const checkout = await loadCheckout(supabase, intent);
+  const taxFeeCents = await recordTax(supabase, checkout);
+
   const { data: lines } = await supabase
     .from('marketplace_orders')
-    .select('id, seller_id, total_cents, quantity')
+    .select('id, seller_id, total_cents, quantity, tax_cents')
     .in('id', orderIds);
   if (!lines || lines.length === 0) return;
 
-  const splits = splitCheckout(lines as OrderLine[], bt.fee, SIQA_FEE_RATE);
+  const splits = splitCheckout(lines as OrderLine[], {
+    shippingBySeller: checkout?.shipping_by_seller ?? {},
+    stripeFeeCents: bt.fee,
+    taxFeeCents,
+    feeRate: SIQA_FEE_RATE,
+  });
   const transferGroup = intent.transfer_group || intent.metadata.transfer_group || null;
 
   for (const split of splits) {
+    const taxCollected = (lines as { seller_id: string; tax_cents: number | null }[])
+      .filter(l => l.seller_id === split.seller_id)
+      .reduce((n, l) => n + (l.tax_cents ?? 0), 0);
+
     // Unique (payment_intent_id, seller_id): a retried webhook finds the
     // existing row instead of creating (and paying) a second one.
     await supabase.from('marketplace_seller_payouts').upsert(
@@ -118,8 +165,11 @@ async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIn
         order_ids: split.order_ids,
         item_count: split.item_count,
         gross_cents: split.gross_cents,
+        shipping_cents: split.shipping_cents,
         siqa_fee_cents: split.siqa_fee_cents,
         processing_fee_cents: split.processing_fee_cents,
+        tax_fee_cents: split.tax_fee_cents,
+        tax_collected_cents: taxCollected,
         payout_cents: split.payout_cents,
         fee_rate: SIQA_FEE_RATE,
         status: 'pending',
@@ -138,8 +188,10 @@ async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIn
     for (const line of split.lines) {
       await supabase.from('marketplace_orders')
         .update({
+          shipping_cents: line.shipping_cents,
           siqa_fee_cents: line.siqa_fee_cents,
           processing_fee_cents: line.processing_fee_cents,
+          tax_fee_cents: line.tax_fee_cents,
           seller_payout_cents: line.seller_payout_cents,
           payout_id: payout.id,
         })
@@ -178,6 +230,24 @@ async function reverseCheckout(supabase: SupabaseClient, charge: Stripe.Charge) 
         .eq('id', p.id);
     }
     return;
+  }
+
+  // Reverse the recorded sales tax for the whole checkout.
+  const { data: checkout } = await supabase
+    .from('marketplace_checkouts')
+    .select('id, tax_transaction_id, tax_status')
+    .eq('payment_intent_id', piId)
+    .maybeSingle();
+  if (checkout?.tax_transaction_id && checkout.tax_status !== 'reversed') {
+    try {
+      await stripe.tax.transactions.createReversal(
+        { mode: 'full', original_transaction: checkout.tax_transaction_id, reference: `siqa_checkout_${checkout.id}-refund` },
+        { idempotencyKey: `tax-reversal-full-${checkout.id}` },
+      );
+      await supabase.from('marketplace_checkouts').update({ tax_status: 'reversed' }).eq('id', checkout.id);
+    } catch (err) {
+      console.error('Tax reversal failed', checkout.id, err instanceof Error ? err.message : String(err));
+    }
   }
 
   for (const p of payouts) {
@@ -269,10 +339,10 @@ Deno.serve(async (req) => {
       let orderIds: string[] = (meta.order_ids ?? '').split(',').filter(Boolean);
       if (orderIds.length === 0 && meta.product === 'marketplace') {
         // Big carts don't fit order ids in Stripe metadata; look them up.
-        const { data: rows } = await supabase
-          .from('marketplace_orders')
-          .select('id')
-          .eq('stripe_payment_intent_id', intent.id);
+        const q = supabase.from('marketplace_orders').select('id');
+        const { data: rows } = meta.checkout_id
+          ? await q.eq('checkout_id', meta.checkout_id)
+          : await q.eq('stripe_payment_intent_id', intent.id);
         orderIds = (rows ?? []).map(r => r.id);
       }
       {
