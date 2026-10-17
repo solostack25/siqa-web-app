@@ -160,7 +160,15 @@ export default function HomeScreen() {
         .select("full_name")
         .eq("id", session.user.id)
         .single();
-      if (data?.full_name) setUserName(data.full_name.split(" ")[0]);
+      // Signed in even when the profile has no name yet — fall back to
+      // the sign-up name, then the email, so the header never says
+      // "Sign In" to someone who is.
+      const name =
+        data?.full_name?.trim() ||
+        String(session.user.user_metadata?.full_name ?? "").trim() ||
+        session.user.email?.split("@")[0] ||
+        "Account";
+      setUserName(name.split(" ")[0]);
     } else {
       setUserName(null);
     }
