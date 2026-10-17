@@ -27,6 +27,8 @@ export function DesktopTopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
   const [speaker, setSpeaker] = useState<{ id: string } | null>(null);
+  const [hasOrg, setHasOrg] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -50,18 +52,24 @@ export function DesktopTopBar() {
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setProfile(null); setCartCount(0); setSpeaker(null); setIsSeller(false); return; }
+    if (!session?.user) { setProfile(null); setCartCount(0); setSpeaker(null); setIsSeller(false); setHasOrg(false); return; }
 
-    const [{ data: profileData }, { count }, { data: sellerData }, { data: speakerData }] = await Promise.all([
+    const [{ data: profileData }, { count }, { data: sellerData }, { data: speakerData }, { data: orgData }] = await Promise.all([
       supabase.from('profiles').select('full_name, avatar_url, role').eq('id', session.user.id).maybeSingle(),
       supabase.from('marketplace_cart_items').select('id', { count: 'exact', head: true }).eq('user_id', session.user.id),
       supabase.from('marketplace_sellers').select('id').eq('user_id', session.user.id).maybeSingle(),
       supabase.from('speakers').select('id').eq('profile_id', session.user.id).maybeSingle(),
+      supabase.from('organizations').select('id').eq('profile_id', session.user.id).limit(1).maybeSingle(),
     ]);
     if (profileData) setProfile(profileData);
     setCartCount(count ?? 0);
     setIsSeller(Boolean(sellerData));
     setSpeaker(speakerData ?? null);
+    setHasOrg(Boolean(orgData));
+  }
+
+  function isOrgRole(role?: string | null) {
+    return ['org', 'organization', 'nonprofit', 'masjid'].includes(String(role || '').toLowerCase());
   }
 
   function isAdminRole(role?: string | null) {
@@ -82,10 +90,19 @@ export function DesktopTopBar() {
 
   function goTo(path: string) {
     setMenuOpen(false);
+    setCreateOpen(false);
     router.push(path as any);
   }
 
   const initial = (profile?.full_name || '?').charAt(0).toUpperCase();
+
+  // YouTube-style "+ Create" menu: only the things this account can make.
+  const isAdmin = isAdminRole(profile?.role);
+  const createItems: { key: string; label: string; icon: string; path: string }[] = [
+    ...(speaker || isAdmin ? [{ key: 'video', label: 'Upload video', icon: 'cloud-upload-outline', path: '/gem-upload' }] : []),
+    ...(isSeller ? [{ key: 'listing', label: 'List an item', icon: 'pricetag-outline', path: '/listing-create' }] : []),
+    ...(hasOrg || isAdmin || isOrgRole(profile?.role) ? [{ key: 'seed', label: 'Create a Seed', icon: 'leaf-outline', path: '/seed-create' }] : []),
+  ];
 
   return (
     <View style={styles.bar}>
@@ -103,6 +120,28 @@ export function DesktopTopBar() {
       </View>
 
       <View style={styles.actions}>
+        {profile && createItems.length > 0 && (
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity
+              style={styles.createBtn}
+              onPress={() => { setMenuOpen(false); setCreateOpen(v => !v); }}
+            >
+              <Icon name="add" size={20} color={C.text} />
+              <Text style={styles.createBtnText}>Create</Text>
+            </TouchableOpacity>
+            {createOpen && (
+              <View style={[styles.menu, styles.createMenu]}>
+                {createItems.map(item => (
+                  <TouchableOpacity key={item.key} style={styles.createItem} onPress={() => goTo(item.path)}>
+                    <Icon name={item.icon as any} size={20} color={C.text} />
+                    <Text style={styles.createItemText}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
         <TouchableOpacity style={styles.iconBtn} onPress={() => goTo('/cart')}>
           <Icon name="cart-outline" size={19} color={C.text} />
           {cartCount > 0 && (
@@ -114,7 +153,7 @@ export function DesktopTopBar() {
 
         {profile ? (
           <View style={{ position: 'relative' }}>
-            <TouchableOpacity style={styles.avatarBtn} onPress={() => setMenuOpen(v => !v)}>
+            <TouchableOpacity style={styles.avatarBtn} onPress={() => { setCreateOpen(false); setMenuOpen(v => !v); }}>
               {profile.avatar_url ? (
                 <Image source={{ uri: profile.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
               ) : (
@@ -234,5 +273,13 @@ function makeStyles(C: any) {
       borderBottomWidth: 0.5, borderBottomColor: C.border2,
     },
     menuItemText: { fontSize: 13, color: C.text, fontWeight: '600' },
+    createBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, height: 38, paddingLeft: 12, paddingRight: 16,
+      borderRadius: 19, backgroundColor: C.surface2, borderWidth: 0.5, borderColor: C.border,
+    },
+    createBtnText: { color: C.text, fontSize: 14, fontWeight: '700' },
+    createMenu: { right: undefined, left: 0, width: 220, paddingVertical: 8 },
+    createItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingVertical: 13 },
+    createItemText: { fontSize: 14, color: C.text, fontWeight: '500' },
   });
 }

@@ -31,6 +31,7 @@ import {
 } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { Icon } from '../components/Icon';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -76,6 +77,37 @@ function captureVideoFrameWeb(uri: string, timeSec: number): Promise<string> {
       cleanup();
       reject(new Error('Could not load video for frame capture'));
     };
+  });
+}
+
+// Alert.alert does nothing on react-native-web, so on web use the browser's
+// own alert/confirm (a button with an onPress becomes a confirm()).
+function notify(
+  title: string,
+  message?: string,
+  buttons?: { text: string; style?: string; onPress?: () => void }[],
+) {
+  if (Platform.OS !== 'web') {
+    Alert.alert(title, message, buttons as any);
+    return;
+  }
+  const text = message ? `${title}\n\n${message}` : title;
+  const action = buttons?.find((b) => b.style !== 'cancel' && b.onPress);
+  if (action) {
+    if (window.confirm(text)) action.onPress!();
+  } else {
+    window.alert(text);
+  }
+}
+
+/** Length of a local video file in seconds (web), or null if unknown. */
+function readVideoDurationWeb(uri: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = () => resolve(Number.isFinite(v.duration) ? v.duration : null);
+    v.onerror = () => resolve(null);
+    v.src = uri;
   });
 }
 
@@ -158,6 +190,11 @@ function GemUploadScreenContent() {
   const [progressLabel, setProgressLabel] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Desktop drag-and-drop upload
+  const dropRef = useRef<any>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
+
   // Frame picker
   const [framePickerVisible, setFramePickerVisible] = useState(false);
   const [scrubPosition, setScrubPosition] = useState(0); // 0–1
@@ -176,6 +213,65 @@ function GemUploadScreenContent() {
     const timeout = setTimeout(() => saveDraft(false), 700);
     return () => clearTimeout(timeout);
   }, [caption, selectedTopics, plantSeed, fundraiserId, visibility, selectedSpeakerId, video, thumbnail, draftLoaded, uploading, success]);
+
+  // Desktop: drop a video anywhere on the drop area. Dropping elsewhere on
+  // the page shouldn't make the browser open the file instead.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !isDesktopWeb) return;
+    const el = dropRef.current as HTMLElement | null;
+    const block = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', block);
+    window.addEventListener('drop', block);
+    if (!el?.addEventListener) {
+      return () => { window.removeEventListener('dragover', block); window.removeEventListener('drop', block); };
+    }
+    const over = (e: DragEvent) => { e.preventDefault(); setDragOver(true); };
+    const leave = () => setDragOver(false);
+    const drop = (e: DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleWebFile(file);
+    };
+    el.addEventListener('dragenter', over);
+    el.addEventListener('dragover', over);
+    el.addEventListener('dragleave', leave);
+    el.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragover', block);
+      window.removeEventListener('drop', block);
+      el.removeEventListener('dragenter', over);
+      el.removeEventListener('dragover', over);
+      el.removeEventListener('dragleave', leave);
+      el.removeEventListener('drop', drop);
+    };
+  }, [isDesktopWeb, loadingProfile, video]);
+
+  async function handleWebFile(file: File) {
+    const looksLikeVideo = file.type.startsWith('video/') || /\.(mp4|mov|m4v|webm)$/i.test(file.name);
+    if (!looksLikeVideo) {
+      setDropError(`"${file.name}" isn't a video. Use an MP4, MOV or WebM file.`);
+      return;
+    }
+    setDropError(null);
+    const uri = URL.createObjectURL(file);
+    const duration = await readVideoDurationWeb(uri);
+    setVideo({ uri, fileName: file.name, mimeType: file.type || 'video/mp4', duration, size: file.size });
+    // Like YouTube: start the title from the file name.
+    setCaption((c) => c.trim() ? c : file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '));
+    await generateAutoThumbnail(uri);
+  }
+
+  function selectWebFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'video/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (file) handleWebFile(file);
+    };
+    input.click();
+  }
 
   async function loadProfile() {
     setLoadingProfile(true);
@@ -239,8 +335,11 @@ function GemUploadScreenContent() {
         setFundraiserId(draft.fundraiserId || '');
         setVisibility(draft.visibility || 'public');
         setSelectedSpeakerId(draft.selectedSpeakerId || null);
-        setVideo(draft.video || null);
-        setThumbnail(draft.thumbnail || null);
+        // On web a picked file is a blob: link that dies on reload, so the
+        // draft keeps the text but not the file.
+        const dead = (uri?: string) => Platform.OS === 'web' && Boolean(uri?.startsWith('blob:'));
+        setVideo(draft.video && !dead(draft.video.uri) ? draft.video : null);
+        setThumbnail(draft.thumbnail && !dead(draft.thumbnail.uri) ? draft.thumbnail : null);
       }
     } catch (error) {
       console.warn('[GemUpload] Could not restore draft', error);
@@ -263,16 +362,16 @@ function GemUploadScreenContent() {
         thumbnail,
       };
       await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-      if (showToast) Alert.alert('Draft saved', 'Your Gem draft is saved on this device.');
+      if (showToast) notify('Draft saved', 'Your Gem draft is saved on this device.');
     } catch (error) {
-      if (showToast) Alert.alert('Draft not saved', 'Something went wrong while saving this draft.');
+      if (showToast) notify('Draft not saved', 'Something went wrong while saving this draft.');
     } finally {
       setSavingDraft(false);
     }
   }
 
   async function discardDraft() {
-    Alert.alert('Discard draft?', 'This clears the saved draft on this device.', [
+    notify('Discard draft?', 'This clears the saved draft on this device.', [
       { text: 'Keep editing', style: 'cancel' },
       {
         text: 'Discard',
@@ -294,7 +393,7 @@ function GemUploadScreenContent() {
   async function pickVideo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow Siqa to access your video library to upload Gems.');
+      notify('Permission needed', 'Allow Siqa to access your video library to upload Gems.');
       return;
     }
 
@@ -324,7 +423,7 @@ function GemUploadScreenContent() {
       // Gem has a thumbnail even if the speaker skips the manual picker.
       await generateAutoThumbnail(asset.uri);
     } catch (error) {
-      Alert.alert('Could not open video', 'Choose a video downloaded to this device and make sure Siqa has full Photos access.');
+      notify('Could not open video', 'Choose a video downloaded to this device and make sure Siqa has full Photos access.');
     }
   }
 
@@ -357,7 +456,7 @@ function GemUploadScreenContent() {
   async function recordVideo() {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     if (!cameraPermission.granted) {
-      Alert.alert('Camera access needed', 'Allow Siqa to access your camera to record a Gem.');
+      notify('Camera access needed', 'Allow Siqa to access your camera to record a Gem.');
       return;
     }
 
@@ -382,14 +481,14 @@ function GemUploadScreenContent() {
 
       await generateAutoThumbnail(asset.uri);
     } catch (error) {
-      Alert.alert('Could not start camera', 'Make sure Siqa has camera and microphone access in Settings.');
+      notify('Could not start camera', 'Make sure Siqa has camera and microphone access in Settings.');
     }
   }
 
   async function pickThumbnail() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow Siqa to access your photos to choose a thumbnail.');
+      notify('Permission needed', 'Allow Siqa to access your photos to choose a thumbnail.');
       return;
     }
 
@@ -409,7 +508,7 @@ function GemUploadScreenContent() {
         mimeType: asset.mimeType || 'image/jpeg',
       });
     } catch (error) {
-      Alert.alert('Could not open photo', 'Choose a photo downloaded to this device and make sure Siqa has full Photos access.');
+      notify('Could not open photo', 'Choose a photo downloaded to this device and make sure Siqa has full Photos access.');
     }
   }
 
@@ -520,23 +619,23 @@ function GemUploadScreenContent() {
 
     const finalSpeakerId = isAdmin ? selectedSpeakerId : speakerId;
     if (!finalSpeakerId) {
-      Alert.alert('Speaker profile required', 'This account is not linked to a speaker profile yet.');
+      notify('Speaker profile required', 'This account is not linked to a speaker profile yet.');
       return;
     }
 
     if (!video) {
-      Alert.alert('Select a video', 'Choose a video before posting your Gem.');
+      notify('Select a video', 'Choose a video before posting your Gem.');
       return;
     }
 
     const cleanCaption = caption.trim();
     if (!cleanCaption) {
-      Alert.alert('Caption required', 'Add a short caption so people know what this Gem is about.');
+      notify('Caption required', 'Add a short caption so people know what this Gem is about.');
       return;
     }
 
     if (plantSeed && !fundraiserId.trim()) {
-      Alert.alert('Choose a Seed', 'Select the fundraiser this Gem should point to, or turn off Plant a Seed.');
+      notify('Choose a Seed', 'Select the fundraiser this Gem should point to, or turn off Plant a Seed.');
       return;
     }
 
@@ -624,7 +723,7 @@ function GemUploadScreenContent() {
       setTimeout(() => router.replace('/(tabs)/gems'), 950);
     } catch (error: any) {
       console.error('[GemUpload] Upload failed:', error);
-      Alert.alert('Upload failed', error?.message || 'Something went wrong while uploading the Gem.');
+      notify('Upload failed', error?.message || 'Something went wrong while uploading the Gem.');
     } finally {
       setUploading(false);
     }
@@ -638,62 +737,9 @@ function GemUploadScreenContent() {
     );
   }
 
-  return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} disabled={uploading}>
-          <Text style={styles.cancel}>Cancel</Text>
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>New Gem</Text>
-          <Text style={styles.headerArabic}>صِقا</Text>
-        </View>
-        <TouchableOpacity onPress={postGem} disabled={uploading} style={[styles.postBtn, uploading && styles.postBtnDisabled]}>
-          <Text style={styles.postBtnText}>{uploading ? 'Posting' : 'Post'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.draftRow}>
-          <TouchableOpacity style={styles.draftBtn} onPress={() => saveDraft(true)} disabled={uploading || savingDraft}>
-            <Text style={styles.draftBtnText}>{savingDraft ? 'Saving...' : 'Save Draft'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.draftBtnGhost} onPress={discardDraft} disabled={uploading}>
-            <Text style={styles.draftBtnGhostText}>Discard</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={[styles.uploadZone, video && styles.uploadZoneLoaded]} onPress={pickVideo} disabled={uploading}>
-          {video ? (
-            <>
-              <Video
-                source={{ uri: video.uri }}
-                style={StyleSheet.absoluteFill}
-                resizeMode={ResizeMode.COVER}
-                isMuted
-                shouldPlay={false}
-              />
-              <View style={styles.videoScrim} />
-              <Text style={styles.uploadIcon}>✓</Text>
-              <Text style={styles.uploadTitle} numberOfLines={1}>{video.fileName}</Text>
-              <Text style={styles.uploadSub}>Tap to choose a different video</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.uploadIcon}>＋</Text>
-              <Text style={styles.uploadTitle}>Select video</Text>
-              <Text style={styles.uploadSub}>MP4/MOV · short vertical clips work best</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {!video && (
-          <TouchableOpacity style={styles.recordBtn} onPress={recordVideo} disabled={uploading}>
-            <View style={styles.recordDot} />
-            <Text style={styles.recordBtnText}>Record a new Gem now</Text>
-          </TouchableOpacity>
-        )}
-
+  // Form sections, shared by the phone layout and the desktop (YouTube-style) layout.
+  const thumbnailCard = (
+    <>
         <View style={styles.card}>
           <Text style={styles.label}>Thumbnail</Text>
           <View style={styles.thumbnailRow}>
@@ -741,7 +787,10 @@ function GemUploadScreenContent() {
             </View>
           </View>
         </View>
-
+    </>
+  );
+  const framePickerModal = (
+    <>
         {/* Frame Picker Modal */}
         <Modal
           visible={framePickerVisible}
@@ -801,8 +850,9 @@ function GemUploadScreenContent() {
             </View>
           </View>
         </Modal>
-
-        {uploading && (
+    </>
+  );
+  const progressBox = uploading ? (
           <View style={styles.progressBox}>
             <View style={styles.progressTop}>
               <Text style={styles.progressPct}>{progressPct}%</Text>
@@ -812,9 +862,8 @@ function GemUploadScreenContent() {
               <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
             </View>
           </View>
-        )}
-
-        {isAdmin && (
+  ) : null;
+  const speakerCard = isAdmin ? (
           <View style={styles.card}>
             <Text style={styles.label}>Post as speaker</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.speakerRow}>
@@ -832,8 +881,9 @@ function GemUploadScreenContent() {
               ))}
             </ScrollView>
           </View>
-        )}
-
+  ) : null;
+  const captionCard = (
+    <>
         <View style={styles.card}>
           <Text style={styles.label}>Caption</Text>
           <TextInput
@@ -846,7 +896,10 @@ function GemUploadScreenContent() {
             editable={!uploading}
           />
         </View>
-
+    </>
+  );
+  const topicsCard = (
+    <>
         <View style={styles.card}>
           <Text style={styles.label}>Topics</Text>
           <View style={styles.topicWrap}>
@@ -865,7 +918,10 @@ function GemUploadScreenContent() {
             })}
           </View>
         </View>
-
+    </>
+  );
+  const seedCard = (
+    <>
         <View style={styles.card}>
           <View style={styles.switchRow}>
             <View style={styles.switchTextWrap}>
@@ -914,7 +970,10 @@ function GemUploadScreenContent() {
             </View>
           )}
         </View>
-
+    </>
+  );
+  const visibilityCard = (
+    <>
         <View style={styles.card}>
           <Text style={styles.label}>Visibility</Text>
           <View style={styles.visibilityRow}>
@@ -933,7 +992,10 @@ function GemUploadScreenContent() {
             ))}
           </View>
         </View>
-
+    </>
+  );
+  const formatCard = (
+    <>
         <View style={styles.card}>
           <Text style={styles.label}>Content format</Text>
           <View style={styles.visibilityRow}>
@@ -961,13 +1023,9 @@ function GemUploadScreenContent() {
             </Text>
           ) : null}
         </View>
-
-        <Text style={styles.securityNote}>
-          Uploads go to Bunny.net and the Gem record is saved in Supabase. Move the Bunny key server-side before public beta.
-        </Text>
-      </ScrollView>
-
-      {success && (
+    </>
+  );
+  const successOverlay = success ? (
         <Animated.View style={[styles.successOverlay, { opacity: successOpacity }]}> 
           <Animated.View style={[styles.successCard, { transform: [{ scale: successScale }] }]}> 
             <Text style={styles.successIcon}>✓</Text>
@@ -975,7 +1033,201 @@ function GemUploadScreenContent() {
             <Text style={styles.successSub}>Your video is live in Gems.</Text>
           </Animated.View>
         </Animated.View>
-      )}
+  ) : null;
+
+  function renderDesktop() {
+    if (!video) {
+      return (
+        <View style={styles.dtScreen}>
+          <View style={styles.dtDialog}>
+            <View style={styles.dtHeader}>
+              <Text style={styles.dtTitle}>Upload video</Text>
+              <TouchableOpacity style={styles.dtIconBtn} onPress={() => router.back()}>
+                <Icon name="close" size={24} color={C.text} />
+              </TouchableOpacity>
+            </View>
+            <View ref={dropRef} style={[styles.dtDrop, dragOver && styles.dtDropActive]}>
+              <TouchableOpacity style={[styles.dtDropCircle, dragOver && styles.dtDropCircleActive]} onPress={selectWebFile}>
+                <Icon name="arrow-up" size={58} color={dragOver ? C.gold : C.text3} />
+              </TouchableOpacity>
+              <Text style={styles.dtDropTitle}>{dragOver ? 'Drop to upload' : 'Drag and drop a video file to upload'}</Text>
+              <Text style={styles.dtDropSub}>Nothing is posted until you hit Publish.</Text>
+              {dropError ? <Text style={styles.dtDropError}>{dropError}</Text> : null}
+              <TouchableOpacity style={styles.dtSelectBtn} onPress={selectWebFile}>
+                <Text style={styles.dtSelectBtnText}>Select file</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.dtTerms}>
+              By posting to Siqa, you agree to Siqa's Terms of Service and Community Guidelines.{'\n'}
+              Please make sure your video doesn't violate anyone else's privacy or copyright.
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
+    const title = caption.trim() || video.fileName;
+    return (
+      <View style={styles.dtScreen}>
+        <View style={styles.dtDialog}>
+          <View style={styles.dtHeader}>
+            <Text style={styles.dtTitle} numberOfLines={1}>{title}</Text>
+            <View style={styles.dtHeaderActions}>
+              <TouchableOpacity onPress={() => saveDraft(true)} disabled={uploading || savingDraft}>
+                <Text style={styles.dtHeaderLink}>{savingDraft ? 'Saving…' : 'Save draft'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dtIconBtn} onPress={() => router.back()} disabled={uploading}>
+                <Icon name="close" size={24} color={C.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.dtBody}>
+            <ScrollView style={styles.dtLeft} contentContainerStyle={styles.dtLeftContent} keyboardShouldPersistTaps="handled">
+              <Text style={styles.dtSection}>Details</Text>
+              {progressBox}
+              {captionCard}
+              {thumbnailCard}
+              {speakerCard}
+              {topicsCard}
+              {seedCard}
+            </ScrollView>
+
+            <ScrollView style={styles.dtRight} contentContainerStyle={styles.dtRightContent}>
+              <View style={styles.dtPreview}>
+                <View style={styles.dtPlayer}>
+                  <Video
+                    source={{ uri: video.uri }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode={ResizeMode.CONTAIN}
+                    useNativeControls
+                    shouldPlay={false}
+                  />
+                </View>
+                <View style={styles.dtPreviewMeta}>
+                  <Text style={styles.dtMetaLabel}>Filename</Text>
+                  <Text style={styles.dtMetaValue} numberOfLines={1}>{video.fileName}</Text>
+                  {video.duration != null && (
+                    <>
+                      <Text style={[styles.dtMetaLabel, { marginTop: 10 }]}>Length</Text>
+                      <Text style={styles.dtMetaValue}>{formatTime(video.duration)}</Text>
+                    </>
+                  )}
+                  <TouchableOpacity onPress={selectWebFile} disabled={uploading} style={{ marginTop: 12 }}>
+                    <Text style={styles.dtHeaderLink}>Change video</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {visibilityCard}
+              {formatCard}
+            </ScrollView>
+          </View>
+
+          <View style={styles.dtFooter}>
+            <View style={styles.dtFooterStatus}>
+              <Icon name={uploading ? 'cloud-upload-outline' : 'checkmark-circle-outline'} size={18} color={uploading ? C.gold : C.text3} />
+              <Text style={styles.dtFooterText} numberOfLines={1}>
+                {uploading ? `${progressPct}% · ${progressLabel}` : 'Ready to publish'}
+              </Text>
+            </View>
+            <View style={styles.dtHeaderActions}>
+              <TouchableOpacity style={styles.dtGhostBtn} onPress={discardDraft} disabled={uploading}>
+                <Text style={styles.dtGhostBtnText}>Discard</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.dtPublishBtn, uploading && styles.postBtnDisabled]} onPress={postGem} disabled={uploading}>
+                <Text style={styles.dtPublishBtnText}>{uploading ? 'Publishing…' : 'Publish'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+        {framePickerModal}
+        {successOverlay}
+      </View>
+    );
+  }
+
+  if (isDesktopWeb) return renderDesktop();
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} disabled={uploading}>
+          <Text style={styles.cancel}>Cancel</Text>
+        </TouchableOpacity>
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.headerTitle}>New Gem</Text>
+          <Text style={styles.headerArabic}>صِقا</Text>
+        </View>
+        <TouchableOpacity onPress={postGem} disabled={uploading} style={[styles.postBtn, uploading && styles.postBtnDisabled]}>
+          <Text style={styles.postBtnText}>{uploading ? 'Posting' : 'Post'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.draftRow}>
+          <TouchableOpacity style={styles.draftBtn} onPress={() => saveDraft(true)} disabled={uploading || savingDraft}>
+            <Text style={styles.draftBtnText}>{savingDraft ? 'Saving...' : 'Save Draft'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.draftBtnGhost} onPress={discardDraft} disabled={uploading}>
+            <Text style={styles.draftBtnGhostText}>Discard</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={[styles.uploadZone, video && styles.uploadZoneLoaded]} onPress={pickVideo} disabled={uploading}>
+          {video ? (
+            <>
+              <Video
+                source={{ uri: video.uri }}
+                style={StyleSheet.absoluteFill}
+                resizeMode={ResizeMode.COVER}
+                isMuted
+                shouldPlay={false}
+              />
+              <View style={styles.videoScrim} />
+              <Text style={styles.uploadIcon}>✓</Text>
+              <Text style={styles.uploadTitle} numberOfLines={1}>{video.fileName}</Text>
+              <Text style={styles.uploadSub}>Tap to choose a different video</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.uploadIcon}>＋</Text>
+              <Text style={styles.uploadTitle}>Select video</Text>
+              <Text style={styles.uploadSub}>MP4/MOV · short vertical clips work best</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {!video && (
+          <TouchableOpacity style={styles.recordBtn} onPress={recordVideo} disabled={uploading}>
+            <View style={styles.recordDot} />
+            <Text style={styles.recordBtnText}>Record a new Gem now</Text>
+          </TouchableOpacity>
+        )}
+
+        {thumbnailCard}
+
+        {framePickerModal}
+
+        {progressBox}
+
+        {speakerCard}
+
+        {captionCard}
+
+        {topicsCard}
+
+        {seedCard}
+
+        {visibilityCard}
+
+        {formatCard}
+
+        <Text style={styles.securityNote}>
+          Uploads go to Bunny.net and the Gem record is saved in Supabase. Move the Bunny key server-side before public beta.
+        </Text>
+      </ScrollView>
+
+      {successOverlay}
     </View>
   );
 }
@@ -1115,6 +1367,58 @@ function makeStyles(C: AppColors, isDark: boolean, isDesktopWeb = false) {
     successIcon: { width: 70, height: 70, borderRadius: 35, backgroundColor: C.gold, color: C.black, textAlign: 'center', lineHeight: 70, fontSize: 42, fontWeight: '900', overflow: 'hidden' },
     successTitle: { color: C.text, fontSize: 22, fontWeight: '900', marginTop: 16 },
     successSub: { color: C.text2, fontSize: 13, marginTop: 6, textAlign: 'center' },
+
+    // Desktop (YouTube-style) layout
+    dtScreen: { flex: 1, backgroundColor: C.bg, padding: 24 },
+    dtDialog: {
+      flex: 1, width: '100%', maxWidth: 1180, alignSelf: 'center', backgroundColor: C.surface,
+      borderRadius: 22, borderWidth: 0.5, borderColor: C.border2, overflow: 'hidden',
+    },
+    dtHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+      paddingHorizontal: 28, paddingVertical: 18, borderBottomWidth: 0.5, borderBottomColor: C.border2,
+    },
+    dtTitle: { color: C.text, fontSize: 22, fontWeight: '800', flexShrink: 1 },
+    dtHeaderActions: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    dtHeaderLink: { color: C.gold, fontSize: 13, fontWeight: '700' },
+    dtIconBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+    dtDrop: {
+      flex: 1, alignItems: 'center', justifyContent: 'center', margin: 20, borderRadius: 18,
+      borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'transparent',
+    },
+    dtDropActive: { borderColor: C.gold, backgroundColor: C.goldBg },
+    dtDropCircle: {
+      width: 136, height: 136, borderRadius: 68, backgroundColor: C.surface2,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 26,
+    },
+    dtDropCircleActive: { backgroundColor: C.bg2 },
+    dtDropTitle: { color: C.text, fontSize: 16, fontWeight: '600' },
+    dtDropSub: { color: C.text3, fontSize: 13, marginTop: 6 },
+    dtDropError: { color: '#e84545', fontSize: 13, marginTop: 12, fontWeight: '600' },
+    dtSelectBtn: { backgroundColor: C.gold, borderRadius: 999, paddingHorizontal: 26, paddingVertical: 12, marginTop: 26 },
+    dtSelectBtnText: { color: C.black, fontSize: 14, fontWeight: '800' },
+    dtTerms: { color: C.text3, fontSize: 12, lineHeight: 19, textAlign: 'center', paddingHorizontal: 32, paddingBottom: 26 },
+    dtBody: { flex: 1, flexDirection: 'row', minHeight: 0 },
+    dtLeft: { flex: 1 },
+    dtLeftContent: { paddingHorizontal: 28, paddingTop: 22, paddingBottom: 32 },
+    dtRight: { width: 380, flexGrow: 0, borderLeftWidth: 0.5, borderLeftColor: C.border2 },
+    dtRightContent: { padding: 22, paddingBottom: 32 },
+    dtSection: { color: C.text, fontSize: 20, fontWeight: '800', marginBottom: 16 },
+    dtPreview: { backgroundColor: C.bg2, borderRadius: 14, overflow: 'hidden', marginBottom: 14, borderWidth: 0.5, borderColor: C.border2 },
+    dtPlayer: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000' },
+    dtPreviewMeta: { padding: 14 },
+    dtMetaLabel: { color: C.text3, fontSize: 11, fontWeight: '700' },
+    dtMetaValue: { color: C.text, fontSize: 13, marginTop: 3 },
+    dtFooter: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+      paddingHorizontal: 28, paddingVertical: 14, borderTopWidth: 0.5, borderTopColor: C.border2,
+    },
+    dtFooterStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+    dtFooterText: { color: C.text2, fontSize: 13, flexShrink: 1 },
+    dtGhostBtn: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10, borderWidth: 1, borderColor: C.border },
+    dtGhostBtnText: { color: C.text2, fontSize: 13, fontWeight: '700' },
+    dtPublishBtn: { backgroundColor: C.gold, borderRadius: 999, paddingHorizontal: 24, paddingVertical: 10 },
+    dtPublishBtnText: { color: C.black, fontSize: 14, fontWeight: '800' },
 
     // Thumb action buttons
     thumbBtnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
