@@ -1,6 +1,7 @@
-# Build the Siqa iPhone app on Expo's servers and (optionally) send it to
-# App Store Connect / TestFlight. Run it from GitHub: Actions tab →
-# "iOS build" → Run workflow. Only people with write access can run it.
+# Build the Siqa phone apps on Expo's servers and (optionally) send them to
+# App Store Connect / TestFlight and Google Play (internal testing).
+# Run it from GitHub: Actions tab → "App build" → Run workflow.
+# Only people with write access can run it.
 #
 # Secrets (Settings → Secrets and variables → Actions):
 #   EXPO_TOKEN          required. Expo access token (expo.dev → Account settings → Access tokens).
@@ -8,17 +9,26 @@
 #   ASC_API_KEY_ID      optional. That key's Key ID.
 #   ASC_API_ISSUER_ID   optional. The Issuer ID shown on the same page.
 #   APPLE_TEAM_ID       optional. Your 10-character Apple Team ID (developer.apple.com → Membership).
+#   GOOGLE_SERVICE_ACCOUNT_JSON  needed to send Android builds to Google Play: the
+#                       whole JSON key of a Google Cloud service account that has
+#                       access in Play Console. (Google's very first upload of a
+#                       new app must be done by hand in Play Console.)
 # With the three ASC secrets, Expo can create signing certificates and upload
 # to TestFlight on its own. Without them, Apple signing must already be set up
 # on Expo (one local `eas build -p ios` run does that).
 
-name: iOS build
+name: App build
 
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: Which app to build
+        type: choice
+        options: [ios, android, all]
+        default: ios
       submit:
-        description: Send the finished build to App Store Connect (TestFlight)
+        description: Send the finished build to the store (TestFlight / Google Play internal testing)
         type: boolean
         default: true
 
@@ -78,14 +88,34 @@ jobs:
             echo "No App Store Connect key; using signing already saved on Expo."
           fi
 
+      - name: Google Play key (optional)
+        if: inputs.platform != 'ios'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICE_ACCOUNT_JSON" > google-service-account.json
+            echo "Using the Google Play service account key."
+          elif [ "${{ inputs.submit }}" = "true" ]; then
+            echo "::warning::No GOOGLE_SERVICE_ACCOUNT_JSON secret, so the Android build won't be sent to Google Play. Download it from expo.dev and upload it in Play Console."
+            echo "ANDROID_NO_SUBMIT=1" >> "$GITHUB_ENV"
+          fi
+
       - name: Build on Expo
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: |
+          PLATFORM="${{ inputs.platform }}"
           SUBMIT=""
           if [ "${{ inputs.submit }}" = "true" ]; then SUBMIT="--auto-submit"; fi
-          if ! npx --yes eas-cli@latest build -p ios --profile production --non-interactive --no-wait $SUBMIT; then
+          # Without a Play key, still build Android, just don't try to upload it.
+          if [ "$PLATFORM" = "android" ] && [ -n "$ANDROID_NO_SUBMIT" ]; then SUBMIT=""; fi
+          if [ "$PLATFORM" = "all" ] && [ -n "$ANDROID_NO_SUBMIT" ] && [ -n "$SUBMIT" ]; then
+            npx --yes eas-cli@latest build -p ios --profile production --non-interactive --no-wait --auto-submit || exit 1
+            PLATFORM=android; SUBMIT=""
+          fi
+          if ! npx --yes eas-cli@latest build -p "$PLATFORM" --profile production --non-interactive --no-wait $SUBMIT; then
             echo "::error::Build didn't start. If the log says 'Credentials are not set up', run 'npx eas-cli@latest credentials -p ios' once on your computer (choose production → set up everything), or add the ASC_API_KEY_* secrets, then run this again."
             exit 1
           fi

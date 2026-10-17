@@ -15,3 +15,6 @@ supabase/.temp
 expo-env.d.ts
 # @end expo-cli
 siqa-admin.html
+
+# Google Play upload key (never commit)
+google-service-account.json
