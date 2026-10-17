@@ -270,13 +270,17 @@ if (fnError) throw new Error(fnError);
               <Text style={styles.breakdownLabel}>Your donation</Text>
               <Text style={styles.breakdownVal}>{formatAmount(selectedAmount)}</Text>
             </View>
+            {/* Fees come out of the gift (the donor pays exactly the amount
+                picked), so they're listed as plain amounts under a "fees"
+                heading rather than as negative numbers. */}
+            <Text style={styles.breakdownSub}>Fees taken from your gift</Text>
             <View style={styles.breakdownRow}>
               <Text style={styles.breakdownLabel}>Siqa platform fee (1%)</Text>
-              <Text style={styles.breakdownVal}>−{formatFee(selectedAmount)}</Text>
+              <Text style={styles.breakdownVal}>{formatFee(selectedAmount)}</Text>
             </View>
             <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Stripe processing (~3%)</Text>
-              <Text style={styles.breakdownVal}>−${((Math.round(selectedAmount * 0.029) + 30) / 100).toFixed(2)}</Text>
+              <Text style={styles.breakdownLabel}>Card processing (2.9% + 30¢)</Text>
+              <Text style={styles.breakdownVal}>${((Math.round(selectedAmount * 0.029) + 30) / 100).toFixed(2)}</Text>
             </View>
             <View style={[styles.breakdownRow, styles.breakdownTotal]}>
               <Text style={styles.breakdownTotalLabel}>Organization receives</Text>
@@ -512,6 +516,14 @@ function makeStyles(C: AppColors) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  breakdownSub: {
+    fontSize: 11,
+    color: C.text3,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 6,
+    marginBottom: 2,
   },
   breakdownLabel: {
     fontSize: Theme.fontSize.sm,
