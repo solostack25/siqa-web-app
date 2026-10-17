@@ -14,12 +14,12 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.siqa.app",
+      "bundleIdentifier": "com.solostack.siqa",
       "buildNumber": "14",
       "infoPlist": {
-        "NSCameraUsageDescription": "Siqa uses your camera to record and stream live video.",
-        "NSMicrophoneUsageDescription": "Siqa uses your microphone to record audio during live streams.",
-        "NSPhotoLibraryUsageDescription": "Siqa uses your photo library to upload profile photos.",
+        "NSCameraUsageDescription": "Siqa uses your camera to record videos and take product and profile photos.",
+        "NSMicrophoneUsageDescription": "Siqa uses your microphone to record audio for the videos you post.",
+        "NSPhotoLibraryUsageDescription": "Siqa uses your photo library to upload videos, thumbnails, product photos and profile photos.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

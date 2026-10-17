@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 18.11.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -20,10 +20,15 @@
     "production": {
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      }
+      },
+      "autoIncrement": true
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6768515852"
+      }
+    }
   }
 }
