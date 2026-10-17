@@ -284,23 +284,36 @@ export default function SettingsScreen() {
             </View>
           </Section>
 
-          {/* Speaker section was just a link to My Public Profile — the
-              sidebar's YOU section already goes there on desktop, so
-              this only exists on mobile now. */}
-          {!isDesktopWeb && speaker && (
+          {/* Speaker: upload videos (Post a Gem) and view the public profile.
+              Shown on desktop too — it's the place speakers look for uploads. */}
+          {speaker && (
             <Section
               icon="mic-outline"
               label="Speaker"
               sublabel={speaker.display_name}
               open={openSection === 'speaker'}
               onToggle={() => toggle('speaker')}
+              alwaysOpen={isDesktopWeb}
+              gridWidth={gridWidth}
             >
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/gem-upload' as any)}>
+                <Icon name="cloud-upload-outline" size={18} color={C.gold} />
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuLabel}>Post a Gem</Text>
+                  <Text style={styles.menuSubLabel}>Upload a video to your channel</Text>
+                </View>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.row, { borderBottomWidth: 0 }]}
+                style={[styles.menuItem, { borderBottomWidth: 0 }]}
                 onPress={() => router.push(`/speaker/${speaker.id}` as any)}
               >
-                <Text style={styles.rowLabel}>My Public Profile</Text>
-                <Text style={styles.rowLink}>{speaker.display_name} ›</Text>
+                <Icon name="person-circle-outline" size={18} color={C.text2} />
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuLabel}>My Public Profile</Text>
+                  <Text style={styles.menuSubLabel}>{speaker.display_name}</Text>
+                </View>
+                <Text style={styles.menuArrow}>›</Text>
               </TouchableOpacity>
             </Section>
           )}
