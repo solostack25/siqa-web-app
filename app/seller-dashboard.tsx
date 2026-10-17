@@ -21,6 +21,7 @@ type Seller = { id: string; shop_name: string; approval_status: string; stripe_o
 type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
 type Order = {
   id: string; status: string; total_cents: number; quantity: number; created_at: string;
+  siqa_fee_cents: number | null; processing_fee_cents: number | null; seller_payout_cents: number | null;
   marketplace_products: { title: string; images: string[] | null } | null;
 };
 
@@ -71,7 +72,7 @@ export default function SellerDashboardScreen() {
 
     const [{ data: productsData }, { data: ordersData }] = await Promise.all([
       supabase.from('marketplace_products').select('id, title, price_cents, images, status, inventory_count').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
-      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, created_at, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
+      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
     ]);
 
     if (productsData) setProducts(productsData as any);
@@ -175,6 +176,14 @@ export default function SellerDashboardScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.orderTitle} numberOfLines={1}>{order.marketplace_products?.title ?? 'Product'}</Text>
                       <Text style={styles.orderMeta}>Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
+                      {order.seller_payout_cents != null && (
+                        // Same split the admin Payouts page shows: Siqa's 6.5% fee
+                        // and this order's share of Stripe processing come off first.
+                        <Text style={styles.orderMeta}>
+                          You get {formatMoney(order.seller_payout_cents)}
+                          {' '}(fees {formatMoney((order.siqa_fee_cents ?? 0) + (order.processing_fee_cents ?? 0))})
+                        </Text>
+                      )}
                       <Text style={[styles.orderStatus, { color: statusColor(order.status, C) }]}>{order.status.toUpperCase()}</Text>
                       {(nextStatus || canCancel) && (
                         <View style={styles.orderActions}>

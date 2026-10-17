@@ -25,14 +25,15 @@ function json(body: Record<string, unknown>, status = 200) {
 
 // Mirrors the original Next.js marketplace's /api/checkout: pricing,
 // stock checks, and order rows are all computed server-side from the
-// live product row, never trusted from the client. One PaymentIntent
-// covers the whole cart. Connect destination-charge routing (paying
-// the seller directly, minus a platform fee) only applies when every
-// item in the cart is from the same, Stripe-onboarded seller — a
-// single PaymentIntent can only have one destination account, and
-// splitting a multi-seller cart into per-seller transfers is real
-// payout-splitting logic the original app didn't do either (its own
-// cart checkout was platform-collected only, no destination routing).
+// live product row, never trusted from the client.
+//
+// One PaymentIntent covers the whole cart, however many shops are in it
+// (Stripe "separate charges and transfers"). The buyer pays Siqa once;
+// when the payment succeeds, the stripe-webhook function splits it per
+// seller (Siqa's 6.5% fee + each seller's share of Stripe's processing
+// fee) and transfers each seller their part, or records it as owed if
+// they haven't finished Stripe setup. The transfer_group links the
+// charge to those transfers in Stripe.
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -108,26 +109,23 @@ Deno.serve(async (req: Request) => {
     }
 
     const orderIds = insertedOrders.map(o => o.id);
-    const platformFeeCents = Math.round(totalCents * 0.05);
+    const transferGroup = `siqa_checkout_${orderIds[0]}`;
 
     const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
       amount: totalCents,
       currency: 'usd',
+      transfer_group: transferGroup,
       metadata: {
-        order_ids: orderIds.join(','),
+        product: 'marketplace', // read by siqa-admin Finance sync
+        // Stripe caps metadata values at 500 chars (~13 order ids). Larger
+        // carts leave this out; the webhook then finds the orders by their
+        // stored stripe_payment_intent_id instead.
+        ...(orderIds.join(',').length <= 500 ? { order_ids: orderIds.join(',') } : {}),
         buyer_id: buyerId,
+        transfer_group: transferGroup,
+        seller_count: String(sellerIds.size),
       },
     };
-
-    // Single-seller cart, seller fully onboarded -> route straight to them.
-    if (sellerIds.size === 1) {
-      const onlyProduct = products.find((p: any) => p.seller_id === Array.from(sellerIds)[0]);
-      const seller = onlyProduct?.marketplace_sellers as any;
-      if (seller?.stripe_onboarded && seller?.stripe_account_id) {
-        paymentIntentParams.application_fee_amount = platformFeeCents;
-        paymentIntentParams.transfer_data = { destination: seller.stripe_account_id };
-      }
-    }
 
     const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
