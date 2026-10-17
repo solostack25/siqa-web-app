@@ -15,7 +15,6 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.solostack.siqa",
-      "buildNumber": "14",
       "infoPlist": {
         "NSCameraUsageDescription": "Siqa uses your camera to record videos and take product and profile photos.",
         "NSMicrophoneUsageDescription": "Siqa uses your microphone to record audio for the videos you post.",

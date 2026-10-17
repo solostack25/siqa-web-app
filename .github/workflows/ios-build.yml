@@ -7,6 +7,7 @@
 #   ASC_API_KEY_P8      optional. Contents of the App Store Connect API key (.p8 file).
 #   ASC_API_KEY_ID      optional. That key's Key ID.
 #   ASC_API_ISSUER_ID   optional. The Issuer ID shown on the same page.
+#   APPLE_TEAM_ID       optional. Your 10-character Apple Team ID (developer.apple.com → Membership).
 # With the three ASC secrets, Expo can create signing certificates and upload
 # to TestFlight on its own. Without them, Apple signing must already be set up
 # on Expo (one local `eas build -p ios` run does that).
@@ -34,7 +35,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Check Expo token
@@ -54,7 +55,9 @@ jobs:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
           ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          if [ -n "$APPLE_TEAM_ID" ]; then echo "EXPO_APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"; fi
           if [ -n "$ASC_API_KEY_P8" ] && [ -n "$ASC_API_KEY_ID" ] && [ -n "$ASC_API_ISSUER_ID" ]; then
             printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/asc_key.p8"
             {
@@ -70,8 +73,12 @@ jobs:
       - name: Build on Expo
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: |
           SUBMIT=""
           if [ "${{ inputs.submit }}" = "true" ]; then SUBMIT="--auto-submit"; fi
-          npx --yes eas-cli@latest build -p ios --profile production --non-interactive --no-wait $SUBMIT
+          if ! npx --yes eas-cli@latest build -p ios --profile production --non-interactive --no-wait $SUBMIT; then
+            echo "::error::Build didn't start. If the log says 'Credentials are not set up', run 'npx eas-cli@latest credentials -p ios' once on your computer (choose production → set up everything), or add the ASC_API_KEY_* secrets, then run this again."
+            exit 1
+          fi
           echo "Build started. Follow it at https://expo.dev (Projects → siqa → Builds)."
