@@ -27,6 +27,11 @@ on:
         type: choice
         options: [ios, android, all]
         default: ios
+      android_file:
+        description: "Android only: store = .aab for Google Play; phone = .apk you can install directly"
+        type: choice
+        options: [store, phone]
+        default: store
       submit:
         description: Send the finished build to the store (TestFlight / Google Play internal testing)
         type: boolean
@@ -107,6 +112,13 @@ jobs:
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: |
           PLATFORM="${{ inputs.platform }}"
+          # Installable .apk for testing on a phone: the "preview" profile,
+          # never sent to a store.
+          if [ "$PLATFORM" = "android" ] && [ "${{ inputs.android_file }}" = "phone" ]; then
+            npx --yes eas-cli@latest build -p android --profile preview --non-interactive --no-wait || exit 1
+            echo "APK build started. When it finishes, open it on expo.dev on your Android phone and tap Install."
+            exit 0
+          fi
           SUBMIT=""
           if [ "${{ inputs.submit }}" = "true" ]; then SUBMIT="--auto-submit"; fi
           # Without a Play key, still build Android, just don't try to upload it.
