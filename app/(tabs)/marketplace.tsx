@@ -8,8 +8,8 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
-import { useCallback, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
@@ -51,7 +51,14 @@ export default function MarketplaceScreen() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState('All');
+  const params = useLocalSearchParams<{ category?: string }>();
+  const [category, setCategory] = useState(params.category || 'All');
+
+  // Product pages link here with ?category=… (breadcrumb / category tag).
+  // The tab stays mounted between visits, so follow the param when it changes.
+  useEffect(() => {
+    if (params.category) setCategory(params.category);
+  }, [params.category]);
   const [query, setQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
 
