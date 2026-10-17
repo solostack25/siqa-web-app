@@ -99,6 +99,11 @@ export default function SettingsScreen() {
   const styles = makeStyles(C);
 
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Delete account (Apple requires this in-app)
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteText, setDeleteText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [mySeller, setMySeller] = useState<{ id: string; shop_name: string } | null>(null);
@@ -163,6 +168,29 @@ export default function SettingsScreen() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.replace('/(auth)/sign-in');
+  }
+
+  async function confirmDeleteAccount() {
+    if (deleteText.trim().toUpperCase() !== 'DELETE' || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sign in again to delete your account.');
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Couldn't delete your account.");
+      await supabase.auth.signOut().catch(() => {});
+      router.replace('/(tabs)' as any);
+    } catch (e: any) {
+      setDeleteError(e?.message || "Couldn't delete your account.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function toggle(key: string) {
@@ -434,6 +462,58 @@ export default function SettingsScreen() {
           </Section>
         </View>
 
+        {/* Delete account — kept at the bottom, behind a typed confirmation. */}
+        <View style={[styles.deleteCard, isDesktopWeb && { marginHorizontal: Theme.spacing.xl }]}>
+          {!deleteOpen ? (
+            <TouchableOpacity style={styles.deleteRow} onPress={() => { setDeleteOpen(true); setDeleteError(null); }}>
+              <Icon name="trash-outline" size={18} color="#e84545" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.deleteTitle}>Delete account</Text>
+                <Text style={styles.deleteSub}>Permanently delete your Siqa account and data</Text>
+              </View>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ gap: 10 }}>
+              <Text style={styles.deleteTitle}>Delete your account?</Text>
+              <Text style={styles.deleteBody}>
+                This permanently deletes your login and profile, along with your likes, saves, follows, comments, cart and favorites.
+                {speaker ? ' Your speaker channel and its videos will be deleted too.' : ''}
+                {' '}Past orders and donations are kept for the shops' and charities' records, without your name on them.
+                {' '}If you have a shop, it will be closed. This can't be undone.
+              </Text>
+              <Text style={styles.deleteSub}>Type DELETE to confirm.</Text>
+              <TextInput
+                value={deleteText}
+                onChangeText={setDeleteText}
+                placeholder="DELETE"
+                placeholderTextColor={C.text3}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!deleting}
+                style={styles.deleteInput}
+              />
+              {deleteError ? <Text style={styles.deleteError}>{deleteError}</Text> : null}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  style={styles.deleteCancelBtn}
+                  onPress={() => { setDeleteOpen(false); setDeleteText(''); setDeleteError(null); }}
+                  disabled={deleting}
+                >
+                  <Text style={styles.deleteCancelText}>Keep my account</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteBtn, (deleteText.trim().toUpperCase() !== 'DELETE' || deleting) && { opacity: 0.45 }]}
+                  onPress={confirmDeleteAccount}
+                  disabled={deleteText.trim().toUpperCase() !== 'DELETE' || deleting}
+                >
+                  {deleting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.deleteBtnText}>Delete account</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+
         <Text style={styles.footer}>Siqa — Islamic media & community</Text>
 
         <View style={{ height: 80 }} />
@@ -441,6 +521,8 @@ export default function SettingsScreen() {
     </DesktopShell>
   );
 }
+
+const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
@@ -465,6 +547,23 @@ function makeStyles(C: AppColors) {
       borderWidth: 0.5, borderColor: 'rgba(232,69,69,0.25)',
       paddingHorizontal: Theme.spacing.lg, paddingVertical: Theme.spacing.md,
     },
+    deleteCard: {
+      marginHorizontal: Theme.spacing.lg, marginTop: Theme.spacing.lg, padding: Theme.spacing.lg,
+      borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: 'rgba(232,69,69,0.35)', backgroundColor: C.surface,
+    },
+    deleteRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    deleteTitle: { color: '#e84545', fontSize: Theme.fontSize.base, fontWeight: '700' },
+    deleteSub: { color: C.text3, fontSize: 12, marginTop: 2 },
+    deleteBody: { color: C.text2, fontSize: 13, lineHeight: 19 },
+    deleteInput: {
+      borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
+      color: C.text, backgroundColor: C.bg, fontSize: 15, letterSpacing: 1,
+    },
+    deleteError: { color: '#e84545', fontSize: 13, lineHeight: 18 },
+    deleteCancelBtn: { flex: 1, borderRadius: 999, borderWidth: 1, borderColor: C.border, paddingVertical: 11, alignItems: 'center' },
+    deleteCancelText: { color: C.text, fontSize: 13, fontWeight: '700' },
+    deleteBtn: { flex: 1, borderRadius: 999, backgroundColor: '#e84545', paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+    deleteBtnText: { color: '#fff', fontSize: 13, fontWeight: '800' },
     signOutLabel: { color: '#e84545', fontSize: Theme.fontSize.base, fontWeight: '600' },
 
     card: {
