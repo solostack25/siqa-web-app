@@ -72,6 +72,7 @@ export default function MarketplaceScreen() {
   const [ratings, setRatings] = useState<Record<string, Rating>>({});
   const [addingId, setAddingId] = useState<string | null>(null);
   const [added, setAdded] = useState<AddedItem | null>(null);
+  const [sponsored, setSponsored] = useState<Product[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -123,12 +124,29 @@ export default function MarketplaceScreen() {
 
     if (category !== 'All') q = q.eq('category', category);
 
-    const { data, error } = await q;
+    const [{ data, error }, sponsoredRows] = await Promise.all([q, loadSponsored()]);
     if (!error && data) {
       setProducts(data as any);
-      loadRatings((data as any[]).map(p => p.id));
+      loadRatings([...(data as any[]).map(p => p.id), ...sponsoredRows.map(p => p.id)]);
     }
     setLoading(false);
+  }
+
+  // Up to two moderator-picked products for the "Sponsored" row. Queried
+  // on its own so that if the is_sponsored column isn't there (migration
+  // not applied yet) this just comes back empty and the row stays hidden.
+  async function loadSponsored(): Promise<Product[]> {
+    const { data, error } = await supabase
+      .from('marketplace_products')
+      .select('id, title, price_cents, currency, images, category, inventory_count, is_digital, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
+      .eq('status', 'active')
+      .eq('is_sponsored', true)
+      .eq('marketplace_sellers.approval_status', 'approved')
+      .order('created_at', { ascending: false })
+      .limit(2);
+    const rows = error || !data ? [] : (data as any as Product[]);
+    setSponsored(rows);
+    return rows;
   }
 
   // Star rating + review count per card (reviews are public).
@@ -170,9 +188,14 @@ export default function MarketplaceScreen() {
     if (item.category) setCategory(item.category);
   }
 
-  const filtered = query.trim()
+  // The Sponsored row shows on the unfiltered "All" view only; those items
+  // are then left out of the grid below so they don't appear twice.
+  const showSponsored = sponsored.length > 0 && category === 'All' && !query.trim();
+  const sponsoredIds = new Set(showSponsored ? sponsored.map(p => p.id) : []);
+  const filtered = (query.trim()
     ? products.filter(p => p.title.toLowerCase().includes(query.trim().toLowerCase()))
-    : products;
+    : products
+  ).filter(p => !sponsoredIds.has(p.id));
 
   const numColumns = isDesktopWeb ? 4 : 2;
   // Pad the last row with empty slots so a short final row keeps normal
@@ -180,6 +203,77 @@ export default function MarketplaceScreen() {
   const remainder = filtered.length % numColumns;
   const gridData: (Product | null)[] =
     remainder === 0 ? filtered : [...filtered, ...Array<null>(numColumns - remainder).fill(null)];
+
+  const sponsoredRow = (
+    <View style={styles.sponsoredWrap}>
+      <View style={styles.sponsoredHead}>
+        <Text style={styles.sponsoredLabel}>Sponsored</Text>
+        <Text style={styles.sponsoredHint}>Highlighted shops on Siqa</Text>
+      </View>
+      <View style={[styles.sponsoredRow, !isDesktopWeb && { flexDirection: 'column' }]}>
+        {sponsored.map(item => {
+          const rating = ratings[item.id];
+          const soldOut = !item.is_digital && (item.inventory_count ?? 1) <= 0;
+          return (
+            <View key={item.id} style={[styles.sponsoredCard, isDesktopWeb && styles.sponsoredCardDesktop]}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any)}
+              >
+                <View style={[styles.sponsoredImage, isDesktopWeb ? styles.sponsoredImageDesktop : styles.sponsoredImagePhone]}>
+                  {item.images?.[0] ? (
+                    <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
+                  ) : (
+                    <Text style={styles.cardImageEmoji}>🛍️</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+              <View style={styles.sponsoredInfo}>
+                <View style={styles.sponsoredChip}>
+                  <Icon name="sparkles" size={11} color={C.gold} />
+                  <Text style={styles.sponsoredChipText}>Sponsored</Text>
+                </View>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any)}>
+                  <Text style={styles.sponsoredTitle} numberOfLines={2}>{item.title}</Text>
+                </TouchableOpacity>
+                <View style={styles.metaRow}>
+                  {rating && (
+                    <>
+                      <Text style={styles.metaStrong}>{rating.avg.toFixed(1)}</Text>
+                      <Icon name="star" size={12} color={C.text} />
+                      <Text style={styles.metaText}>({rating.count})</Text>
+                      {item.marketplace_sellers?.shop_name ? <Text style={styles.metaText}>·</Text> : null}
+                    </>
+                  )}
+                  {item.marketplace_sellers?.shop_name ? (
+                    <Text style={styles.metaText} numberOfLines={1}>By {item.marketplace_sellers.shop_name}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.sponsoredPrice}>{formatPrice(item.price_cents, item.currency)}</Text>
+                <TouchableOpacity
+                  style={[styles.addBtn, { alignSelf: 'flex-start', marginTop: 10 }, (soldOut || addingId === item.id) && { opacity: 0.5 }]}
+                  onPress={() => handleAddToCart(item)}
+                  disabled={soldOut || addingId === item.id}
+                  accessibilityLabel={`Add ${item.title} to cart`}
+                >
+                  {addingId === item.id ? (
+                    <ActivityIndicator size="small" color={C.text} />
+                  ) : (
+                    <>
+                      <Icon name="add" size={16} color={C.text} />
+                      <Text style={styles.addBtnText}>{soldOut ? 'Sold out' : 'Add to cart'}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })}
+        {/* Keep a lone sponsored card at half width on desktop. */}
+        {isDesktopWeb && sponsored.length === 1 && <View style={{ flex: 1 }} />}
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -253,6 +347,7 @@ export default function MarketplaceScreen() {
           numColumns={numColumns}
           contentContainerStyle={styles.grid}
           columnWrapperStyle={{ gap: Theme.spacing.md }}
+          ListHeaderComponent={showSponsored ? sponsoredRow : null}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
@@ -400,6 +495,32 @@ function makeStyles(C: AppColors) {
     addBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
     moreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     moreBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
+
+    // Sponsored row: two larger, gold-outlined cards above the grid.
+    sponsoredWrap: { marginBottom: Theme.spacing.xl },
+    sponsoredHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: Theme.spacing.md },
+    sponsoredLabel: { fontSize: 16, fontWeight: '800', color: C.text },
+    sponsoredHint: { fontSize: 12, color: C.text3 },
+    sponsoredRow: { flexDirection: 'row', gap: Theme.spacing.lg },
+    sponsoredCard: {
+      flexDirection: 'row', gap: Theme.spacing.lg, padding: Theme.spacing.md,
+      borderRadius: Theme.radius.lg, borderWidth: 1.5, borderColor: C.goldDim, backgroundColor: C.goldBg,
+    },
+    sponsoredCardDesktop: { flex: 1, minWidth: 0, padding: Theme.spacing.lg },
+    sponsoredImage: {
+      backgroundColor: C.surface2, borderRadius: Theme.radius.md, overflow: 'hidden',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    sponsoredImageDesktop: { width: 220, height: 220 },
+    sponsoredImagePhone: { width: 120, height: 120 },
+    sponsoredInfo: { flex: 1, minWidth: 0, justifyContent: 'center' },
+    sponsoredChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: C.bg, marginBottom: 8,
+    },
+    sponsoredChipText: { fontSize: 11, fontWeight: '700', color: C.gold },
+    sponsoredTitle: { fontSize: 17, fontWeight: '600', color: C.text, lineHeight: 23 },
+    sponsoredPrice: { fontSize: 20, fontWeight: '800', color: C.text, marginTop: 6 },
 
     empty: { alignItems: 'center', paddingTop: 60, gap: 8, width: '100%' },
     emptyEmoji: { fontSize: 40 },
