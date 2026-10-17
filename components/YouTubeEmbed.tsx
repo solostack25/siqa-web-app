@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Platform, StyleSheet } from 'react-native';
+import { youTubeEmbedUrl, youTubeNativeSource } from './youtubeNative';
 
 type Props = {
   videoId: string;
@@ -15,9 +16,10 @@ type Props = {
  * same as embedding a YouTube video on any website.
  */
 export function YouTubeEmbed({ videoId, autoplay = false }: Props) {
-  const embedUrl =
-    `https://www.youtube.com/embed/${videoId}?playsinline=1&modestbranding=1&rel=0` +
-    (autoplay ? '&autoplay=1' : '');
+  const embedUrl = youTubeEmbedUrl(videoId, {
+    playsinline: 1, modestbranding: 1, rel: 0,
+    ...(autoplay ? { autoplay: 1 } : {}),
+  });
 
   if (Platform.OS === 'web') {
     // react-native-web renders to real DOM, so a plain iframe works here —
@@ -38,7 +40,9 @@ export function YouTubeEmbed({ videoId, autoplay = false }: Props) {
   return (
     <View style={styles.nativeWrap}>
       <WebView
-        source={{ uri: embedUrl }}
+        source={youTubeNativeSource(embedUrl)}
+        originWhitelist={['*']}
+        allowsInlineMediaPlayback
         allowsFullscreenVideo
         mediaPlaybackRequiresUserAction={false}
         style={styles.webview}

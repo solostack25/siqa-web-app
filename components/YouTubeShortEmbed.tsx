@@ -1,5 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { View, Platform, StyleSheet } from 'react-native';
+import { youTubeCommandJs, youTubeEmbedUrl, youTubeNativeSource } from './youtubeNative';
 
 export type YouTubeShortHandle = {
   playAsync: () => Promise<void>;
@@ -25,7 +26,9 @@ function sendCommand(target: any, func: string, args: any[] = []) {
   if (Platform.OS === 'web') {
     target?.contentWindow?.postMessage(message, '*');
   } else {
-    target?.postMessage?.(message);
+    // The player sits in an iframe inside the WebView's page (see
+    // youtubeNative.ts), so the command is forwarded to that iframe.
+    target?.injectJavaScript?.(youTubeCommandJs(message));
   }
 }
 
@@ -40,10 +43,10 @@ export const YouTubeShortEmbed = forwardRef<YouTubeShortHandle, Props>(
       unloadAsync: async () => sendCommand(targetRef.current, 'stopVideo'),
     }));
 
-    const embedUrl =
-      `https://www.youtube.com/embed/${videoId}` +
-      `?enablejsapi=1&playsinline=1&modestbranding=1&rel=0&controls=0` +
-      (loop ? `&loop=1&playlist=${videoId}` : '');
+    const embedUrl = youTubeEmbedUrl(videoId, {
+      enablejsapi: 1, playsinline: 1, modestbranding: 1, rel: 0, controls: 0,
+      ...(loop ? { loop: 1, playlist: videoId } : {}),
+    });
 
     function handleLoad() {
       setLoaded(true);
@@ -78,7 +81,8 @@ export const YouTubeShortEmbed = forwardRef<YouTubeShortHandle, Props>(
     return (
       <WebView
         ref={targetRef}
-        source={{ uri: embedUrl }}
+        source={youTubeNativeSource(embedUrl)}
+        originWhitelist={['*']}
         style={StyleSheet.absoluteFill}
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
