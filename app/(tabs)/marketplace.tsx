@@ -20,11 +20,12 @@ import { useSearchContext } from '../../contexts/SearchContext';
 import { formatPrice } from '../../lib/money';
 import { addToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
 // from when listing a product.
-const CATEGORIES = [
+export const CATEGORIES = [
   'All',
   'Home Decor',
   'Books & Media',
@@ -59,7 +60,7 @@ export default function MarketplaceScreen() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{ category?: string; search?: string }>();
   const [category, setCategory] = useState(params.category || 'All');
 
   // Product pages link here with ?category=… (breadcrumb / category tag).
@@ -67,7 +68,11 @@ export default function MarketplaceScreen() {
   useEffect(() => {
     if (params.category) setCategory(params.category);
   }, [params.category]);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(params.search || '');
+  // The top bar's search on other pages sends you here with ?search=…
+  useEffect(() => {
+    if (params.search) setQuery(params.search);
+  }, [params.search]);
   const [cartCount, setCartCount] = useState(0);
   const [ratings, setRatings] = useState<Record<string, Rating>>({});
   const [addingId, setAddingId] = useState<string | null>(null);
@@ -95,6 +100,11 @@ export default function MarketplaceScreen() {
       return () => unregisterSearch();
     }, [isDesktopWeb, query])
   );
+
+  async function openAccount() {
+    const { data: { session } } = await supabase.auth.getSession();
+    router.push((session?.user ? '/settings' : '/(auth)/sign-in') as any);
+  }
 
   async function loadCartCount() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -299,6 +309,13 @@ export default function MarketplaceScreen() {
                   <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
                 </View>
               )}
+            </TouchableOpacity>
+          )}
+          {/* Marketplace site on phones has no tab bar, so the account
+              (settings / sign in) lives here. */}
+          {!isDesktopWeb && IS_MARKETPLACE_SITE && (
+            <TouchableOpacity style={styles.iconBtn} onPress={openAccount} accessibilityLabel="Account">
+              <Icon name="person-circle-outline" size={21} color={C.text} />
             </TouchableOpacity>
           )}
         </View>

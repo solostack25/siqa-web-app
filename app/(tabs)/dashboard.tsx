@@ -1,3 +1,5 @@
+import { Redirect } from 'expo-router';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
   View,
   Text,
@@ -148,7 +150,7 @@ function GuestScreen() {
   );
 }
 
-export default function DashboardScreen() {
+function DashboardScreenInner() {
   const { mode, setMode, colors: C } = useTheme();
   const styles = makeStyles(C);
   const isDesktopWeb = useIsDesktopWeb();
@@ -1487,4 +1489,9 @@ function makeStyles(C: AppColors) {
     dtGemsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Theme.spacing.md },
     dtGemCard: { width: 220 },
   });
+}
+// Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
+export default function DashboardScreen() {
+  if (IS_MARKETPLACE_SITE) return <Redirect href={'/marketplace' as any} />;
+  return <DashboardScreenInner />;
 }

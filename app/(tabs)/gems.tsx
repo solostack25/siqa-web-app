@@ -1,3 +1,5 @@
+import { Redirect } from 'expo-router';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
   View,
   Text,
@@ -1272,7 +1274,7 @@ function GemClip({
 }
 
 // ─── GEMS SCREEN ──────────────────────────────────────────────
-export default function GemsScreen() {
+function GemsScreenInner() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
   // Use useWindowDimensions so both are correct on web (reactive, not
@@ -2095,4 +2097,9 @@ function makeStyles(C: AppColors) {
     sendBtnActive: { backgroundColor: C.gold },
     sendBtnText: { color: C.black, fontSize: 16, fontWeight: "700" },
   });
+}
+// Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
+export default function GemsScreen() {
+  if (IS_MARKETPLACE_SITE) return <Redirect href={'/marketplace' as any} />;
+  return <GemsScreenInner />;
 }

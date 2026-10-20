@@ -1,10 +1,14 @@
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native';
 import { useCallback, useState } from 'react';
-import { router, usePathname, useFocusEffect } from 'expo-router';
+import { router, usePathname, useFocusEffect, useGlobalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
 import { HomeIcon, DiscoverIcon, OrgsIcon, PlayIcon, SeedsIcon, SiqaWordmark } from './Siqa';
 import { Icon } from './Icon';
+import { IS_MARKETPLACE_SITE, SITE_HOME } from '../lib/site';
+
+// Marketplace site sidebar: quick category links (same list as the Shop's filter chips).
+const SHOP_CATEGORIES = ['Home Decor', 'Books & Media', 'Clothing & Accessories', 'Art & Prints', 'Jewelry', 'Digital Downloads', 'Gifts', 'Other'];
 
 type NavItem = {
   key: string;
@@ -32,6 +36,7 @@ function isAdminRole(role?: string | null) {
 export function DesktopSidebar() {
   const { colors: C } = useTheme();
   const pathname = usePathname();
+  const globalParams = useGlobalSearchParams<{ category?: string }>();
 
   // The sidebar used to be static — same 5 links for every visitor,
   // signed in or not, with no way to reach your own stuff (orders,
@@ -66,7 +71,7 @@ export function DesktopSidebar() {
     router.replace('/(auth)/sign-in' as any);
   }
 
-  const items: NavItem[] = [
+  const allItems: NavItem[] = [
     {
       key: 'home',
       label: 'Home',
@@ -103,9 +108,11 @@ export function DesktopSidebar() {
       icon: (color) => <OrgsIcon color={color} />,
     },
   ];
+  // Marketplace site: Shop only - no videos, Seeds or Orgs.
+  const items = IS_MARKETPLACE_SITE ? allItems.filter((i) => i.key === 'marketplace') : allItems;
 
   const youItems: YouItem[] = [
-    ...(speaker ? [{ key: 'myprofile', label: 'My Public Profile', path: `/speaker/${speaker.id}`, matchPrefixes: [`/speaker/${speaker.id}`], icon: 'person-circle-outline' }] : []),
+    ...(speaker && !IS_MARKETPLACE_SITE ? [{ key: 'myprofile', label: 'My Public Profile', path: `/speaker/${speaker.id}`, matchPrefixes: [`/speaker/${speaker.id}`], icon: 'person-circle-outline' }] : []),
     { key: 'cart', label: 'Cart', path: '/cart', matchPrefixes: ['/cart'], icon: 'cart-outline' },
     { key: 'orders', label: 'My Orders', path: '/orders', matchPrefixes: ['/orders'], icon: 'receipt-outline' },
     { key: 'messages', label: 'Messages', path: '/messages', matchPrefixes: ['/messages'], icon: 'chatbubble-outline' },
@@ -123,10 +130,18 @@ export function DesktopSidebar() {
   const styles = makeStyles(C);
   const initial = (profile?.full_name || '?').charAt(0).toUpperCase();
 
+  // The Marketplace sidebar is taller (categories), so its contents scroll.
+  const Inner: any = IS_MARKETPLACE_SITE ? ScrollView : View;
+  const innerProps = IS_MARKETPLACE_SITE
+    ? { style: { flex: 1, marginTop: -20 }, contentContainerStyle: { paddingTop: 20, paddingBottom: 24 }, showsVerticalScrollIndicator: false }
+    : {};
+
   return (
     <View style={styles.sidebar}>
-      <TouchableOpacity style={styles.logoRow} onPress={() => router.push('/(tabs)' as any)}>
+    <Inner {...innerProps}>
+      <TouchableOpacity style={styles.logoRow} onPress={() => router.push(SITE_HOME as any)}>
         <SiqaWordmark size={22} />
+        {IS_MARKETPLACE_SITE && <Text style={styles.siteLabel}>MARKETPLACE</Text>}
       </TouchableOpacity>
 
       {profile ? (
@@ -168,6 +183,27 @@ export function DesktopSidebar() {
         })}
       </View>
 
+      {IS_MARKETPLACE_SITE && (
+        <>
+          <View style={styles.divider} />
+          <Text style={styles.sectionLabel}>CATEGORIES</Text>
+          <View style={{ gap: 2 }}>
+            {SHOP_CATEGORIES.map((cat) => {
+              const active = pathname.startsWith('/marketplace') && globalParams.category === cat;
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.catItem, active && styles.navItemActive]}
+                  onPress={() => router.push({ pathname: '/marketplace', params: { category: cat } } as any)}
+                >
+                  <Text style={[styles.catLabel, active && styles.navLabelActive]} numberOfLines={1}>{cat}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </>
+      )}
+
       {profile && (
         <>
           <View style={styles.divider} />
@@ -197,6 +233,7 @@ export function DesktopSidebar() {
           </View>
         </>
       )}
+    </Inner>
     </View>
   );
 }
@@ -213,6 +250,9 @@ function makeStyles(C: any) {
       paddingHorizontal: 12,
     },
     logoRow: { paddingHorizontal: 12, paddingBottom: 16, paddingTop: 4 },
+    catItem: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8 },
+    catLabel: { fontSize: 13, color: C.text2 },
+    siteLabel: { fontSize: 10, fontWeight: '800', color: C.gold, letterSpacing: 2, marginTop: 6 },
 
     accountCard: {
       flexDirection: 'row', alignItems: 'center', gap: 10,

@@ -6,6 +6,7 @@ import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../com
 import { DesktopSidebar } from '../../components/DesktopSidebar';
 import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 
 type TabIconProps = {
   focused: boolean;
@@ -33,7 +34,9 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: isDesktopWeb
+        // The Marketplace site has only the Shop, so no tab bar at all
+        // (the Shop header has cart, messages and account buttons).
+        tabBarStyle: isDesktopWeb || IS_MARKETPLACE_SITE
           ? { display: 'none' }
           : {
               // Was C.bg2 - a visibly different shade from every screen's
@@ -61,6 +64,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Home',
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} label="Home" icon={<HomeIcon color={focused ? C.gold : C.text3} />} />
@@ -81,6 +85,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="gems"
         options={{
+          ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Gems',
           tabBarIcon: () => (
             <View style={[styles.gemsBtn, { backgroundColor: C.gold }]}> 
@@ -93,6 +98,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="seeds"
         options={{
+          ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Seeds',
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} label="Seeds" icon={<SeedsIcon color={focused ? C.emeraldLight : C.text3} />} />
@@ -107,6 +113,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="orgs"
         options={{
+          ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Orgs',
           tabBarIcon: ({ focused }) => (
             <TabIcon focused={focused} label="Orgs" icon={<OrgsIcon color={focused ? C.gold : C.text3} />} />

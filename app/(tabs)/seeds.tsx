@@ -1,3 +1,5 @@
+import { Redirect } from 'expo-router';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
   View,
   Text,
@@ -50,7 +52,7 @@ const CATEGORIES = [
   "Emergency",
 ];
 
-export default function SeedsScreen() {
+function SeedsScreenInner() {
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const { width: windowWidth } = useWindowDimensions();
@@ -723,4 +725,9 @@ function makeStyles(C: AppColors) {
       paddingHorizontal: Theme.spacing.xl,
     },
   });
+}
+// Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
+export default function SeedsScreen() {
+  if (IS_MARKETPLACE_SITE) return <Redirect href={'/marketplace' as any} />;
+  return <SeedsScreenInner />;
 }

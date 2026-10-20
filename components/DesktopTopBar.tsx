@@ -6,6 +6,7 @@ import { useTheme } from '../lib/theme';
 import { Icon } from './Icon';
 import { useSearchContext } from '../contexts/SearchContext';
 import { onCartChanged } from '../lib/cart';
+import { IS_MARKETPLACE_SITE } from '../lib/site';
 
 // The desktop sidebar had no top-level search, notifications, or
 // account access anywhere — search only existed buried inside
@@ -85,6 +86,10 @@ export function DesktopTopBar() {
   function submitSearch() {
     if (!query.trim()) return;
     setMenuOpen(false);
+    if (IS_MARKETPLACE_SITE) {
+      router.push({ pathname: '/marketplace', params: { search: query.trim() } } as any);
+      return;
+    }
     router.push({ pathname: '/browse', params: { search: query.trim() } } as any);
   }
 
@@ -98,11 +103,13 @@ export function DesktopTopBar() {
 
   // YouTube-style "+ Create" menu: only the things this account can make.
   const isAdmin = isAdminRole(profile?.role);
-  const createItems: { key: string; label: string; icon: string; path: string }[] = [
+  const allCreateItems: { key: string; label: string; icon: string; path: string }[] = [
     ...(speaker || isAdmin ? [{ key: 'video', label: 'Upload video', icon: 'cloud-upload-outline', path: '/gem-upload' }] : []),
     ...(isSeller ? [{ key: 'listing', label: 'List an item', icon: 'pricetag-outline', path: '/listing-create' }] : []),
     ...(hasOrg || isAdmin || isOrgRole(profile?.role) ? [{ key: 'seed', label: 'Create a Seed', icon: 'leaf-outline', path: '/seed-create' }] : []),
   ];
+  // Marketplace site: only listings - no video uploads or Seeds.
+  const createItems = IS_MARKETPLACE_SITE ? allCreateItems.filter((i) => i.key === 'listing') : allCreateItems;
 
   return (
     <View style={styles.bar}>
@@ -113,7 +120,7 @@ export function DesktopTopBar() {
           value={registration ? registration.value : query}
           onChangeText={registration ? registration.onChangeText : setQuery}
           onSubmitEditing={registration ? registration.onSubmit : submitSearch}
-          placeholder={registration ? registration.placeholder : 'Search Siqa...'}
+          placeholder={registration ? registration.placeholder : IS_MARKETPLACE_SITE ? 'Search the Marketplace...' : 'Search Siqa...'}
           placeholderTextColor={C.text3}
           returnKeyType="search"
         />
@@ -167,7 +174,7 @@ export function DesktopTopBar() {
                     <Icon name="settings-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>Settings</Text>
                   </TouchableOpacity>
-                  {speaker && (
+                  {speaker && !IS_MARKETPLACE_SITE && (
                     <TouchableOpacity style={styles.menuItem} onPress={() => goTo(`/speaker/${speaker.id}`)}>
                       <Icon name="person-circle-outline" size={16} color={C.text2} />
                       <Text style={styles.menuItemText}>My Public Profile</Text>

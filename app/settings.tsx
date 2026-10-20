@@ -15,6 +15,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
+import { IS_MARKETPLACE_SITE } from '../lib/site';
 
 type Profile = {
   id: string;
@@ -314,7 +315,7 @@ export default function SettingsScreen() {
 
           {/* Speaker: upload videos (Post a Gem) and view the public profile.
               Shown on desktop too — it's the place speakers look for uploads. */}
-          {speaker && (
+          {speaker && !IS_MARKETPLACE_SITE && (
             <Section
               icon="mic-outline"
               label="Speaker"
@@ -346,7 +347,7 @@ export default function SettingsScreen() {
             </Section>
           )}
 
-          {canCreateSeeds && (
+          {canCreateSeeds && !IS_MARKETPLACE_SITE && (
             <Section
               icon="business-outline"
               label="Organization"
@@ -446,19 +447,19 @@ export default function SettingsScreen() {
             alwaysOpen={isDesktopWeb}
             gridWidth={gridWidth}
           >
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity style={[styles.menuItem, IS_MARKETPLACE_SITE && { borderBottomWidth: 0 }]}>
               <Icon name="notifications-outline" size={18} color={C.text2} />
               <Text style={styles.menuLabel}>Notifications</Text>
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            {!IS_MARKETPLACE_SITE && <TouchableOpacity
               style={[styles.menuItem, { borderBottomWidth: 0 }]}
               onPress={() => router.push('/org-register' as any)}
             >
               <Icon name="business-outline" size={18} color={C.text2} />
               <Text style={styles.menuLabel}>Register Organization</Text>
               <Text style={styles.menuArrow}>›</Text>
-            </TouchableOpacity>
+            </TouchableOpacity>}
           </Section>
         </View>
 

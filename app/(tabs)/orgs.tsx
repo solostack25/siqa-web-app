@@ -1,3 +1,5 @@
+import { Redirect } from 'expo-router';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
   View,
   Text,
@@ -50,7 +52,7 @@ function trustColor(score: number | null, C: AppColors) {
   return C.text3;
 }
 
-export default function OrgsScreen() {
+function OrgsScreenInner() {
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const { width: windowWidth } = useWindowDimensions();
@@ -425,4 +427,10 @@ function makeStyles(C: AppColors) {
     },
     emptyBtnText: { color: '#fff', fontSize: Theme.fontSize.base, fontWeight: '700' },
   });
+}
+
+// Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
+export default function OrgsScreen() {
+  if (IS_MARKETPLACE_SITE) return <Redirect href={'/marketplace' as any} />;
+  return <OrgsScreenInner />;
 }

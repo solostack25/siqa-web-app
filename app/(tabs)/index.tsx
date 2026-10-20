@@ -1,3 +1,5 @@
+import { Redirect } from 'expo-router';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
   View,
   Text,
@@ -85,7 +87,7 @@ function timeAgo(ts: string | null) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-export default function HomeScreen() {
+function HomeScreenInner() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
   const { width: windowWidth } = useWindowDimensions();
@@ -521,4 +523,10 @@ function makeStyles(C: AppColors) {
     emptyTitle: { color: C.text, fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.semibold },
     emptySubtitle: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.xs },
   });
+}
+
+// Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
+export default function HomeScreen() {
+  if (IS_MARKETPLACE_SITE) return <Redirect href={'/marketplace' as any} />;
+  return <HomeScreenInner />;
 }

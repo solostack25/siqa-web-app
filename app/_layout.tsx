@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../lib/supabase';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
 import { SearchProvider } from '../contexts/SearchContext';
+import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -42,6 +43,24 @@ function AppContent() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Marketplace site (marketplace.thesiqaapp.com): Shop is home, and the
+  // video and nonprofit pages aren't part of it - send those to the Shop.
+  const pathname = usePathname();
+  useEffect(() => {
+    if (!initialized || !IS_MARKETPLACE_SITE) return;
+    if (isBlockedOnSite(pathname)) router.replace('/marketplace' as any);
+  }, [initialized, pathname]);
+
+  useEffect(() => {
+    if (!IS_MARKETPLACE_SITE || Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const want = 'Siqa Marketplace';
+    // Expo Router may set its own title per screen; put the site name back.
+    const fix = () => { document.title = want; };
+    fix();
+    const t = setTimeout(fix, 300);
+    return () => clearTimeout(t);
+  }, [pathname]);
 
   if (!initialized) return null;
 

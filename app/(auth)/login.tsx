@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
+import { IS_MARKETPLACE_SITE, SITE_HOME } from '../../lib/site';
 
 type Role = 'viewer' | 'speaker' | 'org';
 
@@ -39,7 +40,7 @@ export default function LoginScreen() {
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) { setError(error.message); setLoading(false); return; }
-    router.replace('/(tabs)');
+    router.replace(SITE_HOME as any);
   }
 
   async function handleSignUp() {
@@ -55,7 +56,7 @@ export default function LoginScreen() {
     if (error) { setError(error.message); setLoading(false); return; }
     if (data.session) {
       await supabase.from('profiles').update({ role }).eq('id', data.session.user.id);
-      router.replace('/(tabs)');
+      router.replace(SITE_HOME as any);
     } else {
       setError('Check your email to confirm your account.');
       setLoading(false);
@@ -75,7 +76,9 @@ export default function LoginScreen() {
           <Text style={styles.logoArabic}>صِقا</Text>
           <Text style={styles.logoEn}>SIQA</Text>
           <Text style={styles.tagline}>
-            The home for Islamic speakers.{'\n'}Halal content, real community.
+            {IS_MARKETPLACE_SITE
+              ? "Shop Muslim-owned businesses.\nSign in to check out, message sellers and track orders."
+              : "The home for Islamic speakers.\nHalal content, real community."}
           </Text>
         </View>
 
@@ -97,7 +100,9 @@ export default function LoginScreen() {
         <View style={styles.form}>
           {mode === 'signup' && (
             <>
-              {/* Role selector */}
+              {/* Role selector (not on the Marketplace site - shoppers and
+                  sellers are regular members; selling is set up from Sell on Siqa) */}
+              {!IS_MARKETPLACE_SITE && <>
               <Text style={styles.roleLabel}>I AM A...</Text>
               <View style={styles.roleRow}>
                 {ROLES.map(r => (
@@ -117,6 +122,7 @@ export default function LoginScreen() {
               <Text style={styles.roleDesc}>
                 {ROLES.find(r => r.key === role)?.desc}
               </Text>
+              </>}
 
               <View style={styles.field}>
                 <Text style={styles.label}>FULL NAME</Text>
@@ -196,7 +202,7 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={styles.skipBtn}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => router.replace(SITE_HOME as any)}
           >
             <Text style={styles.skipText}>Browse without an account →</Text>
           </TouchableOpacity>

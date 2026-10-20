@@ -14,6 +14,7 @@ import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
+import { IS_MARKETPLACE_SITE } from '../../lib/site';
 
 export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
@@ -45,7 +46,7 @@ export default function SignUpScreen() {
       setLoading(false);
       return;
     }
-    router.replace('/(tabs)/dashboard');
+    router.replace((IS_MARKETPLACE_SITE ? '/marketplace' : '/(tabs)/dashboard') as any);
   }
 
   return (
@@ -61,7 +62,9 @@ export default function SignUpScreen() {
           <Text style={styles.logoArabic}>صِقا</Text>
           <Text style={styles.logoEn}>SIQA</Text>
           <Text style={styles.tagline}>
-            The home for Islamic speakers.{'\n'}Halal content, real community.
+            {IS_MARKETPLACE_SITE
+              ? "Shop Muslim-owned businesses."
+              : "The home for Islamic speakers.\nHalal content, real community."}
           </Text>
         </View>
 
