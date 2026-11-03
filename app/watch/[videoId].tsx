@@ -13,6 +13,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import { countView } from '../../lib/views';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
@@ -126,9 +127,8 @@ export default function WatchScreen() {
         setFollowing(Boolean(existing));
       }
 
-      // TODO: view count increment — add a Postgres function (e.g. increment_video_view)
-      // or a simple `.update({ view_count: v.view_count + 1 })` call once you decide
-      // whether views should count on load or after a watch-time threshold.
+      // Count a view (once per video per app session).
+      countView(String(videoId));
     }
 
     setLoading(false);

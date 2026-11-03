@@ -1058,7 +1058,10 @@ function GemUploadScreenContent() {
               </TouchableOpacity>
             </View>
             <Text style={styles.dtTerms}>
-              By posting to Siqa, you agree to Siqa's Terms of Service and Community Guidelines.{'\n'}
+              By posting to Siqa, you agree to Siqa's{' '}
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => router.push('/legal/terms' as any)}>Terms of Service</Text>
+              {' '}and{' '}
+              <Text style={{ textDecorationLine: 'underline' }} onPress={() => router.push('/legal/guidelines' as any)}>Community Guidelines</Text>.{'\n'}
               Please make sure your video doesn't violate anyone else's privacy or copyright.
             </Text>
           </View>

@@ -15,6 +15,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useState } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
+import { reportError } from '../lib/errorReporting';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 
@@ -108,6 +109,7 @@ export default function DonateScreen() {
       setWebClientSecret(clientSecret);
       setWebPaymentIntentId(paymentIntentId);
     } catch (err: any) {
+      reportError(err, 'donate');
       Alert.alert('Error', err.message);
     } finally {
       setLoading(false);
@@ -230,6 +232,7 @@ if (fnError) throw new Error(fnError);
       });
 
     } catch (err: any) {
+      reportError(err, 'donate');
       Alert.alert('Error', err.message);
       setLoading(false);
     }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,10 @@ import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
 import { SearchProvider } from '../contexts/SearchContext';
 import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
+import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
+import { installGlobalErrorHandlers, reportError, setErrorRoute } from '../lib/errorReporting';
+
+installGlobalErrorHandlers();
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -21,7 +25,6 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51T2HncK5xjtBKuF4Y965OsNOGhXJ16tWfdELCQjCVxYBGB9KK8MilrSuuO43Qu7aExBp3uIQh9sEWqnPrInHyBjY00lN8XtXAb';
 
 function AppContent() {
   const { isDark, mode, colors: C } = useTheme();
@@ -47,6 +50,7 @@ function AppContent() {
   // Marketplace site (marketplace.thesiqaapp.com): Shop is home, and the
   // video and nonprofit pages aren't part of it - send those to the Shop.
   const pathname = usePathname();
+  useEffect(() => { setErrorRoute(pathname); }, [pathname]);
   useEffect(() => {
     if (!initialized || !IS_MARKETPLACE_SITE) return;
     if (isBlockedOnSite(pathname)) router.replace('/marketplace' as any);
@@ -118,6 +122,7 @@ function AppContent() {
         <Stack.Screen name="seller-dashboard" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="orders" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="checkout" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="legal/[doc]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="order-success" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate-success" options={{ headerShown: false, presentation: 'modal' }} />
@@ -129,6 +134,22 @@ function AppContent() {
         <Stack.Screen name="admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
     </StripeProvider>
+    </View>
+  );
+}
+
+// Expo Router renders this instead of a white screen when a screen crashes.
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => Promise<void> }) {
+  useEffect(() => { reportError(error, 'error-boundary'); }, [error]);
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#0A0D0B' }}>
+      <Text style={{ color: '#fff', fontSize: 20, fontWeight: '700', marginBottom: 8 }}>Something went wrong</Text>
+      <Text style={{ color: '#A8A8A8', fontSize: 15, textAlign: 'center', marginBottom: 20 }}>
+        We've been notified. Please try again.
+      </Text>
+      <TouchableOpacity onPress={retry} style={{ backgroundColor: '#D4AC73', borderRadius: 999, paddingHorizontal: 24, paddingVertical: 12 }}>
+        <Text style={{ color: '#0A0D0B', fontWeight: '700' }}>Try again</Text>
+      </TouchableOpacity>
     </View>
   );
 }

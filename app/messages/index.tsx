@@ -10,6 +10,7 @@ import {
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { getBlockedIds } from '../../lib/moderation';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
@@ -105,6 +106,14 @@ export default function MessagesInboxScreen() {
       })
     );
 
+    // Hide conversations with people this viewer has blocked.
+    const blocked = await getBlockedIds();
+    const visible = withPreviews.filter((t: any) => {
+      const other = t.iAmSeller ? t.buyer_id : t.marketplace_sellers?.user_id;
+      return !(other && blocked.has(other));
+    });
+    withPreviews.length = 0;
+    withPreviews.push(...visible);
     withPreviews.sort((a, b) => new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime());
     setThreads(withPreviews);
     setLoading(false);

@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
   Image,
+  Platform,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -16,6 +17,12 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+
+// Alert.alert is a no-op on web, where admins mostly work.
+function notifyAdmin(title: string, message: string) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(`${title}\n\n${message}`);
+  else Alert.alert(title, message);
+}
 
 type QueueVideo = {
   id: string;
@@ -49,6 +56,18 @@ type ReportRow = {
   created_at?: string | null;
   video_id?: string | null;
   profile_id?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  reported_user_id?: string | null;
+  details?: string | null;
+};
+
+const REPORT_TYPE_LABEL: Record<string, string> = {
+  video: 'Gem',
+  comment: 'Comment',
+  listing: 'Listing',
+  message: 'Message',
+  conversation: 'Conversation',
 };
 
 type SpeakerApplication = {
@@ -91,6 +110,7 @@ export default function AdminScreen() {
   const [speakers, setSpeakers] = useState<SpeakerRow[]>([]);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [appErrors, setAppErrors] = useState<{ id: number; created_at: string; platform: string | null; route: string | null; source: string | null; message: string }[]>([]);
   const [applications, setApplications] = useState<SpeakerApplication[]>([]);
   const [pendingSellers, setPendingSellers] = useState<MarketplaceSellerRow[]>([]);
   const [adminId, setAdminId] = useState<string | null>(null);
@@ -164,12 +184,21 @@ export default function AdminScreen() {
 
       const reportsRes = await supabase
         .from('content_reports')
-        .select('id, reason, status, created_at, video_id, profile_id')
+        .select('id, reason, status, created_at, video_id, profile_id, target_type, target_id, reported_user_id, details')
         .or('status.is.null,status.eq.open,status.eq.pending')
         .order('created_at', { ascending: false })
         .limit(30);
 
       if (!reportsRes.error && reportsRes.data) setReports(reportsRes.data as any);
+
+      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const errorsRes = await supabase
+        .from('client_errors')
+        .select('id, created_at, platform, route, source, message')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(25);
+      if (!errorsRes.error && errorsRes.data) setAppErrors(errorsRes.data as any);
     } catch (error: any) {
       Alert.alert('Admin load failed', error?.message || 'Could not load moderation queues.');
     } finally {
@@ -353,10 +382,32 @@ export default function AdminScreen() {
 
   async function closeReport(id: string) {
     setBusyId(id);
-    const result = await supabase.from('content_reports').update({ status: 'closed' }).eq('id', id);
+    const result = await supabase
+      .from('content_reports')
+      .update({ status: 'dismissed', resolved_at: new Date().toISOString(), resolved_by: adminId })
+      .eq('id', id);
     setBusyId(null);
-    if (result.error) return Alert.alert('Could not close report', result.error.message);
+    if (result.error) return notifyAdmin('Could not dismiss report', result.error.message);
     setReports((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  // Removes the reported content (unpublish Gem / archive listing /
+  // blank comment or message) and closes every open report about it.
+  async function removeReportedContent(r: ReportRow) {
+    setBusyId(r.id);
+    const { error } = await supabase.rpc('admin_remove_reported_content', { p_report_id: r.id });
+    setBusyId(null);
+    if (error) return notifyAdmin('Could not remove content', error.message);
+    const target = r.target_id || r.video_id;
+    setReports((prev) => prev.filter((x) => x.id !== r.id && (x.target_id || x.video_id) !== target));
+  }
+
+  function viewReported(r: ReportRow) {
+    const type = r.target_type || (r.video_id ? 'video' : null);
+    const target = r.target_id || r.video_id;
+    if (!target) return;
+    if (type === 'video') router.push({ pathname: '/watch/[videoId]', params: { videoId: target } } as any);
+    else if (type === 'listing') router.push({ pathname: '/product/[id]', params: { id: target } } as any);
   }
 
   if (loading) {
@@ -482,7 +533,28 @@ export default function AdminScreen() {
 
       <QueueSection title="Reports" count={reports.length} C={C}>
         {reports.length === 0 ? <Empty text="No open reports." C={C} /> : reports.map((r) => (
-          <SimpleRow key={r.id} title={r.reason || 'Reported content'} sub={`Video: ${r.video_id || 'unknown'}`} action="Close" busy={busyId === r.id} onPress={() => closeReport(r.id)} C={C} />
+          <ReportQueueRow
+            key={r.id}
+            report={r}
+            busy={busyId === r.id}
+            onRemove={() => removeReportedContent(r)}
+            onDismiss={() => closeReport(r.id)}
+            onView={() => viewReported(r)}
+            C={C}
+          />
+        ))}
+      </QueueSection>
+
+      <QueueSection title="App errors (last 7 days)" count={appErrors.length} C={C}>
+        {appErrors.length === 0 ? <Empty text="No errors reported." C={C} /> : appErrors.map((e) => (
+          <View key={e.id} style={styles.simpleRow}>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle} numberOfLines={3}>{e.message}</Text>
+              <Text style={styles.cardMeta}>
+                {[new Date(e.created_at).toLocaleString(), e.platform, e.source, e.route].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          </View>
         ))}
       </QueueSection>
 
@@ -508,6 +580,37 @@ function QueueSection({ title, count, children, C }: { title: string; count: num
 function Empty({ text, C }: { text: string; C: AppColors }) {
   const styles = makeStyles(C);
   return <Text style={styles.empty}>{text}</Text>;
+}
+
+function ReportQueueRow({ report: r, busy, onRemove, onDismiss, onView, C }: {
+  report: ReportRow; busy: boolean; onRemove: () => void; onDismiss: () => void; onView: () => void; C: AppColors;
+}) {
+  const styles = makeStyles(C);
+  const type = r.target_type || (r.video_id ? 'video' : 'unknown');
+  const canView = type === 'video' || type === 'listing';
+  const when = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+  return (
+    <View style={[styles.simpleRow, { flexWrap: 'wrap', gap: 10 }]}>
+      <View style={[styles.cardInfo, { minWidth: 200 }]}>
+        <Text style={styles.cardTitle}>{REPORT_TYPE_LABEL[type] ?? 'Content'} · {r.reason || 'Reported'}</Text>
+        {r.details ? <Text style={styles.cardMeta} numberOfLines={3}>"{r.details}"</Text> : null}
+        <Text style={styles.cardMeta}>{when}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        {canView && (
+          <TouchableOpacity style={styles.primarySmallBtn} onPress={onView} disabled={busy}>
+            <Text style={styles.primarySmallText}>View</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={[styles.primarySmallBtn, { backgroundColor: C.danger }]} onPress={onRemove} disabled={busy}>
+          <Text style={[styles.primarySmallText, { color: '#fff' }]}>{busy ? 'Saving...' : 'Remove content'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.primarySmallBtn} onPress={onDismiss} disabled={busy}>
+          <Text style={styles.primarySmallText}>Dismiss</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
 function SimpleRow({ title, sub, action, busy, onPress, C }: { title: string; sub: string; action: string; busy: boolean; onPress: () => void; C: AppColors }) {
