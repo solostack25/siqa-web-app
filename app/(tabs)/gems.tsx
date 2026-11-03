@@ -33,6 +33,7 @@ import { Audio } from "expo-av";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { ReportSheet } from "../../components/ReportSheet";
 import { getBlockedIds } from "../../lib/moderation";
+import { countView } from "../../lib/views";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -907,6 +908,13 @@ function GemClip({
       }),
     ]).start();
   }, [isActive]);
+
+  // Count a view once the Gem has been on screen for 3 seconds.
+  useEffect(() => {
+    if (!isActive) return;
+    const t = setTimeout(() => countView(item.id), 3000);
+    return () => clearTimeout(t);
+  }, [isActive, item.id]);
 
   useEffect(() => {
     if (!videoRef.current || !isPreloaded) return;

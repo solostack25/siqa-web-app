@@ -110,6 +110,7 @@ export default function AdminScreen() {
   const [speakers, setSpeakers] = useState<SpeakerRow[]>([]);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [appErrors, setAppErrors] = useState<{ id: number; created_at: string; platform: string | null; route: string | null; source: string | null; message: string }[]>([]);
   const [applications, setApplications] = useState<SpeakerApplication[]>([]);
   const [pendingSellers, setPendingSellers] = useState<MarketplaceSellerRow[]>([]);
   const [adminId, setAdminId] = useState<string | null>(null);
@@ -189,6 +190,15 @@ export default function AdminScreen() {
         .limit(30);
 
       if (!reportsRes.error && reportsRes.data) setReports(reportsRes.data as any);
+
+      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const errorsRes = await supabase
+        .from('client_errors')
+        .select('id, created_at, platform, route, source, message')
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(25);
+      if (!errorsRes.error && errorsRes.data) setAppErrors(errorsRes.data as any);
     } catch (error: any) {
       Alert.alert('Admin load failed', error?.message || 'Could not load moderation queues.');
     } finally {
@@ -532,6 +542,19 @@ export default function AdminScreen() {
             onView={() => viewReported(r)}
             C={C}
           />
+        ))}
+      </QueueSection>
+
+      <QueueSection title="App errors (last 7 days)" count={appErrors.length} C={C}>
+        {appErrors.length === 0 ? <Empty text="No errors reported." C={C} /> : appErrors.map((e) => (
+          <View key={e.id} style={styles.simpleRow}>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle} numberOfLines={3}>{e.message}</Text>
+              <Text style={styles.cardMeta}>
+                {[new Date(e.created_at).toLocaleString(), e.platform, e.source, e.route].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+          </View>
         ))}
       </QueueSection>
 

@@ -13,6 +13,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { reportError } from '../lib/errorReporting';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
@@ -247,6 +248,7 @@ export default function CheckoutScreen() {
         onPaymentSuccess(data.totalCents);
       }
     } catch (err: any) {
+      reportError(err, 'checkout');
       notify('Checkout problem', err.message);
     } finally {
       setPlacingOrder(false);

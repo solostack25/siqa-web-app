@@ -420,7 +420,9 @@ entrypoint = "./functions/create-payment-intent/index.ts"
 
 [functions.stripe-webhook]
 enabled = true
-verify_jwt = true
+# Stripe can't send a Supabase login token; the function verifies the
+# Stripe signature itself (STRIPE_WEBHOOK_SECRET). Must stay false.
+verify_jwt = false
 import_map = "./functions/stripe-webhook/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
