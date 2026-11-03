@@ -12,6 +12,8 @@ import { useFocusEffect, router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
+import { ReportSheet } from './ReportSheet';
+import { getBlockedIds } from '../lib/moderation';
 
 type Comment = {
   id: string;
@@ -41,6 +43,8 @@ export function CommentsSection({ videoId }: { videoId: string }) {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
+  const [myId, setMyId] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<Comment | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,7 +55,10 @@ export function CommentsSection({ videoId }: { videoId: string }) {
       .is('parent_id', null)
       .order('created_at', { ascending: false });
 
-    setComments((data as any[]) ?? []);
+    const blocked = await getBlockedIds();
+    const { data: { session } } = await supabase.auth.getSession();
+    setMyId(session?.user?.id ?? null);
+    setComments(((data as any[]) ?? []).filter((c) => !blocked.has(c.profile_id)));
     setLoading(false);
   }, [videoId]);
 
@@ -128,11 +135,27 @@ export function CommentsSection({ videoId }: { videoId: string }) {
                   {c.profiles?.full_name || c.profiles?.username || 'Siqa user'}
                 </Text>
                 <Text style={styles.commentTime}>{timeAgo(c.created_at)}</Text>
+                {c.profile_id && c.profile_id !== myId ? (
+                  <TouchableOpacity onPress={() => setReportTarget(c)} accessibilityLabel="Report comment">
+                    <Text style={styles.reportLink}>Report</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
               <Text style={styles.commentBody}>{c.body}</Text>
             </View>
           </View>
         ))
+      )}
+      {reportTarget && (
+        <ReportSheet
+          visible={Boolean(reportTarget)}
+          onClose={() => setReportTarget(null)}
+          targetType="comment"
+          targetId={reportTarget.id}
+          reportedUserId={reportTarget.profile_id}
+          reportedName={reportTarget.profiles?.full_name || reportTarget.profiles?.username || null}
+          onBlocked={(uid) => setComments((prev) => prev.filter((x) => x.profile_id !== uid))}
+        />
       )}
     </View>
   );
@@ -169,6 +192,7 @@ function makeStyles(C: AppColors) {
   commentMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
   commentAuthor: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semibold },
   commentTime: { color: C.text3, fontSize: Theme.fontSize.xs },
+  reportLink: { color: C.text3, fontSize: Theme.fontSize.xs, textDecorationLine: 'underline' },
   commentBody: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: 2, lineHeight: 20 },
 });
 }

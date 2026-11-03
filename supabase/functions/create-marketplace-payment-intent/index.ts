@@ -210,6 +210,11 @@ Deno.serve(async (req: Request) => {
     // items: [{ productId: string, quantity: number }]
 
     if (!buyerId || typeof buyerId !== 'string') return json({ error: 'Missing buyerId' }, 400);
+
+    // The buyer must be the signed-in user — never trust buyerId alone.
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const { data: { user: caller } } = await supabase.auth.getUser(token);
+    if (!caller || caller.id !== buyerId) return json({ error: 'Please sign in again to check out.' }, 401);
     if (!Array.isArray(items) || items.length === 0) return json({ error: 'Cart is empty' }, 400);
 
     const priced = await priceCart(buyerId, items, (address ?? {}) as Address);

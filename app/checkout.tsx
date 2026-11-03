@@ -63,9 +63,15 @@ function notify(title: string, message: string) {
 }
 
 async function callCheckout(body: Record<string, unknown>) {
+  // Send the user's own session token so the function can verify the buyer.
+  const { data: { session } } = await supabase.auth.getSession();
   const res = await fetch(`${SUPABASE_URL}/functions/v1/create-marketplace-payment-intent`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${session?.access_token ?? SUPABASE_ANON_KEY}`,
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json();

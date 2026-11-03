@@ -18,6 +18,8 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { formatPrice } from '../../lib/money';
+import { ReportSheet } from '../../components/ReportSheet';
+import { getBlockedIds, unblockUser } from '../../lib/moderation';
 
 type Thread = {
   id: string;
@@ -45,6 +47,9 @@ export default function ThreadScreen() {
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [iBlocked, setIBlocked] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -62,7 +67,13 @@ export default function ThreadScreen() {
       .select('id, buyer_id, seller_id, marketplace_products(id, title, price_cents, images), marketplace_sellers(shop_name, user_id)')
       .eq('id', threadId)
       .single();
-    if (threadData) setThread(threadData as any);
+    if (threadData) {
+      setThread(threadData as any);
+      const t = threadData as any;
+      const other = t.marketplace_sellers?.user_id === session.user.id ? t.buyer_id : t.marketplace_sellers?.user_id;
+      const blocked = await getBlockedIds();
+      setIBlocked(Boolean(other && blocked.has(other)));
+    }
 
     const { data: msgs } = await supabase
       .from('marketplace_messages')
@@ -84,12 +95,17 @@ export default function ThreadScreen() {
     const text = body.trim();
     if (!text || !id || !userId) return;
     setSending(true);
+    setSendError(null);
     setBody('');
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('marketplace_messages')
       .insert({ thread_id: id, sender_id: userId, body: text })
       .select('id, sender_id, body, created_at, read_at')
       .single();
+    if (error) {
+      setBody(text);
+      setSendError(/message this user/i.test(error.message) ? "You can't message this user." : "Message didn't send. Please try again.");
+    }
     if (data) setMessages(prev => [...prev, data]);
     setSending(false);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
@@ -107,6 +123,14 @@ export default function ThreadScreen() {
 
   const isSeller = thread.marketplace_sellers?.user_id === userId;
   const product = thread.marketplace_products;
+  const otherUserId = isSeller ? thread.buyer_id : thread.marketplace_sellers?.user_id ?? null;
+  const otherName = isSeller ? 'this buyer' : thread.marketplace_sellers?.shop_name ?? 'this seller';
+
+  async function handleUnblock() {
+    if (!otherUserId) return;
+    const res = await unblockUser(otherUserId);
+    if (res.ok) setIBlocked(false);
+  }
 
   return (
     <DesktopShell>
@@ -121,7 +145,9 @@ export default function ThreadScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {isSeller ? 'Buyer inquiry' : thread.marketplace_sellers?.shop_name ?? 'Seller'}
           </Text>
-          <View style={{ width: 38 }} />
+          <TouchableOpacity style={styles.roundBtn} onPress={() => setReportOpen(true)} accessibilityLabel="Report or block">
+            <Icon name="flag-outline" size={18} color={C.text} />
+          </TouchableOpacity>
         </View>
 
         {product && (
@@ -165,7 +191,16 @@ export default function ThreadScreen() {
           )}
         </ScrollView>
 
+        {iBlocked ? (
+          <View style={styles.blockedBar}>
+            <Text style={styles.blockedText}>You blocked {otherName}. They can't message you.</Text>
+            <TouchableOpacity onPress={handleUnblock}>
+              <Text style={styles.unblockText}>Unblock</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={styles.inputRow}>
+          {sendError ? <Text style={styles.sendError}>{sendError}</Text> : null}
           {/* The divider/background spans full width intentionally (a
               footer bar reads fine edge-to-edge), but the actual input
               + button need the same cap as the message list above them
@@ -188,7 +223,17 @@ export default function ThreadScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        )}
       </KeyboardAvoidingView>
+      <ReportSheet
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="conversation"
+        targetId={thread.id}
+        reportedUserId={otherUserId}
+        reportedName={otherName}
+        onBlocked={() => setIBlocked(true)}
+      />
     </DesktopShell>
   );
 }
@@ -196,6 +241,13 @@ export default function ThreadScreen() {
 function makeStyles(C: AppColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
+    blockedBar: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Theme.spacing.md,
+      padding: Theme.spacing.lg, borderTopWidth: 0.5, borderTopColor: C.border2, backgroundColor: C.surface,
+    },
+    blockedText: { color: C.text2, fontSize: Theme.fontSize.sm, flexShrink: 1 },
+    unblockText: { color: C.gold, fontSize: Theme.fontSize.sm, fontWeight: '700' },
+    sendError: { color: C.danger, fontSize: Theme.fontSize.sm, textAlign: 'center', paddingBottom: 6 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
 
     header: {

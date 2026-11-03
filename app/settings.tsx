@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
@@ -16,6 +17,8 @@ import { Theme } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { IS_MARKETPLACE_SITE } from '../lib/site';
+import { SUPPORT_EMAIL } from '../lib/legal';
+import { getBlockedIds, unblockUser } from '../lib/moderation';
 
 type Profile = {
   id: string;
@@ -112,9 +115,24 @@ export default function SettingsScreen() {
   const [editName, setEditName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>('account');
+  const [blockedUsers, setBlockedUsers] = useState<{ id: string; name: string }[]>([]);
+
+  async function loadBlocked() {
+    const ids = Array.from(await getBlockedIds());
+    if (ids.length === 0) { setBlockedUsers([]); return; }
+    const { data } = await supabase.from('profiles').select('id, full_name, username').in('id', ids);
+    const names = new Map((data ?? []).map((p: any) => [p.id, p.full_name || p.username || 'Siqa user']));
+    setBlockedUsers(ids.map((id) => ({ id, name: names.get(id) ?? 'Siqa user' })));
+  }
+
+  async function handleUnblock(id: string) {
+    const res = await unblockUser(id);
+    if (res.ok) setBlockedUsers((prev) => prev.filter((u) => u.id !== id));
+  }
 
   useEffect(() => {
     load();
+    loadBlocked();
   }, []);
 
   async function load() {
@@ -460,6 +478,43 @@ export default function SettingsScreen() {
               <Text style={styles.menuLabel}>Register Organization</Text>
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>}
+          </Section>
+        </View>
+
+        {/* Legal, support and blocked users — needed for App Store review. */}
+        <View style={isDesktopWeb ? { paddingHorizontal: Theme.spacing.xl, marginTop: Theme.spacing.md } : { marginTop: Theme.spacing.md }}>
+          <Section icon="help-circle-outline" label="Help & legal" open alwaysOpen onToggle={() => {}} gridWidth={isDesktopWeb ? gridWidth : undefined}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Siqa%20support`)}>
+              <Icon name="mail-outline" size={18} color={C.text2} />
+              <View style={styles.menuTextWrap}>
+                <Text style={styles.menuLabel}>Contact support</Text>
+                <Text style={styles.menuSubLabel}>{SUPPORT_EMAIL}</Text>
+              </View>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>
+            {([['terms', 'Terms of Service', 'document-text-outline'], ['privacy', 'Privacy Policy', 'lock-closed-outline'], ['guidelines', 'Community Guidelines', 'people-outline']] as const).map(([doc, label, icon]) => (
+              <TouchableOpacity key={doc} style={styles.menuItem} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc } } as any)}>
+                <Icon name={icon} size={18} color={C.text2} />
+                <Text style={styles.menuLabel}>{label}</Text>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
+            ))}
+            <View style={[styles.menuItem, { borderBottomWidth: 0, alignItems: 'flex-start' }]}>
+              <Icon name="ban-outline" size={18} color={C.text2} />
+              <View style={styles.menuTextWrap}>
+                <Text style={styles.menuLabel}>Blocked users</Text>
+                {blockedUsers.length === 0 ? (
+                  <Text style={styles.menuSubLabel}>You haven't blocked anyone.</Text>
+                ) : blockedUsers.map((u) => (
+                  <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                    <Text style={styles.menuSubLabel}>{u.name}</Text>
+                    <TouchableOpacity onPress={() => handleUnblock(u.id)}>
+                      <Text style={[styles.menuSubLabel, { color: C.gold, fontWeight: '700' }]}>Unblock</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
           </Section>
         </View>
 

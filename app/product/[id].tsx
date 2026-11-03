@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { ReportSheet } from '../../components/ReportSheet';
 import { formatPrice } from '../../lib/money';
 import { addToCart as addItemToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
@@ -87,6 +88,7 @@ export default function ProductDetailScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const styles = makeStyles(C);
 
+  const [reportOpen, setReportOpen] = useState(false);
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -698,9 +700,24 @@ export default function ProductDetailScreen() {
             )}
 
             {moreSection}
+
+            {!isOwnListing && (
+              <TouchableOpacity style={styles.reportListing} onPress={() => setReportOpen(true)}>
+                <Icon name="flag-outline" size={14} color={C.text3} />
+                <Text style={styles.reportListingText}>Report this listing</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
         <AddedToCartDrawer item={added} onClose={() => setAdded(null)} />
+        <ReportSheet
+          visible={reportOpen}
+          onClose={() => setReportOpen(false)}
+          targetType="listing"
+          targetId={product.id}
+          reportedUserId={seller?.user_id ?? null}
+          reportedName={seller?.shop_name ?? null}
+        />
       </View>
     </DesktopShell>
   );
@@ -828,6 +845,8 @@ function makeStyles(C: AppColors) {
       paddingVertical: 11, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg,
     },
     messageBtnText: { fontSize: 14, fontWeight: '700', color: C.text },
+    reportListing: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', paddingVertical: 20 },
+    reportListingText: { color: C.text3, fontSize: 13, textDecorationLine: 'underline' },
 
     // Lower sections
     section: { marginTop: 36 },

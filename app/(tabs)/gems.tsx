@@ -31,6 +31,8 @@ import { Theme } from "../../constants/theme";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Audio } from "expo-av";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
+import { ReportSheet } from "../../components/ReportSheet";
+import { getBlockedIds } from "../../lib/moderation";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -129,6 +131,8 @@ function CommentsSheet({
   );
   const [emojiTarget, setEmojiTarget] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reportTarget, setReportTarget] = useState<Comment | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
   const scrollOffsetRef = useRef(0);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
@@ -209,7 +213,11 @@ function CommentsSheet({
         return;
       }
 
-      const rawComments = result.data;
+      // Hide comments from people this viewer has blocked.
+      const blocked = await getBlockedIds();
+      const rawComments = result.data.filter((c: any) => !blocked.has(c.profile_id));
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      setMyId(sess?.user?.id ?? null);
 
       // Fetch reactions
       const ids = rawComments.map((c: any) => c.id);
@@ -566,6 +574,11 @@ function CommentsSheet({
                   <Text style={styles.commentLikeCount}>{c.like_count}</Text>
                 )}
               </TouchableOpacity>
+              {c.profile_id !== myId && (
+                <TouchableOpacity onPress={() => setReportTarget(c)} accessibilityLabel="Report comment">
+                  <Text style={styles.replyBtn}>Report</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -688,6 +701,17 @@ function CommentsSheet({
         )}
         </KeyboardAvoidingView>
       </Animated.View>
+      {reportTarget && (
+        <ReportSheet
+          visible={Boolean(reportTarget)}
+          onClose={() => setReportTarget(null)}
+          targetType="comment"
+          targetId={reportTarget.id}
+          reportedUserId={reportTarget.profile_id}
+          reportedName={reportTarget.author_name}
+          onBlocked={(uid) => setComments((prev) => prev.filter((x) => x.profile_id !== uid))}
+        />
+      )}
     </Modal>
   );
 }
@@ -839,6 +863,7 @@ function GemClip({
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingVideo, setSavingVideo] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [likeCount, setLikeCount] = useState(item.like_count || 0);
   const [commentCount, setCommentCount] = useState(item.comment_count || 0);
   const [paused, setPaused] = useState(false);
@@ -1025,34 +1050,7 @@ function GemClip({
       onCommentOpen(AUTH_SENTINELS.report, true);
       return;
     }
-
-    Alert.alert(
-      "Report this Gem?",
-      "A Siqa moderator will review it. Reports help keep the platform trustworthy.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Report",
-          style: "destructive",
-          onPress: async () => {
-            const result = await supabase.from("content_reports").insert({
-              video_id: item.id,
-              profile_id: user.id,
-              reason: "Gem reported by viewer",
-              status: "open",
-            });
-            if (result.error) {
-              Alert.alert(
-                "Report not saved",
-                "Reporting is not fully configured yet. Ask Claude to create the content_reports table and RLS policy.",
-              );
-              return;
-            }
-            Alert.alert("Reported", "Thank you. A moderator will review this Gem.");
-          },
-        },
-      ],
-    );
+    setReportOpen(true);
   }
 
   return (
@@ -1269,6 +1267,12 @@ function GemClip({
           </TouchableOpacity>
         )}
       </Animated.View>
+      <ReportSheet
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="video"
+        targetId={item.id}
+      />
     </View>
   );
 }

@@ -131,7 +131,12 @@ export default function SignUpScreen() {
           </TouchableOpacity>
 
           <Text style={styles.disclaimer}>
-            By creating an account you agree to our Terms of Service.
+            By creating an account you agree to our{' '}
+            <Text style={styles.legalLink} onPress={() => router.push('/legal/terms' as any)}>Terms of Service</Text>
+            {' '}and{' '}
+            <Text style={styles.legalLink} onPress={() => router.push('/legal/guidelines' as any)}>Community Guidelines</Text>
+            , and acknowledge our{' '}
+            <Text style={styles.legalLink} onPress={() => router.push('/legal/privacy' as any)}>Privacy Policy</Text>.
           </Text>
         </View>
 
@@ -249,6 +254,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: Theme.spacing.xl,
   },
+  legalLink: { color: Colors.gold, textDecorationLine: 'underline' },
   footerText: {
     fontSize: Theme.fontSize.sm,
     color: Colors.text3,

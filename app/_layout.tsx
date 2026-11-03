@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
 import { SearchProvider } from '../contexts/SearchContext';
 import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
+import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -21,7 +22,6 @@ export const unstable_settings = {
 
 SplashScreen.preventAutoHideAsync();
 
-const STRIPE_PUBLISHABLE_KEY = 'pk_test_51T2HncK5xjtBKuF4Y965OsNOGhXJ16tWfdELCQjCVxYBGB9KK8MilrSuuO43Qu7aExBp3uIQh9sEWqnPrInHyBjY00lN8XtXAb';
 
 function AppContent() {
   const { isDark, mode, colors: C } = useTheme();
@@ -118,6 +118,7 @@ function AppContent() {
         <Stack.Screen name="seller-dashboard" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="orders" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="checkout" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="legal/[doc]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="order-success" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate-success" options={{ headerShown: false, presentation: 'modal' }} />
