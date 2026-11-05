@@ -720,7 +720,7 @@ export default function SpeakerProfileScreen() {
                 <Icon name="shield-checkmark-outline" size={20} color={C.emerald} />
                 <Text style={styles.verifyText}>
                   <Text style={{ fontWeight: '700', color: C.text }}>Identity confirmed by Siqa. </Text>
-                  Every video on this page was published from {speaker.display_name}'s own account.
+                  Videos here come from {speaker.display_name}'s own Siqa account or their official YouTube channel.
                 </Text>
               </View>
             )}

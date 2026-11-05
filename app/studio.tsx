@@ -25,10 +25,13 @@ import { Icon, type SiqaIconName } from '../components/Icon';
  * full list of every video/Gem they've posted (published or not).
  *
  * Analytics are built only from data Siqa actually records:
+ *  - video_view_events (via studio_daily_views / studio_video_views RPCs)
+ *                             → Siqa views over time and per video
  *  - follows.created_at       → follower growth over time
  *  - video_likes.created_at   → likes over time
  *  - comments.created_at      → comments over time
- *  - videos.view_count        → lifetime views (no per-day view log exists yet)
+ *  - videos.view_count        → lifetime views (includes YouTube's count for
+ *                               synced videos)
  */
 
 const SIDEBAR_WIDTH = 220;
@@ -68,7 +71,33 @@ type StatusFilter = 'all' | StatusKey;
 type TypeFilter = 'all' | 'long' | 'short';
 type SortKey = 'newest' | 'views' | 'likes' | 'comments';
 
-type Activity = { followers: string[]; likes: string[]; comments: CommentRow[] };
+type Activity = {
+  followers: string[];
+  likes: string[];
+  comments: CommentRow[];
+  /** Siqa views per local day, keyed YYYY-MM-DD. */
+  dailyViews: Record<string, number>;
+};
+type ChartMetric = 'views' | 'followers';
+
+function dayKey(ms: number) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function sumDays(daily: Record<string, number>, from: number, to: number) {
+  let n = 0;
+  const cur = new Date(from); cur.setHours(0, 0, 0, 0);
+  for (let t = cur.getTime(); t < to; ) {
+    n += daily[dayKey(t)] ?? 0;
+    const next = new Date(t); next.setDate(next.getDate() + 1); t = next.getTime();
+  }
+  return n;
+}
+
+function localTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+}
 type CommentRow = { id: string; video_id: string; profile_id: string; parent_id: string | null; created_at: string };
 
 const RANGE_LABEL: Record<Range, string> = { '7': 'Last 7 days', '28': 'Last 28 days', '90': 'Last 90 days', all: 'Last 12 months' };
@@ -162,7 +191,12 @@ export default function StudioScreen() {
   const [signedIn, setSignedIn] = useState(true);
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [videos, setVideos] = useState<StudioVideo[]>([]);
-  const [activity, setActivity] = useState<Activity>({ followers: [], likes: [], comments: [] });
+  const [activity, setActivity] = useState<Activity>({ followers: [], likes: [], comments: [], dailyViews: {} });
+  const [periodViews, setPeriodViews] = useState<Record<string, number>>({});
+  const [canSeed, setCanSeed] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [metric, setMetric] = useState<ChartMetric>('views');
 
   const [range, setRange] = useState<Range>('28');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -211,24 +245,48 @@ export default function StudioScreen() {
     const since = new Date(Date.now() - 400 * DAY).toISOString();
     const ids = list.map(v => v.id);
 
-    const [followRes, likeRows, commentRows] = await Promise.all([
+    const [followRes, likeRows, commentRows, viewsRes, orgRes, sellerRes] = await Promise.all([
       supabase.from('follows').select('created_at').eq('following_id', uid).gte('created_at', since).limit(20000),
       inChunks<{ created_at: string }>(ids, chunk =>
         supabase.from('video_likes').select('created_at').in('video_id', chunk).gte('created_at', since).limit(20000)),
       inChunks<CommentRow>(ids, chunk =>
         supabase.from('comments').select('id, video_id, profile_id, parent_id, created_at').in('video_id', chunk).gte('created_at', since).limit(20000)),
+      supabase.rpc('studio_daily_views', { p_from: since, p_tz: localTimeZone() }),
+      supabase.from('organizations').select('id').eq('profile_id', uid).limit(1).maybeSingle(),
+      supabase.from('marketplace_sellers').select('id').eq('user_id', uid).maybeSingle(),
     ]);
+
+    const dailyViews: Record<string, number> = {};
+    ((viewsRes.data as { day: string; views: number }[]) ?? []).forEach(r => { dailyViews[r.day] = Number(r.views); });
+    setCanSeed(Boolean(orgRes.data));
+    setIsSeller(Boolean(sellerRes.data));
 
     setActivity({
       followers: ((followRes.data as { created_at: string }[]) ?? []).map(r => r.created_at),
       likes: likeRows.map(r => r.created_at),
       comments: commentRows,
+      dailyViews,
     });
     setLoading(false);
     setRefreshing(false);
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Per-video Siqa views for the selected range (Top videos this period).
+  useFocusEffect(useCallback(() => {
+    let cancelled = false;
+    const days = range === 'all' ? 365 : Number(range);
+    supabase
+      .rpc('studio_video_views', { p_from: new Date(Date.now() - days * DAY).toISOString(), p_to: new Date().toISOString() })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        ((data as { video_id: string; views: number }[]) ?? []).forEach(r => { map[r.video_id] = Number(r.views); });
+        setPeriodViews(map);
+      });
+    return () => { cancelled = true; };
+  }, [range, speaker?.id]));
 
   // ---------- Derived analytics ----------
   const now = Date.now();
@@ -248,8 +306,11 @@ export default function StudioScreen() {
       const prev = countIn(stamps, prevStart, start);
       return { label, value: fmt(cur), delta: pctDelta(cur, prev), icon, note: 'vs previous period' };
     };
+    const viewsCur = sumDays(activity.dailyViews, start, now);
+    const viewsPrev = sumDays(activity.dailyViews, prevStart, start);
     return [
-      { label: 'Total views', value: fmt(totalViews), delta: null, icon: 'eye-outline' as SiqaIconName, note: 'Lifetime, all videos' },
+      { label: 'Views on Siqa', value: fmt(viewsCur), delta: pctDelta(viewsCur, viewsPrev), icon: 'eye-outline' as SiqaIconName, note: 'vs previous period' },
+      { label: 'Total views', value: fmt(totalViews), delta: null, icon: 'globe-outline' as SiqaIconName, note: 'Lifetime, incl. YouTube' },
       mk('New followers', activity.followers, 'people-outline'),
       mk('Likes', activity.likes, 'heart-outline'),
       mk('Comments', commentStamps, 'chatbubble-outline'),
@@ -282,7 +343,9 @@ export default function StudioScreen() {
       .filter(v => videoStatus(v) === 'published' && v.published_at)
       .map(v => new Date(v.published_at as string).getTime());
     const followerTimes = activity.followers.map(s => new Date(s).getTime());
-    const vals = buckets.map(b => followerTimes.filter(t => t >= b.from && t < b.to).length);
+    const vals = buckets.map(b => metric === 'views'
+      ? sumDays(activity.dailyViews, b.from, b.to)
+      : followerTimes.filter(t => t >= b.from && t < b.to).length);
     const max = Math.max(1, ...vals);
     return {
       bars: buckets.map((b, i) => ({
@@ -297,12 +360,24 @@ export default function StudioScreen() {
       endLabel: buckets[buckets.length - 1]?.label ?? '',
       unit: range === 'all' ? 'month' : range === '90' ? 'week' : 'day',
     };
-  }, [activity, videos, range]);
+  }, [activity, videos, range, metric]);
 
-  const topVideos = useMemo(
-    () => videos.filter(v => videoStatus(v) === 'published').sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0)).slice(0, 5),
-    [videos],
-  );
+  // Top videos by Siqa views in the period; falls back to lifetime views
+  // when nothing was watched on Siqa in this window.
+  const topVideos = useMemo(() => {
+    const ranked = videos
+      .filter(v => (periodViews[v.id] ?? 0) > 0)
+      .sort((a, b) => (periodViews[b.id] ?? 0) - (periodViews[a.id] ?? 0))
+      .slice(0, 5)
+      .map(v => ({ v, n: periodViews[v.id] ?? 0 }));
+    if (ranked.length) return { period: true, list: ranked };
+    return {
+      period: false,
+      list: videos.filter(v => videoStatus(v) === 'published')
+        .sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0)).slice(0, 5)
+        .map(v => ({ v, n: v.view_count ?? 0 })),
+    };
+  }, [videos, periodViews]);
 
   const formatSplit = useMemo(() => {
     const pub = videos.filter(v => videoStatus(v) === 'published');
@@ -437,6 +512,12 @@ export default function StudioScreen() {
     removed: { bg: 'rgba(217,117,95,0.12)', fg: C.danger, label: 'Removed' },
   })[s];
 
+  const createItems: { key: string; label: string; icon: SiqaIconName; path: string }[] = [
+    { key: 'video', label: 'Upload video or Gem', icon: 'cloud-upload-outline', path: '/gem-upload' },
+    ...(canSeed ? [{ key: 'seed', label: 'Create a Seed', icon: 'leaf-outline' as SiqaIconName, path: '/seed-create' }] : []),
+    ...(isSeller ? [{ key: 'listing', label: 'List an item', icon: 'pricetag-outline' as SiqaIconName, path: '/listing-create' }] : []),
+  ];
+
   const Chip = ({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) => (
     <TouchableOpacity
       style={[styles.pill, active && styles.pillActive]}
@@ -518,10 +599,37 @@ export default function StudioScreen() {
                   <Icon name="person-circle-outline" size={16} color={C.text} />
                   <Text style={styles.ghostBtnText}>Public profile</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/gem-upload' as any)}>
-                  <Icon name="cloud-upload-outline" size={16} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Upload</Text>
-                </TouchableOpacity>
+                {createItems.length > 1 ? (
+                  <View style={{ position: 'relative', zIndex: 10 }}>
+                    <TouchableOpacity
+                      style={styles.primaryBtn}
+                      onPress={() => setCreateOpen(o => !o)}
+                      accessibilityState={{ expanded: createOpen }}
+                    >
+                      <Icon name="add" size={18} color="#fff" />
+                      <Text style={styles.primaryBtnText}>Create</Text>
+                    </TouchableOpacity>
+                    {createOpen && (
+                      <View style={styles.createMenu}>
+                        {createItems.map(item => (
+                          <TouchableOpacity
+                            key={item.key}
+                            style={styles.createItem}
+                            onPress={() => { setCreateOpen(false); router.push(item.path as any); }}
+                          >
+                            <Icon name={item.icon} size={18} color={C.text} />
+                            <Text style={styles.createItemText}>{item.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/gem-upload' as any)}>
+                    <Icon name="cloud-upload-outline" size={16} color="#fff" />
+                    <Text style={styles.primaryBtnText}>Upload video</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -576,13 +684,16 @@ export default function StudioScreen() {
             <View style={styles.row}>
               <View style={[styles.card, { flexGrow: 3, flexBasis: 480 }]}>
                 <View style={styles.cardHead}>
-                  <Text style={styles.cardTitle}>Follower growth</Text>
-                  <Text style={styles.cardMeta}>+{chart.total.toLocaleString()} · per {chart.unit}</Text>
+                  <View style={styles.pillRow}>
+                    <Chip active={metric === 'views'} label="Views on Siqa" onPress={() => setMetric('views')} />
+                    <Chip active={metric === 'followers'} label="New followers" onPress={() => setMetric('followers')} />
+                  </View>
+                  <Text style={styles.cardMeta}>{chart.total.toLocaleString()} total · per {chart.unit}</Text>
                 </View>
                 <View
                   style={styles.chart}
                   accessibilityRole="image"
-                  accessibilityLabel={`New followers per ${chart.unit}, ${RANGE_LABEL[range].toLowerCase()}: ${chart.total} total`}
+                  accessibilityLabel={`${metric === 'views' ? 'Views' : 'New followers'} per ${chart.unit}, ${RANGE_LABEL[range].toLowerCase()}: ${chart.total} total`}
                 >
                   {chart.bars.map(b => (
                     <View key={b.key} style={styles.barSlot}>
@@ -593,7 +704,7 @@ export default function StudioScreen() {
                           b.upload ? { backgroundColor: C.emerald } : { backgroundColor: C.emeraldSoft },
                         ]}
                         // @ts-ignore title is a valid prop on react-native-web
-                        title={`${b.label}: ${b.value} new follower${b.value === 1 ? '' : 's'}${b.upload ? ' · upload' : ''}`}
+                        title={`${b.label}: ${b.value} ${metric === 'views' ? 'view' : 'new follower'}${b.value === 1 ? '' : 's'}${b.upload ? ' · upload' : ''}`}
                       />
                     </View>
                   ))}
@@ -628,15 +739,17 @@ export default function StudioScreen() {
             {/* Top videos + attention */}
             <View style={styles.row}>
               <View style={[styles.card, { flexGrow: 2, flexBasis: 380 }]}>
-                <Text style={[styles.cardTitle, { marginBottom: 12 }]}>Top videos (lifetime views)</Text>
-                {topVideos.length === 0 ? (
+                <Text style={[styles.cardTitle, { marginBottom: 12 }]}>
+                  {topVideos.period ? `Top videos · ${RANGE_LABEL[range].toLowerCase()}` : 'Top videos (lifetime views)'}
+                </Text>
+                {topVideos.list.length === 0 ? (
                   <Text style={styles.muted}>Nothing published yet.</Text>
-                ) : topVideos.map((v, i) => (
+                ) : topVideos.list.map(({ v, n }, i) => (
                   <TouchableOpacity key={v.id} style={styles.topRow} onPress={() => openVideo(v)}>
                     <Text style={styles.rank}>{i + 1}</Text>
                     <Thumb v={v} w={v.format === 'short' ? 36 : 72} h={40} />
                     <Text style={styles.topTitle} numberOfLines={2}>{v.title}</Text>
-                    <Text style={styles.topViews}>{fmt(v.view_count)}</Text>
+                    <Text style={styles.topViews}>{fmt(n)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -802,7 +915,14 @@ function makeStyles(C: AppColors, desktop: boolean) {
       paddingHorizontal: desktop ? 32 : 14, paddingTop: desktop ? 28 : HEADER_TOP_PADDING,
     },
 
-    headerRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 },
+    headerRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14, zIndex: 10 },
+    createMenu: {
+      position: 'absolute', top: 50, right: 0, minWidth: 220, paddingVertical: 6, borderRadius: Theme.radius.md,
+      backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+      shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+    },
+    createItem: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, paddingHorizontal: 14 },
+    createItemText: { fontSize: 14, color: C.text, fontWeight: '500' },
     backBtn: { width: 40, height: 40, justifyContent: 'center', marginLeft: -8 },
     eyebrow: { fontSize: 12, fontWeight: '700', color: C.emerald, letterSpacing: 1 },
     h1: { fontSize: desktop ? 30 : 24, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
