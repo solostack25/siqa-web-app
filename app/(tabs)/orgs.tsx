@@ -18,6 +18,7 @@ import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { Icon } from '../../components/Icon';
+import { Glyph, type GlyphName } from '../../components/Glyph';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { useSearchContext } from '../../contexts/SearchContext';
 
@@ -36,13 +37,13 @@ type Org = {
   banner_url: string | null;
 };
 
-const FILTERS = ['All', '🕌 Masjid', '🤝 Nonprofit', '❤️ Charity', '🎓 School'];
+const FILTERS = ['All', 'Masjid', 'Nonprofit', 'Charity', 'School'];
 
-function orgEmoji(type: string | null) {
-  const map: Record<string, string> = {
-    masjid: '🕌', nonprofit: '🤝', charity: '❤️', school: '🎓', relief: '🌍', community: '👥',
+function orgIcon(type: string | null): GlyphName {
+  const map: Record<string, GlyphName> = {
+    masjid: 'moon-outline', nonprofit: 'hand-left-outline', charity: 'heart-outline', school: 'school-outline', relief: 'earth-outline', community: 'people-outline',
   };
-  return map[type?.toLowerCase() ?? ''] ?? '🏢';
+  return map[type?.toLowerCase() ?? ''] ?? 'business-outline';
 }
 
 function trustColor(score: number | null, C: AppColors) {
@@ -122,7 +123,7 @@ function OrgsScreenInner() {
   function renderOrg({ item }: { item: Org }) {
     const initials = item.org_name.split(' ').filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join('').toUpperCase() || item.org_name.substring(0, 2).toUpperCase();
     const location = [item.city, item.state].filter(Boolean).join(', ') || 'USA';
-    const emoji = orgEmoji(item.org_type);
+    const typeIcon = orgIcon(item.org_type);
 
     return (
       <TouchableOpacity style={styles.orgCard} activeOpacity={0.85} onPress={() => router.push({ pathname: '/org-profile', params: { id: item.id } })}>
@@ -174,12 +175,12 @@ function OrgsScreenInner() {
             <View style={styles.orgBadges}>
               {item.org_type ? (
                 <View style={styles.orgTypeBadge}>
-                  <Text style={styles.orgTypeBadgeText}>{emoji} {item.org_type}</Text>
+                  <Text style={styles.orgTypeBadgeText}><Glyph name={typeIcon} style={styles.orgTypeBadgeText} />{' '}{item.org_type}</Text>
                 </View>
               ) : null}
               {item.ein ? (
                 <View style={styles.org990Badge}>
-                  <Text style={styles.org990BadgeText}>📄 990 on file</Text>
+                  <Text style={styles.org990BadgeText}><Glyph name="document-text-outline" style={styles.org990BadgeText} />{' '}990 on file</Text>
                 </View>
               ) : null}
             </View>
@@ -268,7 +269,7 @@ function OrgsScreenInner() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🏢</Text>
+              <Glyph name="business-outline" style={styles.emptyEmoji} />
               <Text style={styles.emptyTitle}>No organizations yet</Text>
               <Text style={styles.emptySub}>Be the first to register your nonprofit on Siqa.</Text>
               <TouchableOpacity style={styles.emptyBtn}>

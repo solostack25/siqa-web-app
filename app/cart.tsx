@@ -11,6 +11,7 @@ import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
@@ -251,7 +252,7 @@ export default function CartScreen() {
                   {p.images?.[0] ? (
                     <Image source={{ uri: p.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                   ) : (
-                    <Text style={{ fontSize: 24, opacity: 0.4 }}>🛍️</Text>
+                    <Glyph name="bag-handle-outline" style={{ fontSize: 24, opacity: 0.4 }} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -325,7 +326,7 @@ export default function CartScreen() {
                   {p.images?.[0] ? (
                     <Image source={{ uri: p.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                   ) : (
-                    <Text style={{ fontSize: 18, opacity: 0.4 }}>🛍️</Text>
+                    <Glyph name="bag-handle-outline" style={{ fontSize: 18, opacity: 0.4 }} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -409,7 +410,7 @@ export default function CartScreen() {
             {validItems.length === 0 ? (
               <>
                 <View style={styles.emptyCard}>
-                  <Text style={styles.emptyEmoji}>🛒</Text>
+                  <Glyph name="cart-outline" style={styles.emptyEmoji} />
                   <Text style={styles.emptyTitle}>Your cart is empty</Text>
                   <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)} style={styles.emptyBtn}>
                     <Text style={styles.emptyBtnText}>Browse the Marketplace</Text>

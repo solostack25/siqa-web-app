@@ -16,6 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { Theme } from '../../constants/theme';
 import { useTheme, AppColors } from '../../lib/theme';
+import { Glyph } from '../../components/Glyph';
 import { DesktopShell, useIsDesktopWeb, DESKTOP_BREAKPOINT } from '../../components/DesktopShell';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import { Icon } from '../../components/Icon';
@@ -307,7 +308,6 @@ export default function SpeakerProfileScreen() {
     { val: formatCount(speaker.follower_count), label: 'Followers' },
     { val: formatRaised(speaker.total_raised), label: 'Raised' },
     { val: speaker.events_count?.toString() || '0', label: 'Events/yr' },
-    { val: '5.0★', label: 'Rating' },
   ];
 
   const gemsGrid = videos.length > 0 && (
@@ -453,9 +453,8 @@ export default function SpeakerProfileScreen() {
                 </View>
                 {location ? <Text style={styles.handle}>{location}</Text> : null}
                 <View style={styles.metaRow}>
-                  <Text style={styles.metaText}>📡 Fundraising</Text>
-                  <Text style={styles.metaText}>📅 {speaker.is_available ? 'Available' : 'Contact'}</Text>
-                  <Text style={styles.metaText}>⭐ 5.0</Text>
+                  <Text style={styles.metaText}><Glyph name="heart-outline" style={styles.metaText} />{' '}Fundraising</Text>
+                  <Text style={styles.metaText}><Glyph name="calendar-outline" style={styles.metaText} />{' '}{speaker.is_available ? 'Available' : 'Contact'}</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -557,9 +556,8 @@ export default function SpeakerProfileScreen() {
               {location ? <Text style={styles.handle}>{location}</Text> : null}
               {speaker.bio ? <Text style={styles.bio}>{speaker.bio}</Text> : null}
               <View style={styles.metaRow}>
-                <Text style={styles.metaText}>📡 Fundraising</Text>
-                <Text style={styles.metaText}>📅 {speaker.is_available ? 'Available' : 'Contact'}</Text>
-                <Text style={styles.metaText}>⭐ 5.0</Text>
+                <Text style={styles.metaText}><Glyph name="heart-outline" style={styles.metaText} />{' '}Fundraising</Text>
+                <Text style={styles.metaText}><Glyph name="calendar-outline" style={styles.metaText} />{' '}{speaker.is_available ? 'Available' : 'Contact'}</Text>
               </View>
             </View>
 

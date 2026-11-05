@@ -21,6 +21,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { Glyph, type GlyphName } from '../../components/Glyph';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import ImageCropModal from '../../components/ImageCropModal';
 
@@ -122,12 +123,12 @@ function GuestScreen() {
         </Text>
         <View style={styles.perks}>
           {[
-            { icon: '🎬', text: 'Save clips to watch later' },
-            { icon: '💚', text: 'Donate to live fundraisers' },
-            { icon: '📡', text: 'Watch exclusive live streams' },
+            { icon: 'film-outline' as GlyphName, text: 'Save clips to watch later' },
+            { icon: 'heart-outline' as GlyphName, text: 'Donate to live fundraisers' },
+            { icon: 'radio-outline' as GlyphName, text: 'Watch exclusive live streams' },
           ].map((p, i) => (
             <View key={i} style={styles.perk}>
-              <Text style={styles.perkIcon}>{p.icon}</Text>
+              <Glyph name={p.icon} style={styles.perkIcon} color={C.gold} />
               <Text style={styles.perkText}>{p.text}</Text>
             </View>
           ))}
@@ -497,7 +498,7 @@ function DashboardScreenInner() {
           </View>
           {gems.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>🎬</Text>
+              <Glyph name="film-outline" style={styles.emptyEmoji} />
               <Text style={styles.emptyTitle}>No gems yet</Text>
               <Text style={styles.emptySub}>Post your first clip to get started.</Text>
             </View>
@@ -566,7 +567,7 @@ function DashboardScreenInner() {
           </View>
           {orgSeeds.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>🌱</Text>
+              <Glyph name="leaf-outline" style={styles.emptyEmoji} />
               <Text style={styles.emptyTitle}>No seeds yet</Text>
               <Text style={styles.emptySub}>Create a donation appeal to get started.</Text>
             </View>
@@ -583,7 +584,7 @@ function DashboardScreenInner() {
                     {(s.cover_image_url || s.image_url) ? (
                       <Image source={{ uri: (s.cover_image_url || s.image_url) as string }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                     ) : (
-                      <Text style={styles.seedThumbEmoji}>🌱</Text>
+                      <Glyph name="leaf-outline" style={styles.seedThumbEmoji} color={C.gold} />
                     )}
                   </View>
                   <Text style={styles.gemTitle} numberOfLines={2}>{s.title}</Text>
@@ -609,7 +610,7 @@ function DashboardScreenInner() {
         </View>
         {savedGems.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>🔖</Text>
+            <Glyph name="bookmark-outline" style={styles.emptyEmoji} />
             <Text style={styles.emptyTitle}>No saved gems</Text>
             <Text style={styles.emptySub}>Tap the bookmark on any clip to save it.</Text>
           </View>
@@ -676,7 +677,7 @@ function DashboardScreenInner() {
         </View>
         {donations.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>💚</Text>
+            <Glyph name="heart-outline" style={styles.emptyEmoji} />
             <Text style={styles.emptyTitle}>No donations yet</Text>
             <Text style={styles.emptySub}>Your donation history will appear here.</Text>
             <TouchableOpacity
@@ -820,7 +821,7 @@ function DashboardScreenInner() {
             {activeTab === 'gems' && speaker && (
               gems.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyEmoji}>🎬</Text>
+                  <Glyph name="film-outline" style={styles.emptyEmoji} />
                   <Text style={styles.emptyTitle}>No gems yet</Text>
                   <Text style={styles.emptySub}>Post your first clip to get started.</Text>
                 </View>
@@ -863,7 +864,7 @@ function DashboardScreenInner() {
             {activeTab === 'seeds' && (
               orgSeeds.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyEmoji}>🌱</Text>
+                  <Glyph name="leaf-outline" style={styles.emptyEmoji} />
                   <Text style={styles.emptyTitle}>No seeds yet</Text>
                   <Text style={styles.emptySub}>Create a donation appeal to get started.</Text>
                 </View>
@@ -896,7 +897,7 @@ function DashboardScreenInner() {
             {activeTab === 'saved' && (
               savedGems.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyEmoji}>🔖</Text>
+                  <Glyph name="bookmark-outline" style={styles.emptyEmoji} />
                   <Text style={styles.emptyTitle}>No saved gems</Text>
                   <Text style={styles.emptySub}>Tap the bookmark on any clip to save it.</Text>
                 </View>
@@ -930,7 +931,7 @@ function DashboardScreenInner() {
             {activeTab === 'donations' && (
               donations.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyEmoji}>💚</Text>
+                  <Glyph name="heart-outline" style={styles.emptyEmoji} />
                   <Text style={styles.emptyTitle}>No donations yet</Text>
                   <Text style={styles.emptySub}>Your donation history will appear here.</Text>
                   <TouchableOpacity style={styles.browseSeedsBtn} onPress={() => router.push('/(tabs)/seeds' as any)}>

@@ -14,6 +14,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
+import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
@@ -145,7 +146,7 @@ export default function ThreadScreen() {
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={styles.messagesList}>
           {messages.length === 0 ? (
             <View style={styles.emptyMessages}>
-              <Text style={{ fontSize: 28, marginBottom: 6 }}>💬</Text>
+              <Glyph name="chatbubbles-outline" style={{ fontSize: 28, marginBottom: 6 }} />
               <Text style={styles.emptyText}>
                 {isSeller ? 'No messages yet for this inquiry.' : 'Send a message to ask about this product.'}
               </Text>

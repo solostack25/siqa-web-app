@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
+import { Glyph } from '../../components/Glyph';
 import { Theme } from '../../constants/theme';
 
 export default function ResetPasswordScreen() {
@@ -38,7 +39,7 @@ export default function ResetPasswordScreen() {
   if (done) {
     return (
       <View style={styles.centeredWrap}>
-        <Text style={styles.doneEmoji}>✅</Text>
+        <Glyph name="checkmark-circle-outline" style={styles.doneEmoji} color={Colors.emeraldLight} />
         <Text style={styles.doneTitle}>Password updated!</Text>
         <Text style={styles.doneSub}>Taking you to the app...</Text>
       </View>
@@ -69,7 +70,7 @@ export default function ResetPasswordScreen() {
                 autoFocus
               />
               <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPassword(p => !p)}>
-                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                <Glyph name={showPassword ? 'eye-off-outline' : 'eye-outline'} style={styles.eyeIcon} color={Colors.text2} />
               </TouchableOpacity>
             </View>
           </View>

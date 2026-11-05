@@ -8,6 +8,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { Colors } from '../constants/colors';
+import { Glyph } from '../components/Glyph';
 import { Theme } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 
@@ -42,7 +43,7 @@ export default function DonateSuccessScreen() {
 
       {/* Checkmark */}
       <Animated.View style={[styles.iconWrap, { transform: [{ scale: scaleAnim }] }]}>
-        <Text style={styles.icon}>💚</Text>
+        <Glyph name="heart" style={styles.icon} color={Colors.emeraldLight} />
       </Animated.View>
 
       {/* Content */}

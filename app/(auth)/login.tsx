@@ -13,15 +13,16 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
+import { Glyph, type GlyphName } from '../../components/Glyph';
 import { Theme } from '../../constants/theme';
 import { IS_MARKETPLACE_SITE, SITE_HOME } from '../../lib/site';
 
 type Role = 'viewer' | 'speaker' | 'org';
 
-const ROLES: { key: Role; label: string; icon: string; desc: string }[] = [
-  { key: 'viewer',  label: 'Community Member', icon: '🕌', desc: 'Follow speakers, save clips, donate' },
-  { key: 'speaker', label: 'Speaker',           icon: '🎤', desc: 'Share knowledge, grow your reach' },
-  { key: 'org',     label: 'Organization',      icon: '🏢', desc: 'Fundraise and manage your nonprofit' },
+const ROLES: { key: Role; label: string; icon: GlyphName; desc: string }[] = [
+  { key: 'viewer',  label: 'Community Member', icon: 'people-outline', desc: 'Follow speakers, save clips, donate' },
+  { key: 'speaker', label: 'Speaker',           icon: 'mic-outline', desc: 'Share knowledge, grow your reach' },
+  { key: 'org',     label: 'Organization',      icon: 'business-outline', desc: 'Fundraise and manage your nonprofit' },
 ];
 
 export default function LoginScreen() {
@@ -112,7 +113,7 @@ export default function LoginScreen() {
                     onPress={() => setRole(r.key)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.roleIcon}>{r.icon}</Text>
+                    <Glyph name={r.icon} style={styles.roleIcon} color={role === r.key ? Colors.gold : Colors.text2} />
                     <Text style={[styles.roleCardLabel, role === r.key && styles.roleCardLabelActive]}>
                       {r.label}
                     </Text>
@@ -169,7 +170,7 @@ export default function LoginScreen() {
                 onPress={() => setShowPassword(p => !p)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                <Glyph name={showPassword ? 'eye-off-outline' : 'eye-outline'} style={styles.eyeIcon} color={Colors.text2} />
               </TouchableOpacity>
             </View>
           </View>

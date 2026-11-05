@@ -16,6 +16,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { Glyph } from '../../components/Glyph';
 import { useSearchContext } from '../../contexts/SearchContext';
 import { formatPrice } from '../../lib/money';
 import { addToCart } from '../../lib/cart';
@@ -229,12 +230,15 @@ export default function MarketplaceScreen() {
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any)}
+                {...({ dataSet: { hover: 'card' } } as any)}
               >
                 <View style={[styles.sponsoredImage, isDesktopWeb ? styles.sponsoredImageDesktop : styles.sponsoredImagePhone]}>
                   {item.images?.[0] ? (
-                    <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
+                    <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
+                      <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
+                    </View>
                   ) : (
-                    <Text style={styles.cardImageEmoji}>🛍️</Text>
+                    <Glyph name="bag-handle-outline" style={styles.cardImageEmoji} />
                   )}
                 </View>
               </TouchableOpacity>
@@ -346,6 +350,7 @@ export default function MarketplaceScreen() {
           <TouchableOpacity
             style={[styles.catPill, category === cat && styles.catPillActive]}
             onPress={() => setCategory(cat)}
+            {...({ dataSet: category === cat ? undefined : { hover: 'row' } } as any)}
           >
             <Text style={[styles.catText, category === cat && styles.catTextActive]}>{cat}</Text>
           </TouchableOpacity>
@@ -362,13 +367,13 @@ export default function MarketplaceScreen() {
           data={gridData}
           keyExtractor={(p, i) => p?.id ?? `filler-${i}`}
           numColumns={numColumns}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, isDesktopWeb && styles.gridDesktop]}
           columnWrapperStyle={{ gap: Theme.spacing.md }}
           ListHeaderComponent={showSponsored ? sponsoredRow : null}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🛍️</Text>
+              <Glyph name="bag-handle-outline" style={styles.emptyEmoji} />
               <Text style={styles.emptyTitle}>No products yet</Text>
               <Text style={styles.emptySub}>
                 {category === 'All' ? 'Check back soon.' : 'Try a different category.'}
@@ -383,12 +388,14 @@ export default function MarketplaceScreen() {
             const openProduct = () => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any);
             return (
               <View style={styles.card}>
-                <TouchableOpacity activeOpacity={0.85} onPress={openProduct}>
+                <TouchableOpacity activeOpacity={0.85} onPress={openProduct} {...({ dataSet: { hover: 'card' } } as any)}>
                   <View style={styles.cardImage}>
                     {item.images?.[0] ? (
-                      <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
+                      <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
+                        <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
+                      </View>
                     ) : (
-                      <Text style={styles.cardImageEmoji}>🛍️</Text>
+                      <Glyph name="bag-handle-outline" style={styles.cardImageEmoji} />
                     )}
                   </View>
                   <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
@@ -456,8 +463,8 @@ function makeStyles(C: AppColors) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING, paddingBottom: Theme.spacing.md,
     },
-    headerTitle: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: C.text },
-    headerSub: { fontSize: Theme.fontSize.xs, color: C.text3, marginTop: 2 },
+    headerTitle: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
+    headerSub: { fontSize: Theme.fontSize.sm, color: C.text3, marginTop: 2 },
     iconBtn: {
       width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
       backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2, position: 'relative',
@@ -479,16 +486,19 @@ function makeStyles(C: AppColors) {
 
     categoriesList: { flexGrow: 0, flexShrink: 0, minHeight: 32 + Theme.spacing.md },
     categories: { paddingHorizontal: Theme.spacing.xl, gap: 8, paddingBottom: Theme.spacing.md, alignItems: 'center' },
+    // Same chip spec as Home and Seeds.
     catPill: {
-      paddingHorizontal: Theme.spacing.md, paddingVertical: 7, minHeight: 32, flexShrink: 0,
-      borderRadius: Theme.radius.full, backgroundColor: C.surface,
-      borderWidth: 0.5, borderColor: C.border2, alignItems: 'center', justifyContent: 'center',
+      paddingHorizontal: 14, paddingVertical: 7, minHeight: 32, flexShrink: 0,
+      borderRadius: Theme.radius.full, backgroundColor: C.surface2,
+      alignItems: 'center', justifyContent: 'center',
     },
-    catPillActive: { backgroundColor: C.gold, borderColor: C.gold },
-    catText: { fontSize: Theme.fontSize.sm, color: C.text2 },
-    catTextActive: { color: C.black, fontWeight: '700' },
+    catPillActive: { backgroundColor: C.text },
+    catText: { fontSize: Theme.fontSize.sm, color: C.text2, fontWeight: '500' },
+    catTextActive: { color: C.bg, fontWeight: '600' },
 
     grid: { paddingHorizontal: Theme.spacing.xl, paddingBottom: 100, gap: Theme.spacing.md },
+    // Stop growing on very wide screens; 4 columns stay a comfortable size.
+    gridDesktop: { width: '100%', maxWidth: 1480, alignSelf: 'center', columnGap: 20 } as any,
     // Etsy-style card: borderless, photo on top, then title, rating · shop,
     // price, stock note, and the Add to cart / More like this actions.
     card: { flex: 1, marginBottom: Theme.spacing.lg, minWidth: 0 },
@@ -497,7 +507,7 @@ function makeStyles(C: AppColors) {
       overflow: 'hidden', borderRadius: Theme.radius.lg,
     },
     cardImageInner: { width: '100%', height: '100%' },
-    cardImageEmoji: { fontSize: 32, opacity: 0.4 },
+    cardImageEmoji: { fontSize: 32, color: C.text3, opacity: 0.6 },
     cardTitle: { fontSize: 14, color: C.text, marginTop: 8, lineHeight: 19 },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'nowrap', overflow: 'hidden' },
     metaStrong: { fontSize: 12, fontWeight: '700', color: C.text },
@@ -540,7 +550,7 @@ function makeStyles(C: AppColors) {
     sponsoredPrice: { fontSize: 20, fontWeight: '800', color: C.text, marginTop: 6 },
 
     empty: { alignItems: 'center', paddingTop: 60, gap: 8, width: '100%' },
-    emptyEmoji: { fontSize: 40 },
+    emptyEmoji: { fontSize: 40, color: C.text3 },
     emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text2 },
     emptySub: { fontSize: 13, color: C.text3 },
   });

@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native
 import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { Theme } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 
@@ -26,7 +27,7 @@ export default function OrderSuccessScreen() {
     <DesktopShell>
     <View style={styles.container}>
       <Animated.View style={[styles.iconWrap, { transform: [{ scale: scaleAnim }] }]}>
-        <Text style={styles.icon}>🛍️</Text>
+        <Glyph name="bag-check-outline" style={styles.icon} color={C.gold} />
       </Animated.View>
 
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>

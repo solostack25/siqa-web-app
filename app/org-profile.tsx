@@ -17,6 +17,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { Glyph, type GlyphName } from '../components/Glyph';
 import { Theme } from '../constants/theme';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadFileToBunny } from '../lib/bunnyUpload';
@@ -112,11 +113,11 @@ type Fundraiser = {
   image_url: string | null;
 };
 
-function orgEmoji(type: string | null) {
-  const map: Record<string, string> = {
-    masjid: '🕌', nonprofit: '🤝', charity: '❤️', school: '🎓', relief: '🌍', community: '👥',
+function orgIcon(type: string | null): GlyphName {
+  const map: Record<string, GlyphName> = {
+    masjid: 'moon-outline', nonprofit: 'hand-left-outline', charity: 'heart-outline', school: 'school-outline', relief: 'earth-outline', community: 'people-outline',
   };
-  return map[type?.toLowerCase() ?? ''] ?? '🏢';
+  return map[type?.toLowerCase() ?? ''] ?? 'business-outline';
 }
 
 function fmtMoney(cents: number) {
@@ -508,7 +509,7 @@ export default function OrgProfileScreen() {
     .toUpperCase() || org.org_name.substring(0, 2).toUpperCase();
 
   const location = [org.city, org.state].filter(Boolean).join(', ') || 'USA';
-  const emoji = orgEmoji(org.org_type);
+  const typeIcon = orgIcon(org.org_type);
   const campaignTotals = fundraisers.reduce(
     (acc, fr) => ({ raised: acc.raised + (fr.raised_amount || 0), donors: acc.donors + (fr.donor_count || 0) }),
     { raised: 0, donors: 0 }
@@ -548,7 +549,7 @@ export default function OrgProfileScreen() {
             <View style={styles.bannerEditOverlay}>
               {uploadingBanner
                 ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.editOverlayText}>📷  Edit Banner</Text>
+                : <Text style={styles.editOverlayText}><Glyph name="camera-outline" style={styles.editOverlayText} />{'  '}Edit Banner</Text>
               }
             </View>
           )}
@@ -572,7 +573,7 @@ export default function OrgProfileScreen() {
               <View style={styles.logoEditOverlay}>
                 {uploadingLogo
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={styles.logoEditIcon}>📷</Text>
+                  : <Glyph name="camera-outline" style={styles.logoEditIcon} color="#fff" />
                 }
               </View>
             )}
@@ -613,11 +614,11 @@ export default function OrgProfileScreen() {
           ) : null}
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaText}>📍 {location}</Text>
+              <Text style={styles.metaText}><Glyph name="location-outline" style={styles.metaText} />{' '}{location}</Text>
             </View>
             {org.org_type ? (
               <View style={styles.metaItem}>
-                <Text style={styles.metaText}>{emoji} {org.org_type}</Text>
+                <Text style={styles.metaText}><Glyph name={typeIcon} style={styles.metaText} />{' '}{org.org_type}</Text>
               </View>
             ) : null}
           </View>
@@ -669,7 +670,7 @@ export default function OrgProfileScreen() {
               {/* Stripe Connect */}
               <View style={styles.payRow}>
                 <View style={styles.payIconBox}>
-                  <Text style={styles.payIcon}>💳</Text>
+                  <Glyph name="card-outline" style={styles.payIcon} color={C.gold} />
                 </View>
                 <View style={styles.payInfo}>
                   <Text style={styles.payTitle}>Stripe Connect</Text>
@@ -700,7 +701,7 @@ export default function OrgProfileScreen() {
               {/* Alt payment */}
               <View style={styles.payRow}>
                 <View style={styles.payIconBox}>
-                  <Text style={styles.payIcon}>🔗</Text>
+                  <Glyph name="link-outline" style={styles.payIcon} color={C.gold} />
                 </View>
                 <View style={styles.payInfo}>
                   <Text style={styles.payTitle}>Can't use Stripe?</Text>
@@ -742,7 +743,7 @@ export default function OrgProfileScreen() {
           <View style={styles.transparencyCard}>
             <View style={styles.transparencyHeader}>
               <View style={styles.transparencyIconBox}>
-                <Text style={styles.transparencyIcon}>🛡</Text>
+                <Glyph name="shield-checkmark-outline" style={styles.transparencyIcon} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.transparencyTitle}>Form 990 Documents</Text>
@@ -760,7 +761,7 @@ export default function OrgProfileScreen() {
                   onPress={() => Linking.openURL(doc.file_url)}
                 >
                   <View style={styles.docIconBox}>
-                    <Text style={styles.docIcon}>📄</Text>
+                    <Glyph name="document-text-outline" style={styles.docIcon} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.docName}>Form 990 — Tax Year {doc.tax_year}</Text>
@@ -781,7 +782,7 @@ export default function OrgProfileScreen() {
                 style={styles.propublicaBtn}
                 onPress={() => Linking.openURL(org.propublica_url!)}
               >
-                <Text style={styles.propublicaBtnText}>🔗 View on ProPublica Nonprofit Explorer ↗</Text>
+                <Text style={styles.propublicaBtnText}><Glyph name="link-outline" style={styles.propublicaBtnText} />{' '}View on ProPublica Nonprofit Explorer ↗</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -847,7 +848,7 @@ export default function OrgProfileScreen() {
                       style={styles.donateBtn}
                       onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fr.id } } as any)}
                     >
-                      <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
+                      <Text style={styles.donateBtnText}><Glyph name="leaf-outline" style={styles.donateBtnText} />{' '}Plant a Seed</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -936,7 +937,7 @@ export default function OrgProfileScreen() {
                 {projectImageUri ? (
                   <Image source={{ uri: projectImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                 ) : (
-                  <Text style={styles.addFormImageText}>📷 Add a photo</Text>
+                  <Text style={styles.addFormImageText}><Glyph name="camera-outline" style={styles.addFormImageText} />{' '}Add a photo</Text>
                 )}
               </TouchableOpacity>
               <TextInput style={styles.addFormInput} placeholder="Project title" placeholderTextColor={C.text3} value={projectTitle} onChangeText={setProjectTitle} />

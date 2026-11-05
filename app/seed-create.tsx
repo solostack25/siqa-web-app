@@ -20,6 +20,7 @@ import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { makeBunnySeedThumbnailPath, makeBunnySeedVideoPath, uploadThumbnailToBunny, uploadVideoToBunny } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
@@ -443,7 +444,7 @@ function SeedCreateScreenContent() {
           <View style={{ width: 56 }} />
         </View>
         <View style={styles.lockedWrap}>
-          <Text style={styles.lockedIcon}>🌱</Text>
+          <Glyph name="leaf-outline" style={styles.lockedIcon} color={C.gold} />
           <Text style={styles.lockedTitle}>Nonprofit access required</Text>
           <Text style={styles.lockedSub}>Seeds can only be created by verified or pending nonprofits, masajid, and admins.</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/org-register' as any)}>
@@ -658,7 +659,7 @@ function SeedCreateScreenContent() {
       {success && (
         <View style={styles.successOverlay} pointerEvents="none">
           <Animated.View style={[styles.successCard, { opacity: successOpacity, transform: [{ scale: successScale }] }]}>
-            <Text style={styles.successIcon}>🌱</Text>
+            <Glyph name="leaf-outline" style={styles.successIcon} color={C.gold} />
             <Text style={styles.successTitle}>{form.visibility === 'submit' && canSubmitActive ? 'Seed published' : 'Seed saved'}</Text>
             <Text style={styles.successText}>Your appeal is ready in Siqa.</Text>
           </Animated.View>

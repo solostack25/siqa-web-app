@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
+import { Glyph } from '../components/Glyph';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -329,9 +330,14 @@ if (fnError) throw new Error(fnError);
         {isAltPay && (
           <View style={styles.altPayNotice}>
             <Text style={styles.altPayNoticeTitle}>
-              {paymentMethodType === 'zeffy' ? '💚 Free for nonprofits via Zeffy' :
-               paymentMethodType === 'paypal' ? '💙 Donate via PayPal' :
-               '🔗 External donation page'}
+              <Glyph
+                name={paymentMethodType === 'zeffy' ? 'heart-outline' : paymentMethodType === 'paypal' ? 'logo-paypal' : 'link-outline'}
+                style={styles.altPayNoticeTitle}
+              />
+              {' '}
+              {paymentMethodType === 'zeffy' ? 'Free for nonprofits via Zeffy' :
+               paymentMethodType === 'paypal' ? 'Donate via PayPal' :
+               'External donation page'}
             </Text>
             <Text style={styles.altPayNoticeSub}>
               You'll be taken to the organization's donation page. Siqa does not process this payment.
@@ -343,7 +349,7 @@ if (fnError) throw new Error(fnError);
         {isNoPayment && (
           <View style={styles.noPayNotice}>
             <Text style={styles.noPayNoticeText}>
-              ⚠️ This organization hasn't set up payments yet. Contact them directly to donate.
+              <Glyph name="warning-outline" style={styles.noPayNoticeText} />{' '}This organization hasn't set up payments yet. Contact them directly to donate.
             </Text>
           </View>
         )}
@@ -351,7 +357,7 @@ if (fnError) throw new Error(fnError);
         {/* Apple Pay notice — Stripe only */}
         {!isAltPay && !isNoPayment && (
           <View style={styles.payNotice}>
-            <Text style={styles.payNoticeText}>🍎 Apple Pay available at checkout</Text>
+            <Text style={styles.payNoticeText}><Glyph name="logo-apple" style={styles.payNoticeText} />{' '}Apple Pay available at checkout</Text>
           </View>
         )}
 
@@ -430,7 +436,7 @@ function getPaymentSheetColors(isDark: boolean) {
     placeholderText: '#6B6358',
     icon: '#A8A091',
   } : {
-    primary: '#B8860B',
+    primary: '#A8843F',
     background: '#F5F3EE',
     componentBackground: '#FFFFFF',
     componentBorder: '#D8CBB9',

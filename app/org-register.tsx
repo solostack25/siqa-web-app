@@ -14,16 +14,17 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
 
 const ORG_TYPES = [
-  { value: 'masjid', label: '🕌 Masjid' },
-  { value: 'nonprofit', label: '🤝 Nonprofit' },
-  { value: 'charity', label: '❤️ Charity' },
-  { value: 'school', label: '🎓 School' },
-  { value: 'relief', label: '🌍 Relief' },
-  { value: 'community', label: '👥 Community' },
+  { value: 'masjid', label: 'Masjid' },
+  { value: 'nonprofit', label: 'Nonprofit' },
+  { value: 'charity', label: 'Charity' },
+  { value: 'school', label: 'School' },
+  { value: 'relief', label: 'Relief' },
+  { value: 'community', label: 'Community' },
 ];
 
 const US_STATES = [
@@ -397,7 +398,7 @@ export default function OrgRegisterScreen() {
 
             <View style={styles.infoBox}>
               <Text style={styles.infoBoxText}>
-                🔒 Your EIN and contact details are never shared publicly. They're only used by the Siqa team to verify your organization.
+                <Glyph name="lock-closed-outline" style={styles.infoBoxText} />{' '}Your EIN and contact details are never shared publicly. They're only used by the Siqa team to verify your organization.
               </Text>
             </View>
           </View>
@@ -460,7 +461,7 @@ export default function OrgRegisterScreen() {
 
         {step === 4 && (
           <View style={styles.successWrap}>
-            <Text style={styles.successEmoji}>🎉</Text>
+            <Glyph name="checkmark-circle-outline" style={styles.successEmoji} color={C.gold} />
             <Text style={styles.successTitle}>Application Submitted!</Text>
             <Text style={styles.successBody}>
               Your organization <Text style={styles.successOrgName}>{form.org_name}</Text> has been submitted for review.

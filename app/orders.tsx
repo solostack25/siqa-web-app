@@ -13,6 +13,7 @@ import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
@@ -124,7 +125,7 @@ export default function OrdersScreen() {
 
         {orders.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={styles.emptyEmoji}>📦</Text>
+            <Glyph name="cube-outline" style={styles.emptyEmoji} />
             <Text style={styles.emptyText}>No orders yet</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)} style={{ marginTop: 8 }}>
               <Text style={{ color: C.gold, fontWeight: '700' }}>Browse the Marketplace</Text>
