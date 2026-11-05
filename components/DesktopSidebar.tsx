@@ -45,6 +45,7 @@ export function DesktopSidebar() {
   const [profile, setProfile] = useState<{ full_name: string | null; role: string | null; avatar_url: string | null } | null>(null);
   const [speaker, setSpeaker] = useState<{ id: string } | null>(null);
   const [isSeller, setIsSeller] = useState(false);
+  const [hasBusiness, setHasBusiness] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,13 +55,15 @@ export function DesktopSidebar() {
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setProfile(null); setSpeaker(null); setIsSeller(false); return; }
+    if (!session?.user) { setProfile(null); setSpeaker(null); setIsSeller(false); setHasBusiness(false); return; }
 
     const [{ data: profileData }, { data: speakerData }, { data: sellerData }] = await Promise.all([
       supabase.from('profiles').select('full_name, role, avatar_url').eq('id', session.user.id).maybeSingle(),
       supabase.from('speakers').select('id').eq('profile_id', session.user.id).maybeSingle(),
       supabase.from('marketplace_sellers').select('id').eq('user_id', session.user.id).maybeSingle(),
     ]);
+    const { count: bizCount } = await supabase.from('business_listings').select('id', { count: 'exact', head: true }).eq('owner_id', session.user.id);
+    setHasBusiness((bizCount ?? 0) > 0);
     setProfile(profileData ?? null);
     setSpeaker(speakerData ?? null);
     setIsSeller(Boolean(sellerData));
@@ -90,7 +93,7 @@ export function DesktopSidebar() {
       key: 'marketplace',
       label: 'Shop',
       path: '/(tabs)/marketplace',
-      matchPrefixes: ['/marketplace', '/product'],
+      matchPrefixes: ['/marketplace', '/product', '/local'],
       icon: (color) => <DiscoverIcon color={color} />,
     },
     {
@@ -117,6 +120,7 @@ export function DesktopSidebar() {
     { key: 'cart', label: 'Cart', path: '/cart', matchPrefixes: ['/cart'], icon: 'cart-outline' },
     { key: 'orders', label: 'My Orders', path: '/orders', matchPrefixes: ['/orders'], icon: 'receipt-outline' },
     { key: 'messages', label: 'Messages', path: '/messages', matchPrefixes: ['/messages'], icon: 'chatbubble-outline' },
+    ...(hasBusiness ? [{ key: 'mybusiness', label: 'My business listing', path: '/local/inbox', matchPrefixes: ['/local/inbox', '/local/edit'], icon: 'briefcase-outline' }] : []),
     isSeller
       ? { key: 'sellerdash', label: 'Seller Dashboard', path: '/seller-dashboard', matchPrefixes: ['/seller-dashboard', '/listing-create'], icon: 'storefront-outline' }
       : { key: 'sell', label: 'Sell on Siqa', path: '/sell', matchPrefixes: ['/sell'], icon: 'storefront-outline' },

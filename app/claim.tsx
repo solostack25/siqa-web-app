@@ -97,6 +97,10 @@ export default function ClaimScreen() {
       const { data } = await supabase.from('speakers').select('display_name, is_claimed').eq('id', id).maybeSingle();
       setEntityName((data as any)?.display_name ?? null);
       setAlreadyClaimed(Boolean((data as any)?.is_claimed));
+    } else if (id && entityType === 'business') {
+      const { data } = await supabase.from('business_listings').select('name, is_claimed').eq('id', id).maybeSingle();
+      setEntityName((data as any)?.name ?? null);
+      setAlreadyClaimed(Boolean((data as any)?.is_claimed));
     } else if (id && entityType === 'organization') {
       const { data } = await supabase.rpc('directory_listed_org', { p_id: id });
       const row = Array.isArray(data) ? data[0] : data;
@@ -154,6 +158,7 @@ export default function ClaimScreen() {
     if (router.canGoBack()) router.back();
     else if (id && entityType === 'speaker') router.replace(`/speaker/${id}` as any);
     else if (id && entityType === 'organization') router.replace(`/org-listing/${id}` as any);
+    else if (id && entityType === 'business') router.replace(`/local/${id}` as any);
     else router.replace('/(tabs)' as any);
   }
 
@@ -198,6 +203,11 @@ export default function ClaimScreen() {
             {entityType === 'speaker' && (
               <TouchableOpacity style={styles.ghostBtn} onPress={() => router.replace(`/speaker/${id}` as any)}>
                 <Text style={styles.ghostBtnText}>View profile</Text>
+              </TouchableOpacity>
+            )}
+            {entityType === 'business' && (
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace({ pathname: '/local/edit', params: { id } } as any)}>
+                <Text style={styles.primaryBtnText}>Update your listing</Text>
               </TouchableOpacity>
             )}
             {entityType === 'organization' && (
