@@ -9,15 +9,15 @@ import {
   Image,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../lib/supabase';
 import { Theme } from '../../constants/theme';
 import { useTheme, AppColors } from '../../lib/theme';
-import { Glyph } from '../../components/Glyph';
-import { DesktopShell, useIsDesktopWeb, DESKTOP_BREAKPOINT } from '../../components/DesktopShell';
+import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import { Icon } from '../../components/Icon';
 import { shareSpeaker } from '../../lib/share';
@@ -28,13 +28,16 @@ async function uploadImageToBunny(uri: string, path: string): Promise<string> {
 }
 
 const SIDEBAR_WIDTH = 220;
+const MAX_CONTENT = 1240;
 
 type Speaker = {
   id: string;
   display_name: string;
   denomination: string | null;
   state: string | null;
-  topics: string[];
+  country: string | null;
+  topics: string[] | null;
+  languages: string[] | null;
   bio: string | null;
   total_raised: number | null;
   follower_count: number | null;
@@ -44,6 +47,10 @@ type Speaker = {
   is_verified: boolean;
   avatar_url: string | null;
   banner_url: string | null;
+  website: string | null;
+  youtube_url: string | null;
+  instagram_url: string | null;
+  booking_email: string | null;
 };
 
 type Video = {
@@ -51,33 +58,58 @@ type Video = {
   title: string;
   thumbnail_url: string | null;
   view_count: number | null;
+  like_count: number | null;
   duration_secs: number | null;
-  video_url: string | null;
+  format: string | null;
+  published_at: string | null;
 };
 
+type Tab = 'videos' | 'gems' | 'about';
+type Sort = 'latest' | 'popular' | 'oldest';
+
 function formatRaised(cents: number | null) {
-  if (!cents) return '—';
+  if (!cents) return '$0';
   const d = cents / 100;
   if (d >= 1000000) return '$' + (d / 1000000).toFixed(1) + 'M';
   if (d >= 1000) return '$' + (d / 1000).toFixed(0) + 'k';
   return '$' + d.toFixed(0);
 }
 
-function formatCount(n: number | null) {
+function formatCount(n: number | null | undefined) {
   if (!n) return '0';
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(0) + 'k';
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 10000) return Math.round(n / 1000) + 'K';
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   return n.toString();
 }
 
-function formatViews(n: number | null) {
-  if (!n) return '0';
-  if (n >= 1000) return (n / 1000).toFixed(0) + 'k';
-  return n.toString();
+function formatDuration(secs: number | null) {
+  if (!secs) return null;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  const ss = s.toString().padStart(2, '0');
+  return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+function timeAgo(ts: string | null) {
+  if (!ts) return '';
+  const days = Math.floor((Date.now() - new Date(ts).getTime()) / 86400000);
+  if (days < 1) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 14) return `${days} days ago`;
+  if (days < 60) return `${Math.round(days / 7)} weeks ago`;
+  if (days < 365) return `${Math.round(days / 30)} months ago`;
+  const y = Math.round(days / 365);
+  return `${y} year${y === 1 ? '' : 's'} ago`;
 }
 
 function speakerInitial(name: string) {
-  return name.replace(/^(Sh\.|Dr\.|Imam|Ustadha|Ustadh)\s+/i, '').charAt(0).toUpperCase();
+  return name.replace(/^(Sh\.|Dr\.|Imam|Ustadha|Ustadh|Shaykh|Sheikh)\s+/i, '').charAt(0).toUpperCase();
+}
+
+function withProtocol(url: string) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
 export default function SpeakerProfileScreen() {
@@ -86,21 +118,25 @@ export default function SpeakerProfileScreen() {
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const { width: windowWidth } = useWindowDimensions();
-  const contentWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
+  const availableWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
+  const contentWidth = Math.min(availableWidth, MAX_CONTENT);
 
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('videos');
+  const [sort, setSort] = useState<Sort>('latest');
+  const [showCount, setShowCount] = useState(12);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [cropImageUri, setCropImageUri] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<'avatar' | 'banner' | null>(null);
-  // Gems uploaded from the web before the video-thumbnail generation bug
-  // was fixed (expo-video-thumbnails is native-only, silently a no-op
-  // on web) are stuck with thumbnail_url: null — that fix only applies
-  // to new uploads. This is the retroactive per-gem fix.
+  // Gems uploaded from the web before the thumbnail-generation fix
+  // (expo-video-thumbnails is native-only) have thumbnail_url: null.
+  // The owner can add one after the fact from the Gems tab.
   const [uploadingThumbFor, setUploadingThumbFor] = useState<string | null>(null);
   const [thumbCropUri, setThumbCropUri] = useState<string | null>(null);
   const [thumbCropGemId, setThumbCropGemId] = useState<string | null>(null);
@@ -108,48 +144,91 @@ export default function SpeakerProfileScreen() {
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: true });
     if (id) loadSpeaker(id);
-    supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user?.id ?? null));
   }, [id]);
 
   async function loadSpeaker(speakerId: string) {
+    setLoading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id ?? null;
+    setUserId(uid);
+
     const { data } = await supabase
       .from('speakers')
       .select(`
-        id, display_name, denomination, state, topics,
-        bio, total_raised,
-        follower_count, events_count, is_available, profile_id,
-        is_verified, avatar_url, banner_url
+        id, display_name, denomination, state, country, topics, languages,
+        bio, total_raised, follower_count, events_count, is_available,
+        profile_id, is_verified, avatar_url, banner_url,
+        website, youtube_url, instagram_url, booking_email
       `)
       .eq('id', speakerId)
-      .single();
+      .maybeSingle();
 
-    if (data) setSpeaker(data);
+    if (data) {
+      setSpeaker(data as Speaker);
+      if (uid && data.profile_id && uid !== data.profile_id) {
+        const { data: existing } = await supabase
+          .from('follows')
+          .select('follower_id')
+          .eq('follower_id', uid)
+          .eq('following_id', data.profile_id)
+          .maybeSingle();
+        setFollowing(Boolean(existing));
+      }
+    }
 
     const { data: vids } = await supabase
       .from('videos')
-      .select('id, title, thumbnail_url, view_count, duration_secs, video_url')
+      .select('id, title, thumbnail_url, view_count, like_count, duration_secs, format, published_at')
       .eq('speaker_id', speakerId)
       .eq('is_published', true)
+      .lte('published_at', new Date().toISOString())
       .not('video_url', 'is', null)
       .order('published_at', { ascending: false })
-      .limit(isDesktopWeb ? 12 : 6);
+      .limit(500);
 
-    if (vids) setVideos(vids);
+    const list = (vids as Video[]) ?? [];
+    setVideos(list);
+    // Land on whichever tab actually has content.
+    if (!list.some(v => v.format === 'long') && list.some(v => v.format === 'short')) setTab('gems');
     setLoading(false);
   }
 
-  function handleBack() {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      // Was '/(tabs)/discover', a route that no longer exists — Discover
-      // was replaced by Marketplace earlier this session. Home is the
-      // safer fallback destination when there's nowhere to go back to.
-      router.replace('/(tabs)' as any);
+  const isOwner = Boolean(userId) && speaker?.profile_id === userId;
+
+  async function toggleFollow() {
+    if (!speaker?.profile_id || followBusy) return;
+    if (!userId) {
+      router.push('/(auth)/sign-in' as any);
+      return;
     }
+    setFollowBusy(true);
+    const next = !following;
+    // Optimistic; follower_count itself is maintained by a trigger on follows.
+    setFollowing(next);
+    setSpeaker(prev => prev ? { ...prev, follower_count: Math.max(0, (prev.follower_count ?? 0) + (next ? 1 : -1)) } : prev);
+    const { error } = next
+      ? await supabase.from('follows').insert({ follower_id: userId, following_id: speaker.profile_id })
+      : await supabase.from('follows').delete().eq('follower_id', userId).eq('following_id', speaker.profile_id);
+    if (error) {
+      setFollowing(!next);
+      setSpeaker(prev => prev ? { ...prev, follower_count: Math.max(0, (prev.follower_count ?? 0) + (next ? -1 : 1)) } : prev);
+      Alert.alert('Something went wrong', 'Could not update your follow. Please try again.');
+    }
+    setFollowBusy(false);
   }
 
-  const canEdit = Boolean(userId) && speaker?.profile_id === userId;
+  function handleBack() {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)' as any);
+  }
+
+  function openVideo(v: Video) {
+    if (v.format === 'short') {
+      router.push({ pathname: '/(tabs)/gems', params: { videoId: v.id } } as any);
+    } else {
+      router.push(`/watch/${v.id}` as any);
+    }
+  }
 
   async function requireImagePermission() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -272,7 +351,18 @@ export default function SpeakerProfileScreen() {
     if (gemId) uploadGemThumbnail(gemId, blobUrl);
   }
 
-  const styles = makeStyles(C);
+  const longVideos = useMemo(() => videos.filter(v => v.format !== 'short'), [videos]);
+  const shortVideos = useMemo(() => videos.filter(v => v.format === 'short'), [videos]);
+  const totalViews = useMemo(() => videos.reduce((s, v) => s + (v.view_count ?? 0), 0), [videos]);
+
+  const sortedFor = (list: Video[]) => {
+    const copy = list.slice();
+    if (sort === 'popular') copy.sort((a, b) => (b.view_count ?? 0) - (a.view_count ?? 0));
+    else if (sort === 'oldest') copy.sort((a, b) => String(a.published_at).localeCompare(String(b.published_at)));
+    return copy;
+  };
+
+  const styles = makeStyles(C, isDesktopWeb);
 
   if (loading) {
     return (
@@ -295,42 +385,193 @@ export default function SpeakerProfileScreen() {
   }
 
   const initial = speakerInitial(speaker.display_name);
-  const location = [speaker.denomination, speaker.state].filter(Boolean).join(' · ');
+  const location = [speaker.denomination, speaker.state, speaker.country !== 'US' ? speaker.country : null]
+    .filter(Boolean).join(' · ');
+  const pad = isDesktopWeb ? 32 : 16;
+  const innerWidth = contentWidth - pad * 2;
 
-  // Desktop: wider cards, more per row, computed off the actual content
-  // width (window minus sidebar) instead of a fixed 2-up mobile grid.
-  const GRID_GAP = 12;
-  const cols = isDesktopWeb ? Math.max(3, Math.min(6, Math.floor(contentWidth / 200))) : 2;
-  const gridPadding = isDesktopWeb ? 32 : 28;
-  const clipWidth = (contentWidth - gridPadding - GRID_GAP * (cols - 1)) / cols;
+  // 16:9 video grid and 9:16 gem grid — columns derived from real width.
+  const GAP = isDesktopWeb ? 20 : 12;
+  const vCols = innerWidth >= 1000 ? 4 : innerWidth >= 720 ? 3 : innerWidth >= 460 ? 2 : 1;
+  const vCardW = (innerWidth - GAP * (vCols - 1)) / vCols;
+  const gCols = isDesktopWeb ? Math.max(3, Math.min(6, Math.floor(innerWidth / 190))) : 2;
+  const gCardW = (innerWidth - GAP * (gCols - 1)) / gCols;
 
-  const statsRow = [
-    { val: formatCount(speaker.follower_count), label: 'Followers' },
-    { val: formatRaised(speaker.total_raised), label: 'Raised' },
-    { val: speaker.events_count?.toString() || '0', label: 'Events/yr' },
+  const stats = [
+    { val: formatCount(speaker.follower_count), label: 'followers' },
+    { val: formatCount(videos.length), label: videos.length === 1 ? 'video' : 'videos' },
+    { val: formatCount(totalViews), label: 'views' },
+    ...(speaker.total_raised ? [{ val: formatRaised(speaker.total_raised), label: 'raised' }] : []),
   ];
 
-  const gemsGrid = videos.length > 0 && (
-    <>
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>GEMS</Text>
-          <Text style={styles.sectionLink}>See all →</Text>
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'videos', label: `Videos · ${longVideos.length}` },
+    { key: 'gems', label: `Gems · ${shortVideos.length}` },
+    { key: 'about', label: 'About' },
+  ];
+
+  const followButton = speaker.profile_id && !isOwner ? (
+    <TouchableOpacity
+      style={[styles.followBtn, following && styles.followBtnActive]}
+      onPress={toggleFollow}
+      disabled={followBusy}
+      accessibilityRole="button"
+    >
+      <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
+        {following ? 'Following' : 'Follow'}
+      </Text>
+    </TouchableOpacity>
+  ) : null;
+
+  const actionButtons = (
+    <View style={styles.actions}>
+      {followButton}
+      {isOwner && (
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/studio' as any)}>
+          <Icon name="stats-chart-outline" size={16} color="#fff" />
+          <Text style={styles.primaryBtnText}>Open Studio</Text>
+        </TouchableOpacity>
+      )}
+      {isOwner && (
+        <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push('/gem-upload' as any)}>
+          <Icon name="cloud-upload-outline" size={16} color={C.text} />
+          <Text style={styles.ghostBtnText}>Upload</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        style={styles.iconBtn}
+        onPress={() => shareSpeaker(speaker.id, speaker.display_name)}
+        accessibilityLabel={`Share ${speaker.display_name}'s profile`}
+      >
+        <Icon name="share-outline" size={18} color={C.text} />
+      </TouchableOpacity>
+    </View>
+  );
+
+  const avatar = (
+    <TouchableOpacity
+      style={[styles.avatar, isDesktopWeb && styles.avatarDesktop]}
+      activeOpacity={isOwner ? 0.85 : 1}
+      onPress={isOwner ? pickAvatar : undefined}
+      accessibilityLabel={isOwner ? 'Change profile photo' : undefined}
+    >
+      {speaker.avatar_url ? (
+        <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      ) : (
+        <Text style={[styles.avatarText, isDesktopWeb && styles.avatarTextDesktop]}>{initial}</Text>
+      )}
+      {isOwner && (
+        <View style={styles.editAvatarBadge}>
+          {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <Icon name="camera-outline" size={12} color="#fff" />}
         </View>
-        <View style={[styles.clipsGrid, { gap: GRID_GAP }]}>
-          {videos.map(v => (
-            <TouchableOpacity key={v.id} style={[styles.clipCard, { width: clipWidth }]} activeOpacity={0.8}>
-              <View style={styles.clipThumb}>
+      )}
+    </TouchableOpacity>
+  );
+
+  const renderVideoCard = (v: Video, width: number) => {
+    const dur = formatDuration(v.duration_secs);
+    return (
+      <TouchableOpacity key={v.id} style={{ width }} activeOpacity={0.85} onPress={() => openVideo(v)}>
+        <View style={styles.videoThumb}>
+          {v.thumbnail_url ? (
+            <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <Icon name="play" size={26} color={C.text3} />
+          )}
+          {dur && <View style={styles.durChip}><Text style={styles.durText}>{dur}</Text></View>}
+        </View>
+        <Text style={styles.videoTitle} numberOfLines={2}>{v.title}</Text>
+        <Text style={styles.videoMeta}>{formatCount(v.view_count)} views · {timeAgo(v.published_at)}</Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const sortPills = (
+    <View style={styles.pillRow}>
+      {([['latest', 'Latest'], ['popular', 'Most viewed'], ['oldest', 'Oldest']] as [Sort, string][]).map(([k, label]) => (
+        <TouchableOpacity
+          key={k}
+          style={[styles.pill, sort === k && styles.pillActive]}
+          onPress={() => { setSort(k); setShowCount(12); }}
+        >
+          <Text style={[styles.pillText, sort === k && styles.pillTextActive]}>{label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const emptyState = (what: string) => (
+    <View style={styles.empty}>
+      <Icon name="film-outline" size={28} color={C.text3} />
+      <Text style={styles.emptyTitle}>No {what} yet</Text>
+      {isOwner && (
+        <TouchableOpacity style={[styles.primaryBtn, { marginTop: 12 }]} onPress={() => router.push('/gem-upload' as any)}>
+          <Text style={styles.primaryBtnText}>Upload your first</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  let tabContent: React.ReactNode = null;
+  if (tab === 'videos') {
+    const list = sortedFor(longVideos);
+    const featured = sort === 'latest' && isDesktopWeb ? list[0] : null;
+    const rest = featured ? list.slice(1) : list;
+    tabContent = longVideos.length === 0 ? emptyState('videos') : (
+      <>
+        {featured && (
+          <TouchableOpacity style={styles.featured} activeOpacity={0.9} onPress={() => openVideo(featured)}>
+            <View style={[styles.videoThumb, styles.featuredThumb]}>
+              {featured.thumbnail_url && (
+                <Image source={{ uri: featured.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              )}
+              <View style={styles.playCircle}><Icon name="play" size={24} color="#000" /></View>
+              {formatDuration(featured.duration_secs) && (
+                <View style={styles.durChip}><Text style={styles.durText}>{formatDuration(featured.duration_secs)}</Text></View>
+              )}
+            </View>
+            <View style={styles.featuredInfo}>
+              <Text style={styles.eyebrow}>LATEST VIDEO</Text>
+              <Text style={styles.featuredTitle} numberOfLines={3}>{featured.title}</Text>
+              <Text style={styles.videoMeta}>{formatCount(featured.view_count)} views · {timeAgo(featured.published_at)}</Text>
+              <View style={[styles.primaryBtn, { alignSelf: 'flex-start', marginTop: 8 }]}>
+                <Text style={styles.primaryBtnText}>Watch now</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>All videos</Text>
+          {sortPills}
+        </View>
+        <View style={[styles.grid, { gap: GAP }]}>
+          {rest.slice(0, showCount).map(v => renderVideoCard(v, vCardW))}
+        </View>
+        {rest.length > showCount && (
+          <TouchableOpacity style={[styles.ghostBtn, styles.loadMore]} onPress={() => setShowCount(c => c + 12)}>
+            <Text style={styles.ghostBtnText}>Load more</Text>
+          </TouchableOpacity>
+        )}
+      </>
+    );
+  } else if (tab === 'gems') {
+    const list = sortedFor(shortVideos);
+    tabContent = shortVideos.length === 0 ? emptyState('Gems') : (
+      <>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Gems</Text>
+          {sortPills}
+        </View>
+        <View style={[styles.grid, { gap: GAP }]}>
+          {list.slice(0, showCount * 2).map(v => (
+            <TouchableOpacity key={v.id} style={[styles.gemCard, { width: gCardW }]} activeOpacity={0.85} onPress={() => openVideo(v)}>
+              <View style={styles.gemThumb}>
                 {v.thumbnail_url ? (
-                  <Image
-                    source={{ uri: v.thumbnail_url }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                  />
-                ) : canEdit ? (
+                  <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                ) : isOwner ? (
                   <TouchableOpacity
                     style={styles.addThumbBtn}
-                    onPress={() => pickGemThumbnail(v.id)}
+                    onPress={(e: any) => { e?.stopPropagation?.(); pickGemThumbnail(v.id); }}
                     disabled={uploadingThumbFor === v.id}
                   >
                     {uploadingThumbFor === v.id ? (
@@ -342,252 +583,167 @@ export default function SpeakerProfileScreen() {
                       </>
                     )}
                   </TouchableOpacity>
-                ) : null}
-                {/* clipPlayOverlay isn't absolutely positioned — it only
-                    ever worked as a centered overlay because it was the
-                    one normal-flow child sitting on top of the
-                    absoluteFill Image behind it. With the new
-                    addThumbBtn also a normal-flow child in the no-
-                    thumbnail case, showing both would stack them
-                    instead of overlapping, and a play button floating
-                    over an "add thumbnail" prompt doesn't make sense
-                    anyway — only show it when there's actually
-                    something to play. */}
-                {!(canEdit && !v.thumbnail_url) && (
-                  <View style={styles.clipPlayOverlay}>
-                    <Text style={styles.clipPlayIcon}>▶</Text>
-                  </View>
+                ) : (
+                  <Icon name="play" size={22} color={C.text3} />
                 )}
+                <View style={styles.gemViews}>
+                  <Icon name="play" size={10} color="#fff" />
+                  <Text style={styles.gemViewsText}>{formatCount(v.view_count)}</Text>
+                </View>
               </View>
-              <View style={styles.clipInfo}>
-                <Text style={styles.clipTitle} numberOfLines={2}>{v.title}</Text>
-                <Text style={styles.clipViews}>{formatViews(v.view_count)} views</Text>
-              </View>
+              <Text style={styles.gemTitle} numberOfLines={2}>{v.title}</Text>
             </TouchableOpacity>
           ))}
         </View>
+        {list.length > showCount * 2 && (
+          <TouchableOpacity style={[styles.ghostBtn, styles.loadMore]} onPress={() => setShowCount(c => c + 12)}>
+            <Text style={styles.ghostBtnText}>Load more</Text>
+          </TouchableOpacity>
+        )}
+      </>
+    );
+  } else {
+    const links = [
+      speaker.website && { label: 'Website', icon: 'globe-outline', url: withProtocol(speaker.website) },
+      speaker.youtube_url && { label: 'YouTube', icon: 'logo-youtube', url: withProtocol(speaker.youtube_url) },
+      speaker.instagram_url && { label: 'Instagram', icon: 'logo-instagram', url: withProtocol(speaker.instagram_url) },
+    ].filter(Boolean) as { label: string; icon: any; url: string }[];
+    tabContent = (
+      <View style={styles.aboutCard}>
+        <Text style={styles.sectionTitle}>About</Text>
+        <Text style={styles.aboutBio}>
+          {speaker.bio || (isOwner ? 'Add a bio so people know who you are and what you teach.' : 'No bio yet.')}
+        </Text>
+        <View style={styles.aboutGrid}>
+          {location ? <AboutRow styles={styles} label="Based in" value={location} /> : null}
+          {speaker.languages?.length ? <AboutRow styles={styles} label="Languages" value={speaker.languages.join(', ')} /> : null}
+          <AboutRow styles={styles} label="Speaking requests" value={speaker.is_available ? 'Open to bookings' : 'Not taking bookings right now'} />
+        </View>
+        {speaker.topics?.length ? (
+          <View style={{ gap: 8 }}>
+            <Text style={styles.aboutLabel}>Topics</Text>
+            <View style={styles.pillRow}>
+              {speaker.topics.map(t => (
+                <View key={t} style={styles.topic}><Text style={styles.topicText}>{t}</Text></View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+        {(links.length > 0 || (speaker.is_available && speaker.booking_email)) && (
+          <View style={styles.pillRow}>
+            {speaker.is_available && speaker.booking_email && (
+              <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() => Linking.openURL(`mailto:${speaker.booking_email}?subject=${encodeURIComponent('Speaking request via Siqa')}`)}
+              >
+                <Icon name="mail-outline" size={16} color="#fff" />
+                <Text style={styles.primaryBtnText}>Request a talk</Text>
+              </TouchableOpacity>
+            )}
+            {links.map(l => (
+              <TouchableOpacity key={l.label} style={styles.ghostBtn} onPress={() => Linking.openURL(l.url)}>
+                <Icon name={l.icon} size={16} color={C.text} />
+                <Text style={styles.ghostBtnText}>{l.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
-      <View style={styles.divider} />
-    </>
-  );
+    );
+  }
 
   return (
     <DesktopShell>
-      {/* Every other detail page (seed, product, org-profile, cart,
-          orders...) wraps its ScrollView in a container with an
-          explicit backgroundColor: C.bg — this one went straight from
-          DesktopShell to a bare ScrollView with no themed background
-          of its own, so it fell back to whatever happened to be
-          painted behind it instead of declaring its own, which is why
-          everything below the (correctly dark) banner read as plain
-          white regardless of theme. */}
       <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
-        scrollEventThrottle={16}
-      >
-        {isDesktopWeb ? (
-          // ---- Desktop channel header: banner, avatar + name + stats in one row ----
-          <>
-            {/* Avatar overlapping the banner and the name/info text below
-                it were previously coupled through one flex row's shared
-                alignment — first attempt (alignItems + a smaller negative
-                margin) reduced the overlap but left the text only ~2px
-                below the banner, which still reads as touching it.
-                Decoupling them properly: the avatar is its own
-                absolutely-positioned element anchored to the bottom of
-                this relative wrapper, independent of the text below,
-                which now flows completely normally with real padding —
-                the standard pattern, not a flex-alignment balancing act. */}
-            <View style={styles.coverWrapDesktop}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+          <View style={[styles.page, { maxWidth: MAX_CONTENT }]}>
+            {/* Banner */}
+            <View style={styles.coverWrap}>
               <TouchableOpacity
-                style={styles.coverDesktop}
-                activeOpacity={canEdit ? 0.85 : 1}
-                onPress={canEdit ? pickBanner : undefined}
+                style={styles.cover}
+                activeOpacity={isOwner ? 0.85 : 1}
+                onPress={isOwner ? pickBanner : undefined}
+                accessibilityLabel={isOwner ? 'Change banner' : undefined}
               >
                 {speaker.banner_url && (
                   <Image source={{ uri: speaker.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                 )}
-                {canEdit && (
+                {isOwner && (
                   <View style={styles.editBannerBtn}>
                     {uploadingBanner ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
                       <>
                         <Icon name="camera-outline" size={14} color="#fff" />
-                        <Text style={styles.editBannerText}>Edit Banner</Text>
+                        {isDesktopWeb && <Text style={styles.editBannerText}>Edit banner</Text>}
                       </>
                     )}
                   </View>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.avatar, styles.avatarDesktop, styles.avatarDesktopOverlap]}
-                activeOpacity={canEdit ? 0.85 : 1}
-                onPress={canEdit ? pickAvatar : undefined}
-              >
-                {speaker.avatar_url ? (
-                  <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.avatarTextDesktop}>{initial}</Text>
-                )}
-                {canEdit && (
-                  <View style={styles.editAvatarBadge}>
-                    {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <Icon name="camera-outline" size={13} color="#fff" />}
-                  </View>
-                )}
-              </TouchableOpacity>
+              {!isDesktopWeb && (
+                <TouchableOpacity style={styles.backBtn} onPress={handleBack} accessibilityLabel="Back">
+                  <Icon name="chevron-back" size={20} color="#fff" />
+                </TouchableOpacity>
+              )}
             </View>
 
-            <View style={styles.headerRowDesktop}>
-              <View style={styles.headerInfoDesktop}>
+            {/* Identity row */}
+            <View style={[styles.identity, { paddingHorizontal: pad }]}>
+              {avatar}
+              <View style={styles.identityText}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.nameDesktop}>{speaker.display_name}</Text>
+                  <Text style={[styles.name, isDesktopWeb && styles.nameDesktop]}>{speaker.display_name}</Text>
                   {speaker.is_verified && (
                     <View style={styles.verifiedBadge}>
-                      <Text style={styles.verifiedText}>✓ VERIFIED</Text>
+                      <Icon name="checkmark-circle" size={14} color={C.emerald} />
+                      <Text style={styles.verifiedText}>Verified speaker</Text>
                     </View>
                   )}
                 </View>
-                {location ? <Text style={styles.handle}>{location}</Text> : null}
-                <View style={styles.metaRow}>
-                  <Text style={styles.metaText}><Glyph name="heart-outline" style={styles.metaText} />{' '}Fundraising</Text>
-                  <Text style={styles.metaText}><Glyph name="calendar-outline" style={styles.metaText} />{' '}{speaker.is_available ? 'Available' : 'Contact'}</Text>
+                {location ? <Text style={styles.subline}>{location}</Text> : null}
+                <View style={styles.statsRow}>
+                  {stats.map(s => (
+                    <Text key={s.label} style={styles.statText}>
+                      <Text style={styles.statVal}>{s.val}</Text> {s.label}
+                    </Text>
+                  ))}
                 </View>
               </View>
-              <TouchableOpacity
-                style={[styles.followBtn, following && styles.followBtnActive]}
-                onPress={() => setFollowing(!following)}
-              >
-                <Text style={styles.followBtnText}>{following ? 'Following' : 'Follow'}</Text>
-              </TouchableOpacity>
+              {isDesktopWeb && actionButtons}
             </View>
+            {!isDesktopWeb && <View style={{ paddingHorizontal: pad, marginTop: 12 }}>{actionButtons}</View>}
 
-            <View style={styles.statsDesktopRow}>
-              {statsRow.map((s, i) => (
-                <View key={i} style={styles.statDesktop}>
-                  <Text style={styles.statVal}>{s.val}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
-              ))}
-              {speaker.bio ? <Text style={styles.bioDesktop} numberOfLines={2}>{speaker.bio}</Text> : null}
-            </View>
-
-            {speaker.topics?.length > 0 && (
-              <View style={styles.topics}>
-                {speaker.topics.map(t => (
-                  <View key={t} style={styles.topic}>
-                    <Text style={styles.topicText}>{t}</Text>
-                  </View>
-                ))}
+            {/* Verification strip — Siqa's promise: no impersonation. */}
+            {speaker.is_verified && (
+              <View style={[styles.verifyStrip, { marginHorizontal: pad }]}>
+                <Icon name="shield-checkmark-outline" size={20} color={C.emerald} />
+                <Text style={styles.verifyText}>
+                  <Text style={{ fontWeight: '700', color: C.text }}>Identity confirmed by Siqa. </Text>
+                  Every video on this page was published from {speaker.display_name}'s own account.
+                </Text>
               </View>
             )}
 
-            <View style={styles.divider} />
-            {gemsGrid}
-          </>
-        ) : (
-          // ---- Mobile: original stacked layout ----
-          <>
-            <TouchableOpacity
-              style={styles.cover}
-              activeOpacity={canEdit ? 0.9 : 1}
-              onPress={canEdit ? pickBanner : undefined}
-            >
-              {speaker.banner_url && (
-                <Image source={{ uri: speaker.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              )}
-              <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.8}>
-                <Text style={styles.backIcon}>←</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.backBtn, styles.shareBtnMobile]}
-                onPress={() => shareSpeaker(speaker.id, speaker.display_name)}
-                activeOpacity={0.8}
-                accessibilityLabel={`Share ${speaker.display_name}'s channel`}
-              >
-                <Icon name="share-outline" size={17} color="#fff" />
-              </TouchableOpacity>
-              {canEdit && (
-                <View style={styles.editBannerBtnMobile}>
-                  {uploadingBanner ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Icon name="camera-outline" size={14} color="#fff" />
-                  )}
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.profileRow}>
-              <TouchableOpacity style={styles.avatar} activeOpacity={canEdit ? 0.85 : 1} onPress={canEdit ? pickAvatar : undefined}>
-                {speaker.avatar_url ? (
-                  <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.avatarText}>{initial}</Text>
-                )}
-                {canEdit && (
-                  <View style={styles.editAvatarBadge}>
-                    {uploadingAvatar ? <ActivityIndicator size="small" color="#fff" /> : <Icon name="camera-outline" size={12} color="#fff" />}
-                  </View>
-                )}
-              </TouchableOpacity>
-              <View style={styles.profileBtns}>
+            {/* Tabs */}
+            <View style={[styles.tabRow, { marginHorizontal: pad }]} accessibilityRole="tablist">
+              {tabs.map(t => (
                 <TouchableOpacity
-                  style={[styles.followBtn, following && styles.followBtnActive]}
-                  onPress={() => setFollowing(!following)}
+                  key={t.key}
+                  style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
+                  onPress={() => { setTab(t.key); setShowCount(12); }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: tab === t.key }}
                 >
-                  <Text style={styles.followBtnText}>{following ? 'Following' : 'Follow'}</Text>
+                  <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
                 </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.info}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{speaker.display_name}</Text>
-                {speaker.is_verified && (
-                  <View style={styles.verifiedBadge}>
-                    <Text style={styles.verifiedText}>✓ VERIFIED</Text>
-                  </View>
-                )}
-              </View>
-              {location ? <Text style={styles.handle}>{location}</Text> : null}
-              {speaker.bio ? <Text style={styles.bio}>{speaker.bio}</Text> : null}
-              <View style={styles.metaRow}>
-                <Text style={styles.metaText}><Glyph name="heart-outline" style={styles.metaText} />{' '}Fundraising</Text>
-                <Text style={styles.metaText}><Glyph name="calendar-outline" style={styles.metaText} />{' '}{speaker.is_available ? 'Available' : 'Contact'}</Text>
-              </View>
-            </View>
-
-            <View style={styles.stats}>
-              {statsRow.map((s, i) => (
-                <View key={i} style={[styles.stat, i < 3 && styles.statBorder]}>
-                  <Text style={styles.statVal}>{s.val}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
-                </View>
               ))}
             </View>
 
-            {speaker.topics?.length > 0 && (
-              <View style={styles.topics}>
-                {speaker.topics.map(t => (
-                  <View key={t} style={styles.topic}>
-                    <Text style={styles.topicText}>{t}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            <View style={styles.divider} />
-            {gemsGrid}
-            <View style={styles.divider} />
-          </>
-        )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+            <View style={{ paddingHorizontal: pad, paddingTop: 20 }}>{tabContent}</View>
+          </View>
+          <View style={{ height: 48 }} />
+        </ScrollView>
       </View>
 
       {Platform.OS === 'web' && (
@@ -600,7 +756,6 @@ export default function SpeakerProfileScreen() {
           onCropped={handleCropped}
         />
       )}
-
       {Platform.OS === 'web' && (
         <ImageCropModal
           visible={!!thumbCropUri}
@@ -615,137 +770,170 @@ export default function SpeakerProfileScreen() {
   );
 }
 
-function makeStyles(C: AppColors) {
+function AboutRow({ styles, label, value }: { styles: any; label: string; value: string }) {
+  return (
+    <View style={styles.aboutRow}>
+      <Text style={styles.aboutLabel}>{label}</Text>
+      <Text style={styles.aboutValue}>{value}</Text>
+    </View>
+  );
+}
+
+function makeStyles(C: AppColors, desktop: boolean) {
   return StyleSheet.create({
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     errorText: { color: C.text3, fontSize: 14 },
     scroll: { paddingBottom: 20 },
+    page: { width: '100%', alignSelf: 'center' },
 
-    // Mobile cover/header
-    cover: { height: 200, backgroundColor: C.bg3, overflow: 'hidden' },
+    coverWrap: { position: 'relative', marginHorizontal: desktop ? 32 : 0, marginTop: desktop ? 24 : 0 },
+    cover: {
+      height: desktop ? 200 : 170, backgroundColor: C.emerald, overflow: 'hidden',
+      borderRadius: desktop ? Theme.radius.xl : 0,
+    },
     backBtn: {
-      position: 'absolute', top: 54, left: 14, width: 34, height: 34, borderRadius: 17,
+      position: 'absolute', top: Platform.OS === 'web' ? 14 : 54, left: 14, width: 40, height: 40, borderRadius: 20,
       backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
     },
-    backIcon: { color: '#fff', fontSize: 18 },
-    shareBtnMobile: { left: undefined, right: 14 },
-    profileRow: {
-      flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
-      paddingHorizontal: 16, marginTop: -38, marginBottom: 12, zIndex: 2,
-    },
-    avatar: {
-      width: 78, height: 78, borderRadius: 22, backgroundColor: C.emerald,
-      borderWidth: 3, borderColor: C.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    },
-    avatarText: { fontSize: 28, color: C.gold, fontWeight: '700' },
-    profileBtns: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
-
-    editBannerBtnMobile: {
-      position: 'absolute', bottom: 12, right: 12, width: 32, height: 32, borderRadius: 16,
-      backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
-    },
-    editAvatarBadge: {
-      position: 'absolute', bottom: 2, right: 2, width: 22, height: 22, borderRadius: 11,
-      backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center',
-      borderWidth: 1.5, borderColor: C.bg,
-    },
-
-    // Desktop header
-    // position:relative so the avatar (position:absolute) anchors to
-    // THIS box specifically — the bottom edge of the banner — rather
-    // than to some other, larger ancestor.
-    coverWrapDesktop: { position: 'relative', marginHorizontal: 32, marginTop: 24 },
-    coverDesktop: { height: 160, backgroundColor: C.bg3, borderRadius: Theme.radius.xl, overflow: 'hidden' },
     editBannerBtn: {
       position: 'absolute', bottom: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 6,
-      backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+      backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
     },
     editBannerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-    // The text row now flows completely normally below the banner —
-    // no negative margin, no shared alignment with the avatar — so
-    // this is just a plain, predictable top gap.
-    headerRowDesktop: {
-      flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 32, marginTop: 16, marginBottom: 16, gap: 20,
-    },
-    avatarDesktop: { width: 96, height: 96, borderRadius: 24 },
-    // Anchored to the bottom of coverWrapDesktop, overlapping upward by
-    // half its own height — independent of any sibling, so it can't
-    // drag the text along with it the way sharing one flex row's
-    // alignment did.
-    avatarDesktopOverlap: {
-      position: 'absolute', left: 32, bottom: -48, zIndex: 2,
-      borderWidth: 3, borderColor: C.bg,
-    },
-    avatarTextDesktop: { fontSize: 34, color: C.gold, fontWeight: '700' },
-    // Was flex:1, which stretches this to eat all remaining row width —
-    // on a wide desktop window that pushes the Follow button (a plain
-    // sibling with no flex of its own) all the way to the far right
-    // edge, disconnected from the name it belongs next to. Capping the
-    // width instead keeps the whole avatar+name+button cluster
-    // together on the left, with empty space on the right where
-    // YouTube's own layout also just leaves it empty. paddingLeft
-    // clears the absolutely-positioned avatar, which no longer takes
-    // up space in this row's normal flow.
-    headerInfoDesktop: { gap: 4, maxWidth: 480, paddingLeft: 116 },
-    nameDesktop: { fontSize: 26, fontWeight: '700', color: C.text },
-    statsDesktopRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 24, paddingHorizontal: 32, marginBottom: 16, flexWrap: 'wrap',
-    },
-    statDesktop: { alignItems: 'flex-start' },
-    bioDesktop: { flex: 1, minWidth: 240, fontSize: 13, color: C.text2, lineHeight: 20 },
 
+    identity: {
+      flexDirection: desktop ? 'row' : 'column', alignItems: desktop ? 'flex-end' : 'flex-start',
+      gap: desktop ? 20 : 10, marginTop: desktop ? -56 : -44,
+    },
+    identityText: { flex: desktop ? 1 : undefined, minWidth: 0, gap: 4, paddingBottom: desktop ? 4 : 0 },
+    avatar: {
+      width: 88, height: 88, borderRadius: 44, backgroundColor: C.emeraldBg,
+      borderWidth: 4, borderColor: C.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    avatarDesktop: { width: 128, height: 128, borderRadius: 64, marginLeft: 0 },
+    avatarText: { fontSize: 32, color: C.emerald, fontWeight: '700' },
+    avatarTextDesktop: { fontSize: 44 },
+    editAvatarBadge: {
+      position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: 13,
+      backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center',
+    },
+
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+    name: { fontSize: 22, fontWeight: '700', color: C.text },
+    nameDesktop: { fontSize: 30, letterSpacing: -0.4 },
+    verifiedBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.emeraldBg,
+      paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
+    },
+    verifiedText: { color: C.emerald, fontSize: 12, fontWeight: '700' },
+    subline: { fontSize: 14, color: C.text2 },
+    statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 6 },
+    statText: { fontSize: 14, color: C.text2 },
+    statVal: { fontSize: 15, fontWeight: '700', color: C.text },
+
+    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingBottom: desktop ? 6 : 0 },
     followBtn: {
-      paddingHorizontal: 18, paddingVertical: 8, borderRadius: 100, borderWidth: 0.5, borderColor: C.goldDim,
-    },
-    followBtnActive: { backgroundColor: C.goldBg },
-    followBtnText: { color: C.gold, fontSize: 13, fontWeight: '600' },
-
-    info: { paddingHorizontal: 16, paddingBottom: 14 },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 },
-    name: { fontSize: 21, fontWeight: '700', color: C.text },
-    verifiedBadge: { backgroundColor: C.gold, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 },
-    verifiedText: { color: '#000', fontSize: 9, fontWeight: '800' },
-    handle: { fontSize: 12, color: C.text3, marginBottom: 8 },
-    bio: { fontSize: 13, color: C.text2, lineHeight: 20, marginBottom: 10 },
-    metaRow: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
-    metaText: { fontSize: 12, color: C.text3 },
-
-    stats: {
-      flexDirection: 'row', marginHorizontal: 14, marginBottom: 14, backgroundColor: C.surface,
-      borderWidth: 0.5, borderColor: C.border2, borderRadius: Theme.radius.lg, overflow: 'hidden',
-    },
-    stat: { flex: 1, paddingVertical: 11, paddingHorizontal: 4, alignItems: 'center' },
-    statBorder: { borderRightWidth: 0.5, borderRightColor: C.border2 },
-    statVal: { fontSize: 16, fontWeight: '700', color: C.gold },
-    statLabel: { fontSize: 8, color: C.text3, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.8 },
-
-    topics: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', paddingHorizontal: 16, marginBottom: 14 },
-    topic: {
-      paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, backgroundColor: C.emeraldBg,
-      borderWidth: 0.5, borderColor: 'rgba(61,190,138,0.15)',
-    },
-    topicText: { fontSize: 11, color: C.emeraldLight, fontWeight: '500' },
-    divider: { height: 0.5, backgroundColor: C.border2, marginHorizontal: 14, marginBottom: 16 },
-
-    section: { paddingHorizontal: 14, marginBottom: 16 },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    sectionTitle: { fontSize: 10, fontWeight: '700', color: C.text3, letterSpacing: 1.8, textTransform: 'uppercase' },
-    sectionLink: { fontSize: 12, color: C.gold },
-
-    clipsGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-    clipCard: { backgroundColor: C.surface, borderRadius: Theme.radius.lg, overflow: 'hidden' },
-    clipThumb: {
-      aspectRatio: 9 / 16, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    },
-    addThumbBtn: { alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 },
-    addThumbBtnText: { fontSize: 10, color: C.text3, fontWeight: '600', textAlign: 'center' },
-    clipPlayOverlay: {
-      width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(201,168,76,0.9)',
+      height: 44, paddingHorizontal: 22, borderRadius: 999, backgroundColor: C.emerald,
       alignItems: 'center', justifyContent: 'center',
     },
-    clipPlayIcon: { color: '#000', fontSize: 14, marginLeft: 2 },
-    clipInfo: { padding: 10 },
-    clipTitle: { fontSize: 11, fontWeight: '500', color: C.text, lineHeight: 15, marginBottom: 3 },
-    clipViews: { fontSize: 10, color: C.text3 },
+    followBtnActive: { backgroundColor: C.emeraldBg, borderWidth: 1, borderColor: C.emerald },
+    followBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    followBtnTextActive: { color: C.emerald },
+    primaryBtn: {
+      height: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    },
+    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    ghostBtn: {
+      height: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface,
+    },
+    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+    iconBtn: {
+      width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: C.border,
+      alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface,
+    },
+
+    verifyStrip: {
+      flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 20, padding: 14,
+      borderRadius: Theme.radius.lg, borderWidth: 1, borderColor: C.emeraldSoft, backgroundColor: C.emeraldBg,
+    },
+    verifyText: { flex: 1, fontSize: 13, color: C.text2, lineHeight: 19 },
+
+    tabRow: { flexDirection: 'row', marginTop: 20, borderBottomWidth: 1, borderBottomColor: C.border2 },
+    tabBtn: { height: 46, paddingHorizontal: 14, justifyContent: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
+    tabBtnActive: { borderBottomColor: C.emerald },
+    tabText: { fontSize: 15, color: C.text2, fontWeight: '500' },
+    tabTextActive: { color: C.text, fontWeight: '700' },
+
+    sectionHeader: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap',
+      gap: 12, marginBottom: 14,
+    },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: C.text },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pill: {
+      height: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
+      justifyContent: 'center', backgroundColor: C.surface,
+    },
+    pillActive: { backgroundColor: C.text, borderColor: C.text },
+    pillText: { fontSize: 13, color: C.text, fontWeight: '500' },
+    pillTextActive: { color: C.bg, fontWeight: '700' },
+
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+    videoThumb: {
+      aspectRatio: 16 / 9, borderRadius: Theme.radius.md, overflow: 'hidden', backgroundColor: C.surface2,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    durChip: {
+      position: 'absolute', right: 8, bottom: 8, backgroundColor: 'rgba(0,0,0,0.8)',
+      paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5,
+    },
+    durText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    videoTitle: { fontSize: 14, fontWeight: '600', color: C.text, marginTop: 8, lineHeight: 19 },
+    videoMeta: { fontSize: 12, color: C.text2, marginTop: 3 },
+
+    featured: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 24, padding: 16, marginBottom: 28,
+      borderRadius: Theme.radius.lg, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface,
+    },
+    featuredThumb: { flexGrow: 1, flexBasis: 420 },
+    featuredInfo: { flexGrow: 1, flexBasis: 260, justifyContent: 'center', gap: 8 },
+    eyebrow: { fontSize: 12, fontWeight: '700', color: C.emerald, letterSpacing: 0.8 },
+    featuredTitle: { fontSize: 24, fontWeight: '700', color: C.text, lineHeight: 30 },
+    playCircle: {
+      width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.92)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+
+    gemCard: {},
+    gemThumb: {
+      aspectRatio: 9 / 16, borderRadius: Theme.radius.md, overflow: 'hidden', backgroundColor: C.surface2,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    gemViews: {
+      position: 'absolute', left: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 5,
+    },
+    gemViewsText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    gemTitle: { fontSize: 13, fontWeight: '500', color: C.text, marginTop: 6, lineHeight: 17 },
+    addThumbBtn: { alignItems: 'center', justifyContent: 'center', gap: 6, padding: 10 },
+    addThumbBtnText: { fontSize: 11, color: C.text3, fontWeight: '600', textAlign: 'center' },
+    loadMore: { alignSelf: 'center', marginTop: 24 },
+
+    empty: { alignItems: 'center', paddingVertical: 56, gap: 8 },
+    emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text },
+
+    aboutCard: {
+      gap: 18, padding: desktop ? 24 : 16, maxWidth: 760, borderRadius: Theme.radius.lg,
+      borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface,
+    },
+    aboutBio: { fontSize: 15, color: C.text2, lineHeight: 23 },
+    aboutGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 20 },
+    aboutRow: { minWidth: 180, gap: 3 },
+    aboutLabel: { fontSize: 12, color: C.text3, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6 },
+    aboutValue: { fontSize: 15, color: C.text, fontWeight: '500' },
+    topic: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: C.emeraldBg },
+    topicText: { fontSize: 13, color: C.emerald, fontWeight: '600' },
   });
 }

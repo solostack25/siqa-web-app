@@ -257,7 +257,7 @@ function DashboardScreenInner() {
           .limit(6),
         supabase.from('follows')
           .select('*', { count: 'exact', head: true })
-          .eq('speaker_id', speakerData.id),
+          .eq('following_id', uid),
         supabase.from('videos')
           .select('*', { count: 'exact', head: true })
           .eq('speaker_id', speakerData.id)
@@ -453,6 +453,11 @@ function DashboardScreenInner() {
         {speaker && (
           <TouchableOpacity style={styles.pillBtn} onPress={() => router.push(`/speaker/${speaker.id}` as any)}>
             <Text style={styles.pillBtnText}>My Public Profile</Text>
+          </TouchableOpacity>
+        )}
+        {speaker && (
+          <TouchableOpacity style={styles.pillBtn} onPress={() => router.push('/studio' as any)}>
+            <Text style={styles.pillBtnText}>Speaker Studio</Text>
           </TouchableOpacity>
         )}
         {canCreateSeeds && (
@@ -783,6 +788,11 @@ function DashboardScreenInner() {
               <Text style={styles.dtActionBtnPrimaryText}>+ Post a Gem</Text>
             </TouchableOpacity>
           )}
+          {speaker && (
+            <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/studio' as any)}>
+              <Text style={styles.dtActionBtnText}>Speaker Studio ›</Text>
+            </TouchableOpacity>
+          )}
           {canCreateSeeds && (
             <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/seed-create' as any)}>
               <Text style={styles.dtActionBtnText}>+ Create Seed</Text>
@@ -991,6 +1001,13 @@ function DashboardScreenInner() {
             <>
               <Text style={styles.settingsSectionLabel}>SPEAKER</Text>
               <View style={styles.settingsCard}>
+                <TouchableOpacity
+                  style={styles.settingsRow}
+                  onPress={() => router.push('/studio' as any)}
+                >
+                  <Text style={styles.settingsRowLabel}>Speaker Studio</Text>
+                  <Text style={styles.settingsRowLink}>Analytics & videos ›</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.settingsRow, { borderBottomWidth: 0 }]}
                   onPress={() => router.push(`/speaker/${speaker.id}` as any)}
