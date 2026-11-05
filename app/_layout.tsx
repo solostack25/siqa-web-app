@@ -130,6 +130,7 @@ function AppContent() {
         <Stack.Screen name="gem-upload" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="seed-create" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="studio" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="apply-speaker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
       <ToastHost />

@@ -26,6 +26,7 @@ import { YouTubeShortEmbed, type YouTubeShortHandle } from "../../components/You
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useFocusEffect, router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { recordView, VIEW_DELAY_MS } from "../../lib/views";
 import { shareShort } from "../../lib/share";
 import { Theme } from "../../constants/theme";
 import { useTheme, type AppColors } from "../../lib/theme";
@@ -882,6 +883,13 @@ function GemClip({
       }),
     ]).start();
   }, [isActive]);
+
+  // Count a view once this Gem has been on screen for VIEW_DELAY_MS.
+  useEffect(() => {
+    if (!isActive) return;
+    const t = setTimeout(() => recordView(item.id), VIEW_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [isActive, item.id]);
 
   useEffect(() => {
     if (!videoRef.current || !isPreloaded) return;

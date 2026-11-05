@@ -110,6 +110,9 @@ export function DesktopTopBar() {
   ];
   // Marketplace site: only listings - no video uploads or Seeds.
   const createItems = IS_MARKETPLACE_SITE ? allCreateItems.filter((i) => i.key === 'listing') : allCreateItems;
+  // Speakers create from Speaker Studio (it has its own Create menu with the
+  // same options), so the top bar sends them there instead of a dropdown.
+  const showStudio = Boolean(speaker) && !IS_MARKETPLACE_SITE;
 
   return (
     <View style={styles.bar}>
@@ -127,7 +130,13 @@ export function DesktopTopBar() {
       </View>
 
       <View style={styles.actions}>
-        {profile && createItems.length > 0 && (
+        {profile && showStudio && (
+          <TouchableOpacity style={styles.createBtn} onPress={() => goTo('/studio')}>
+            <Icon name="stats-chart-outline" size={18} color={C.text} />
+            <Text style={styles.createBtnText}>Studio</Text>
+          </TouchableOpacity>
+        )}
+        {profile && !showStudio && createItems.length > 0 && (
           <View style={{ position: 'relative' }}>
             <TouchableOpacity
               style={styles.createBtn}
@@ -178,6 +187,12 @@ export function DesktopTopBar() {
                     <TouchableOpacity style={styles.menuItem} onPress={() => goTo(`/speaker/${speaker.id}`)}>
                       <Icon name="person-circle-outline" size={16} color={C.text2} />
                       <Text style={styles.menuItemText}>My Public Profile</Text>
+                    </TouchableOpacity>
+                  )}
+                  {speaker && !IS_MARKETPLACE_SITE && (
+                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/studio')}>
+                      <Icon name="stats-chart-outline" size={16} color={C.text2} />
+                      <Text style={styles.menuItemText}>Speaker Studio</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/orders')}>

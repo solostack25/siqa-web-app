@@ -12,6 +12,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import { recordView, VIEW_DELAY_MS } from '../../lib/views';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Theme } from '../../constants/theme';
@@ -125,12 +126,16 @@ export default function WatchScreen() {
         setFollowing(Boolean(existing));
       }
 
-      // TODO: view count increment — add a Postgres function (e.g. increment_video_view)
-      // or a simple `.update({ view_count: v.view_count + 1 })` call once you decide
-      // whether views should count on load or after a watch-time threshold.
     }
 
     setLoading(false);
+  }, [videoId]);
+
+  // Count a view once the viewer has stayed VIEW_DELAY_MS on this video.
+  useEffect(() => {
+    if (!videoId) return;
+    const t = setTimeout(() => recordView(videoId), VIEW_DELAY_MS);
+    return () => clearTimeout(t);
   }, [videoId]);
 
   async function handleShare() {
