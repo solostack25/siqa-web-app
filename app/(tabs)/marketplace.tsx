@@ -21,6 +21,7 @@ import { useSearchContext } from '../../contexts/SearchContext';
 import { formatPrice } from '../../lib/money';
 import { addToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
+import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
@@ -291,7 +292,10 @@ export default function MarketplaceScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={{ paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING }}>
+        <ShopSwitcher active="products" stretch={!isDesktopWeb} />
+      </View>
+      <View style={[styles.header, { paddingTop: 12 }]}>
         <View>
           <Text style={styles.headerTitle}>Marketplace</Text>
           <Text style={styles.headerSub}>Support Muslim-owned shops</Text>

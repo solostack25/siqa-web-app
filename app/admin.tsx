@@ -480,10 +480,10 @@ export default function AdminScreen() {
               <Text style={styles.cardMeta}>{new Date(c.created_at).toLocaleString()}</Text>
             </View>
             <View style={styles.actionsRow}>
-              {c.entity_type !== 'business' && (
+              {(
                 <TouchableOpacity
                   style={styles.ghostBtn}
-                  onPress={() => router.push((c.entity_type === 'speaker' ? `/speaker/${c.entity_id}` : `/org-listing/${c.entity_id}`) as any)}
+                  onPress={() => router.push((c.entity_type === 'speaker' ? `/speaker/${c.entity_id}` : c.entity_type === 'business' ? `/local/${c.entity_id}` : `/org-listing/${c.entity_id}`) as any)}
                 >
                   <Text style={styles.ghostBtnText}>{c.entity_type === 'speaker' ? 'View profile' : 'View listing'}</Text>
                 </TouchableOpacity>
