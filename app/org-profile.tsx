@@ -12,26 +12,38 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
-import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { DesktopShell } from '../components/DesktopShell';
 import { Glyph, type GlyphName } from '../components/Glyph';
-import { Theme } from '../constants/theme';
+import { Icon } from '../components/Icon';
+import { showToast } from '../components/Toast';
+import { shareLink, getAppBaseUrl } from '../lib/share';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadFileToBunny } from '../lib/bunnyUpload';
 import ImageCropModal from '../components/ImageCropModal';
+import {
+  Avatar,
+  Card,
+  CardTitle,
+  ENDORSEMENT_SELECT,
+  EndorsementCard,
+  PrimaryButton,
+  ProgressBar,
+  ReviewCard,
+  money,
+  useMeasuredWidth,
+  useReviewVotes,
+  type PublicReview,
+  type SeedEndorsement,
+} from '../components/SeedSocial';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
-// This file used to have its own copy of the Bunny upload call, hitting
-// https://storage.bunnycdn.com with no region prefix — the wrong
-// endpoint for a zone that actually lives in the 'ny' region, which is
-// why picking a photo here silently failed. lib/bunnyUpload.ts already
-// has the correct, working version (used successfully by Gems/Seeds
-// uploads), so this just reuses that instead of maintaining a second,
-// drifted copy of the same logic.
+// lib/bunnyUpload.ts has the working (region-correct) Bunny upload; this
+// screen reuses it rather than keeping its own copy.
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
   return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
 }
@@ -67,38 +79,18 @@ type Org = {
   payment_method_label: string | null;
 };
 
-type Doc990 = {
-  id: string;
-  tax_year: number;
-  file_url: string;
-  file_name: string | null;
-  file_size_kb: number | null;
-  status: string;
-  created_at: string;
-};
+type Doc990 = { id: string; tax_year: number; file_url: string; file_name: string | null; file_size_kb: number | null; status: string; created_at: string };
 
-type Endorsement = {
+type OrgEndorsement = {
   id: string;
   message: string | null;
   created_at: string;
   speaker_id: string;
-  speakers: { display_name: string; avatar_url: string | null } | null;
+  speakers: { id?: string; display_name: string; avatar_url: string | null; state?: string | null } | null;
 };
 
-type Project = {
-  id: string;
-  title: string;
-  description: string | null;
-  image_url: string | null;
-  status: 'ongoing' | 'completed';
-};
-
-type Service = {
-  id: string;
-  name: string;
-  description: string | null;
-  icon: string | null;
-};
+type Project = { id: string; title: string; description: string | null; image_url: string | null; status: 'ongoing' | 'completed' };
+type Service = { id: string; name: string; description: string | null; icon: string | null };
 
 type Fundraiser = {
   id: string;
@@ -111,7 +103,11 @@ type Fundraiser = {
   org_id: string | null;
   cover_image_url: string | null;
   image_url: string | null;
+  end_date: string | null;
+  zakat_eligible: boolean | null;
 };
+
+type Tab = 'overview' | 'seeds' | 'endorsements' | 'reviews' | 'about';
 
 function orgIcon(type: string | null): GlyphName {
   const map: Record<string, GlyphName> = {
@@ -120,40 +116,47 @@ function orgIcon(type: string | null): GlyphName {
   return map[type?.toLowerCase() ?? ''] ?? 'business-outline';
 }
 
-function fmtMoney(cents: number) {
-  if (!cents) return '$0';
-  const d = cents / 100;
-  if (d >= 1000000) return '$' + (d / 1000000).toFixed(1) + 'M';
-  if (d >= 1000) return '$' + (d / 1000).toFixed(0) + 'k';
-  return '$' + d.toFixed(0);
+function daysLeft(endDate: string | null): number | null {
+  if (!endDate) return null;
+  const d = Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
+  return d > 0 ? d : null;
 }
 
-function trustColor(score: number | null, C: AppColors) {
-  if (!score) return C.text3;
-  if (score >= 90) return C.emeraldLight;
-  if (score >= 75) return C.gold;
-  return C.text3;
+// Alert.alert with buttons is a no-op on react-native-web, so confirmations
+// silently did nothing there. window.confirm on web, Alert on native.
+function confirmAction(title: string, onYes: () => void) {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.confirm(title)) onYes();
+    return;
+  }
+  Alert.alert(title, undefined, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Remove', style: 'destructive', onPress: onYes },
+  ]);
 }
 
 export default function OrgProfileScreen() {
   const { colors: C } = useTheme();
-  const isDesktopWeb = useIsDesktopWeb();
-  const styles = makeStyles(C);
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: Tab }>();
+  const { width, onLayout } = useMeasuredWidth();
+  const cols = width >= 1080 ? 3 : width >= 760 ? 2 : 1;
+  const styles = useMemo(() => makeStyles(C, cols), [C, cols]);
+
   const [org, setOrg] = useState<Org | null>(null);
   const [docs, setDocs] = useState<Doc990[]>([]);
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
+  const [seedEndorsements, setSeedEndorsements] = useState<SeedEndorsement[]>([]);
+  const [reviews, setReviews] = useState<PublicReview[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uid, setUid] = useState<string | null>(null);
   const [following, setFollowing] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  // Editing (logo, banner, payment setup) was gated on strict ownership
-  // (organizations.profile_id === you) alone. That's correct for the
-  // org you registered yourself, but seeded/demo orgs have a placeholder
-  // profile_id that will never match any real account — an admin
-  // couldn't fix those profiles at all otherwise, which is the actual
-  // ask here. Admins get the same edit access as the literal owner.
+  // Admins can edit seeded/demo orgs whose placeholder profile_id never
+  // matches a real account, same as the literal owner.
   const canEditOrg = isOwner || isAdmin;
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab || 'overview');
+
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [cropImageUri, setCropImageUri] = useState<string | null>(null);
@@ -167,14 +170,12 @@ export default function OrgProfileScreen() {
   const [altPayLabel, setAltPayLabel] = useState('');
   const [savingAltPay, setSavingAltPay] = useState(false);
 
-  // Endorsements, Projects, Services — the LinkedIn-style additions:
-  // speakers can endorse an org (a short note, like a recommendation),
-  // and the org can showcase a portfolio of work and a list of
-  // services it offers, distinct from active fundraising campaigns.
-  const [endorsements, setEndorsements] = useState<Endorsement[]>([]);
+  // Org-level endorsements (a speaker vouching for the whole org), projects, services
+  const [endorsements, setEndorsements] = useState<OrgEndorsement[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [mySpeakerId, setMySpeakerId] = useState<string | null>(null);
+  const [mySpeakerVerified, setMySpeakerVerified] = useState(false);
   const [endorseFormOpen, setEndorseFormOpen] = useState(false);
   const [endorseMessage, setEndorseMessage] = useState('');
   const [submittingEndorsement, setSubmittingEndorsement] = useState(false);
@@ -184,22 +185,13 @@ export default function OrgProfileScreen() {
   const [projectImageUri, setProjectImageUri] = useState<string | null>(null);
   const [projectStatus, setProjectStatus] = useState<'ongoing' | 'completed'>('ongoing');
   const [savingProject, setSavingProject] = useState(false);
-  // Everything below the header used to be one long vertical stack —
-  // Details, Trust, Payment, Mission, 990s, Campaigns, Endorsements,
-  // Projects, Services all competing for the same scroll, which reads
-  // as a form rather than a profile no matter how the sections are
-  // ordered. Real tabs (matching LinkedIn's Home/About/Posts split)
-  // group them into digestible views instead.
-  const [activeTab, setActiveTab] = useState<'about' | 'seeds' | 'community'>('about');
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [serviceName, setServiceName] = useState('');
   const [serviceDescription, setServiceDescription] = useState('');
   const [serviceIcon, setServiceIcon] = useState('');
   const [savingService, setSavingService] = useState(false);
 
-  useEffect(() => {
-    if (id) loadOrg(id);
-  }, [id]);
+  const { voted, toggle: toggleVote } = useReviewVotes(reviews.map(r => r.id));
 
   useFocusEffect(
     useCallback(() => {
@@ -208,42 +200,78 @@ export default function OrgProfileScreen() {
   );
 
   async function loadOrg(orgId: string) {
-    setLoading(true);
-    const [orgRes, docsRes, frRes, sessionRes, endorsementsRes, projectsRes, servicesRes] = await Promise.all([
+    const [orgRes, docsRes, frRes, sessionRes, endorsementsRes, projectsRes, servicesRes, reviewsRes] = await Promise.all([
       supabase.from('organizations').select('*').eq('id', orgId).single(),
       supabase.from('org_990s').select('*').eq('org_id', orgId).order('tax_year', { ascending: false }),
-      supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status,cover_image_url,image_url').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(10),
+      supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status,cover_image_url,image_url,end_date,zakat_eligible').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(20),
       supabase.auth.getSession(),
-      supabase.from('org_endorsements').select('id,message,created_at,speaker_id,speakers(display_name,avatar_url)').eq('org_id', orgId).order('created_at', { ascending: false }),
+      supabase.from('org_endorsements').select('id,message,created_at,speaker_id,speakers(id,display_name,avatar_url,state)').eq('org_id', orgId).order('created_at', { ascending: false }),
       supabase.from('org_projects').select('id,title,description,image_url,status').eq('org_id', orgId).order('created_at', { ascending: false }),
       supabase.from('org_services').select('id,name,description,icon').eq('org_id', orgId).order('created_at', { ascending: true }),
+      supabase.from('public_donation_reviews').select('*').eq('org_id', orgId).order('created_at', { ascending: false }).limit(40),
     ]);
+
+    const frs = (frRes.data || []) as Fundraiser[];
+    setFundraisers(frs);
+    if (frs.length) {
+      const { data: se } = await supabase
+        .from('seed_endorsements')
+        .select(ENDORSEMENT_SELECT)
+        .in('fundraiser_id', frs.map(f => f.id))
+        .eq('status', 'endorsed')
+        .order('responded_at', { ascending: false });
+      setSeedEndorsements((se || []) as any);
+    } else {
+      setSeedEndorsements([]);
+    }
+
     if (orgRes.data) {
       setOrg(orgRes.data);
-      const uid = sessionRes.data?.session?.user?.id;
-      setIsOwner(!!uid && orgRes.data.profile_id === uid);
-
-      if (uid) {
-        const { data: profileData } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+      const me = sessionRes.data?.session?.user?.id ?? null;
+      setUid(me);
+      setIsOwner(!!me && orgRes.data.profile_id === me);
+      if (me) {
+        const [{ data: profileData }, { data: speakerData }, followRes] = await Promise.all([
+          supabase.from('profiles').select('role').eq('id', me).maybeSingle(),
+          supabase.from('speakers').select('id,is_verified,approval_status').eq('profile_id', me).maybeSingle(),
+          orgRes.data.profile_id
+            ? supabase.from('follows').select('follower_id').eq('follower_id', me).eq('following_id', orgRes.data.profile_id).maybeSingle()
+            : Promise.resolve({ data: null } as any),
+        ]);
         const role = String(profileData?.role || '').toLowerCase();
         setIsAdmin(['admin', 'owner', 'moderator', 'super_admin'].includes(role));
-
-        const { data: speakerData } = await supabase.from('speakers').select('id').eq('profile_id', uid).maybeSingle();
         setMySpeakerId(speakerData?.id ?? null);
+        setMySpeakerVerified(Boolean(speakerData?.is_verified && speakerData?.approval_status === 'approved'));
+        setFollowing(Boolean(followRes?.data));
       } else {
         setIsAdmin(false);
         setMySpeakerId(null);
+        setMySpeakerVerified(false);
       }
     }
     if (docsRes.data) setDocs(docsRes.data);
-    if (frRes.data) setFundraisers(frRes.data);
     if (endorsementsRes.data) setEndorsements(endorsementsRes.data as any);
     if (projectsRes.data) setProjects(projectsRes.data as any);
     if (servicesRes.data) setServices(servicesRes.data as any);
+    setReviews((reviewsRes.data || []) as PublicReview[]);
     setLoading(false);
   }
 
   const hasEndorsed = Boolean(mySpeakerId && endorsements.some(e => e.speaker_id === mySpeakerId));
+
+  // Follow uses the shared follows table (profile → profile), keyed on the
+  // account that owns this org. Seeded orgs without a real owner can't be followed.
+  async function toggleFollow() {
+    if (!org) return;
+    if (!uid) { router.push('/(auth)/login' as any); return; }
+    if (!org.profile_id) { showToast("This organization can't be followed yet"); return; }
+    const next = !following;
+    setFollowing(next);
+    const res = next
+      ? await supabase.from('follows').insert({ follower_id: uid, following_id: org.profile_id })
+      : await supabase.from('follows').delete().eq('follower_id', uid).eq('following_id', org.profile_id);
+    if (res.error) { setFollowing(!next); showToast("Couldn't update follow"); }
+  }
 
   async function submitEndorsement() {
     if (!mySpeakerId || !org) return;
@@ -254,7 +282,7 @@ export default function OrgProfileScreen() {
       message: endorseMessage.trim() || null,
     });
     setSubmittingEndorsement(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { showToast(error.message); return; }
     setEndorseFormOpen(false);
     setEndorseMessage('');
     loadOrg(org.id);
@@ -268,7 +296,7 @@ export default function OrgProfileScreen() {
 
   async function pickProjectImage() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission needed', 'Allow Siqa to access your photos.'); return; }
+    if (!perm.granted) { showToast('Allow Siqa to access your photos.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [16, 9], quality: 0.85,
     });
@@ -300,7 +328,7 @@ export default function OrgProfileScreen() {
       setProjectStatus('ongoing');
       loadOrg(org.id);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      showToast(e.message);
     } finally {
       setSavingProject(false);
     }
@@ -308,10 +336,10 @@ export default function OrgProfileScreen() {
 
   function deleteProject(projectId: string) {
     if (!org) return;
-    Alert.alert('Remove project?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => { await supabase.from('org_projects').delete().eq('id', projectId); loadOrg(org.id); } },
-    ]);
+    confirmAction('Remove this project?', async () => {
+      await supabase.from('org_projects').delete().eq('id', projectId);
+      loadOrg(org.id);
+    });
   }
 
   async function submitService() {
@@ -324,7 +352,7 @@ export default function OrgProfileScreen() {
       icon: serviceIcon.trim() || null,
     });
     setSavingService(false);
-    if (error) { Alert.alert('Error', error.message); return; }
+    if (error) { showToast(error.message); return; }
     setAddServiceOpen(false);
     setServiceName('');
     setServiceDescription('');
@@ -334,49 +362,35 @@ export default function OrgProfileScreen() {
 
   function deleteService(serviceId: string) {
     if (!org) return;
-    Alert.alert('Remove service?', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => { await supabase.from('org_services').delete().eq('id', serviceId); loadOrg(org.id); } },
-    ]);
+    confirmAction('Remove this service?', async () => {
+      await supabase.from('org_services').delete().eq('id', serviceId);
+      loadOrg(org.id);
+    });
   }
 
-  // allowsEditing/aspect below only do anything on native — that's the
-  // OS's own crop UI. On web expo-image-picker silently ignores both,
-  // so the picker just hands back the raw file; ImageCropModal (web
-  // only) is the actual reposition/zoom step for that platform.
+  // allowsEditing/aspect only apply on native (the OS crop UI); on web
+  // ImageCropModal is the reposition/zoom step.
   async function pickLogo() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission needed', 'Allow Siqa to access your photos.'); return; }
+    if (!perm.granted) { showToast('Allow Siqa to access your photos.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [1, 1], quality: 0.85,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.85,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-
-    if (Platform.OS === 'web') {
-      setCropTarget('logo');
-      setCropImageUri(asset.uri);
-      return;
-    }
+    if (Platform.OS === 'web') { setCropTarget('logo'); setCropImageUri(asset.uri); return; }
     await uploadLogo(asset.uri);
   }
 
   async function pickBanner() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('Permission needed', 'Allow Siqa to access your photos.'); return; }
+    if (!perm.granted) { showToast('Allow Siqa to access your photos.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, aspect: [3, 1], quality: 0.85,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [3, 1], quality: 0.85,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-
-    if (Platform.OS === 'web') {
-      setCropTarget('banner');
-      setCropImageUri(asset.uri);
-      return;
-    }
+    if (Platform.OS === 'web') { setCropTarget('banner'); setCropImageUri(asset.uri); return; }
     await uploadBanner(asset.uri);
   }
 
@@ -384,13 +398,12 @@ export default function OrgProfileScreen() {
     setUploadingLogo(true);
     try {
       const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
-      const path = `org-logos/${org!.id}_${Date.now()}.${ext}`;
-      const url = await uploadImageToBunny(uri, path);
+      const url = await uploadImageToBunny(uri, `org-logos/${org!.id}_${Date.now()}.${ext}`);
       await supabase.from('organizations').update({ logo_url: url }).eq('id', org!.id);
       setOrg(prev => prev ? { ...prev, logo_url: url } : prev);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
+      showToast('Upload failed: ' + e.message);
     } finally {
       setUploadingLogo(false);
     }
@@ -400,13 +413,12 @@ export default function OrgProfileScreen() {
     setUploadingBanner(true);
     try {
       const ext = uri.split('.').pop()?.split('?')[0] ?? 'jpg';
-      const path = `org-banners/${org!.id}_${Date.now()}.${ext}`;
-      const url = await uploadImageToBunny(uri, path);
+      const url = await uploadImageToBunny(uri, `org-banners/${org!.id}_${Date.now()}.${ext}`);
       await supabase.from('organizations').update({ banner_url: url }).eq('id', org!.id);
       setOrg(prev => prev ? { ...prev, banner_url: url } : prev);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      Alert.alert('Upload failed', e.message);
+      showToast('Upload failed: ' + e.message);
     } finally {
       setUploadingBanner(false);
     }
@@ -443,17 +455,14 @@ export default function OrgProfileScreen() {
       if (error) throw new Error(error);
       await Linking.openURL(url);
     } catch (e: any) {
-      Alert.alert('Connection failed', e.message);
+      showToast('Connection failed: ' + e.message);
     } finally {
       setConnectingStripe(false);
     }
   }
 
   async function saveAltPayment() {
-    if (!org || !altPayUrl.trim()) {
-      Alert.alert('URL required', 'Please enter your donation page URL.');
-      return;
-    }
+    if (!org || !altPayUrl.trim()) { showToast('Enter your donation page URL.'); return; }
     setSavingAltPay(true);
     try {
       const { error } = await supabase.from('organizations').update({
@@ -471,18 +480,21 @@ export default function OrgProfileScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setAltPayModalVisible(false);
     } catch (e: any) {
-      Alert.alert('Save failed', e.message);
+      showToast('Save failed: ' + e.message);
     } finally {
       setSavingAltPay(false);
     }
   }
 
+  function share() {
+    if (!org) return;
+    shareLink({ url: `${getAppBaseUrl()}/org-profile?id=${org.id}`, title: org.org_name, text: org.tagline || undefined });
+  }
+
   if (loading) {
     return (
       <DesktopShell>
-        <View style={styles.centered}>
-          <ActivityIndicator color={C.gold} size="large" />
-        </View>
+        <View style={styles.centered}><ActivityIndicator color={C.gold} size="large" /></View>
       </DesktopShell>
     );
   }
@@ -491,1071 +503,727 @@ export default function OrgProfileScreen() {
     return (
       <DesktopShell>
         <View style={styles.centered}>
-          <Text style={styles.emptyText}>Organization not found.</Text>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtnCenter}>
-            <Text style={styles.backBtnText}>← Go Back</Text>
+          <Text style={styles.muted}>Organization not found.</Text>
+          <TouchableOpacity onPress={() => router.back()} style={{ padding: 12 }}>
+            <Text style={styles.link}>← Go back</Text>
           </TouchableOpacity>
         </View>
       </DesktopShell>
     );
   }
 
-  const initials = org.org_name
-    .split(' ')
-    .filter(w => w.length > 2)
-    .slice(0, 2)
-    .map(w => w[0])
-    .join('')
-    .toUpperCase() || org.org_name.substring(0, 2).toUpperCase();
-
   const location = [org.city, org.state].filter(Boolean).join(', ') || 'USA';
-  const typeIcon = orgIcon(org.org_type);
-  const campaignTotals = fundraisers.reduce(
+  const totals = fundraisers.reduce(
     (acc, fr) => ({ raised: acc.raised + (fr.raised_amount || 0), donors: acc.donors + (fr.donor_count || 0) }),
     { raised: 0, donors: 0 }
   );
+  const endorsedBySeed: Record<string, number> = {};
+  seedEndorsements.forEach(e => { endorsedBySeed[e.fundraiser_id] = (endorsedBySeed[e.fundraiser_id] || 0) + 1; });
+  const endorsingSpeakerIds = new Set([...endorsements.map(e => e.speaker_id), ...seedEndorsements.map(e => e.speaker_id)]);
+  const paymentReady = org.stripe_onboarded || !!org.payment_method_url;
+  const wide = cols > 1;
+  const logoSize = wide ? 120 : 84;
+  const coverHeight = Math.round(Math.max(140, Math.min(260, width * 0.26)));
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'seeds', label: `Seeds${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
+    { key: 'endorsements', label: `Endorsements${endorsingSpeakerIds.size ? ` (${endorsingSpeakerIds.size})` : ''}` },
+    { key: 'reviews', label: `Donor reviews${reviews.length ? ` (${reviews.length})` : ''}` },
+    { key: 'about', label: 'About' },
+  ];
+
+  function onReviewCount(rid: string, delta: number) {
+    setReviews(rs => rs.map(r => r.id === rid ? { ...r, helpful_count: Math.max(0, r.helpful_count + delta) } : r));
+  }
+
+  // ── Section blocks (composed differently per tab / column count) ──────
+
+  const seedsBlock = (limit?: number) => (
+    <Card>
+      <CardTitle right={limit && fundraisers.length > limit ? (
+        <TouchableOpacity onPress={() => setActiveTab('seeds')} style={styles.textBtn}><Text style={styles.link}>See all</Text></TouchableOpacity>
+      ) : undefined}>Active seeds</CardTitle>
+      {fundraisers.length === 0 ? (
+        <Text style={styles.muted}>No active seeds right now — check back soon.</Text>
+      ) : (
+        <View style={{ gap: 12 }}>
+          {fundraisers.slice(0, limit ?? fundraisers.length).map(fr => (
+            <SeedRow key={fr.id} fr={fr} endorsed={endorsedBySeed[fr.id] || 0} horizontal={width >= 560} />
+          ))}
+        </View>
+      )}
+    </Card>
+  );
+
+  const endorsementsBlock = (limit?: number) => {
+    const seen = new Set<string>();
+    const fromSeeds = seedEndorsements.filter(e => (seen.has(e.speaker_id) ? false : (seen.add(e.speaker_id), true)));
+    const orgOnly = endorsements.filter(e => !seen.has(e.speaker_id));
+    const items = [
+      ...orgOnly.map(e => ({ key: 'o' + e.id, node: (
+        <OrgEndorsementRow key={'o' + e.id} e={e} mine={mySpeakerId === e.speaker_id} onRemove={() => deleteEndorsement(e.id)} />
+      ) })),
+      ...fromSeeds.map(e => ({ key: 's' + e.id, node: (
+        <View key={'s' + e.id} style={{ gap: 4 }}>
+          <EndorsementCard e={e} compact />
+          <TouchableOpacity onPress={() => router.push({ pathname: '/seed/[id]', params: { id: e.fundraiser_id } } as any)}>
+            <Text style={styles.smallLink} numberOfLines={1}>On {fundraisers.find(f => f.id === e.fundraiser_id)?.title || 'a seed'}</Text>
+          </TouchableOpacity>
+        </View>
+      ) })),
+    ];
+    return (
+      <Card>
+        <CardTitle icon="star-outline" right={mySpeakerId && mySpeakerVerified && !hasEndorsed && !isOwner ? (
+          <TouchableOpacity onPress={() => setEndorseFormOpen(v => !v)} style={styles.textBtn}>
+            <Text style={styles.link}>{endorseFormOpen ? 'Cancel' : 'Endorse'}</Text>
+          </TouchableOpacity>
+        ) : undefined}>Endorsed by speakers</CardTitle>
+        <Text style={styles.muted}>Only speakers verified by Siqa can endorse.</Text>
+        {endorseFormOpen && (
+          <View style={{ gap: 10 }}>
+            <TextInput
+              style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              placeholder="Why do you vouch for this organization?"
+              placeholderTextColor={C.text3}
+              value={endorseMessage}
+              onChangeText={setEndorseMessage}
+              maxLength={200}
+              multiline
+            />
+            <PrimaryButton label="Post endorsement" onPress={submitEndorsement} busy={submittingEndorsement} />
+          </View>
+        )}
+        {items.length === 0 ? (
+          <Text style={styles.muted}>No endorsements yet.</Text>
+        ) : (
+          <View style={{ gap: 16 }}>
+            {items.slice(0, limit ?? items.length).map(i => i.node)}
+            {limit && items.length > limit ? (
+              <TouchableOpacity onPress={() => setActiveTab('endorsements')} style={styles.textBtn}><Text style={styles.link}>See all {items.length}</Text></TouchableOpacity>
+            ) : null}
+          </View>
+        )}
+      </Card>
+    );
+  };
+
+  const reviewsBlock = (limit?: number) => (
+    <Card>
+      <CardTitle icon="chatbubble-ellipses-outline">Why donors give</CardTitle>
+      {reviews.length === 0 ? (
+        <Text style={styles.muted}>When donors leave a note about why they gave, it shows up here.</Text>
+      ) : (
+        <View style={{ gap: 16 }}>
+          {reviews.slice(0, limit ?? reviews.length).map(r => (
+            <ReviewCard key={r.id} r={r} showSeed voted={voted[r.id]} onVote={limit ? undefined : (rv) => toggleVote(rv, onReviewCount)} />
+          ))}
+          {limit && reviews.length > limit ? (
+            <TouchableOpacity onPress={() => setActiveTab('reviews')} style={styles.textBtn}><Text style={styles.link}>Read all {reviews.length} reviews</Text></TouchableOpacity>
+          ) : null}
+        </View>
+      )}
+    </Card>
+  );
+
+  const aboutBlock = (
+    <Card>
+      <CardTitle>About</CardTitle>
+      <Text style={styles.body}>{org.mission || org.tagline || 'This organization hasn’t added a mission statement yet.'}</Text>
+      <View style={{ gap: 8 }}>
+        {org.org_type ? <MetaLine icon={orgIcon(org.org_type)} text={org.org_type} /> : null}
+        <MetaLine icon="location-outline" text={location} />
+        {org.ein ? <MetaLine icon="document-text-outline" text={`EIN ${org.ein}`} /> : null}
+        {org.website ? (
+          <TouchableOpacity onPress={() => Linking.openURL(org.website!)}>
+            <MetaLine icon="globe-outline" text={org.website.replace(/^https?:\/\//, '')} link />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </Card>
+  );
+
+  const trustBlock = (
+    <Card>
+      <CardTitle icon="shield-checkmark-outline">Trust &amp; transparency</CardTitle>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={[styles.trustNum, { color: !org.trust_score ? C.text3 : org.trust_score >= 90 ? C.emerald : org.trust_score >= 75 ? C.goldDim : C.text2 }]}>
+            {org.trust_score ?? '—'}
+          </Text>
+          <Text style={styles.trustLabel}>Trust</Text>
+        </View>
+        <View style={{ flex: 1, gap: 8 }}>
+          <TrustItem done={org.is_verified} label="Reviewed and verified by Siqa" />
+          <TrustItem done={org.ein_verified} label="EIN verified" />
+          <TrustItem done={docs.some(d => d.status === 'verified')} label="Form 990 on file" />
+          <TrustItem done={!!org.propublica_url} label="ProPublica linked" />
+        </View>
+      </View>
+    </Card>
+  );
+
+  const servicesBlock = (
+    <Card>
+      <CardTitle right={canEditOrg ? (
+        <TouchableOpacity onPress={() => setAddServiceOpen(v => !v)} style={styles.textBtn}><Text style={styles.link}>{addServiceOpen ? 'Cancel' : 'Add'}</Text></TouchableOpacity>
+      ) : undefined}>Services</CardTitle>
+      {addServiceOpen && (
+        <View style={{ gap: 10 }}>
+          <TextInput style={styles.input} placeholder="Icon (optional emoji)" placeholderTextColor={C.text3} value={serviceIcon} onChangeText={setServiceIcon} maxLength={4} />
+          <TextInput style={styles.input} placeholder="Service name, e.g. Food pantry" placeholderTextColor={C.text3} value={serviceName} onChangeText={setServiceName} />
+          <TextInput style={[styles.input, { minHeight: 70, textAlignVertical: 'top' }]} placeholder="Brief description" placeholderTextColor={C.text3} value={serviceDescription} onChangeText={setServiceDescription} multiline />
+          <PrimaryButton label="Save service" onPress={submitService} busy={savingService} disabled={!serviceName.trim()} />
+        </View>
+      )}
+      {services.length === 0 ? (
+        <Text style={styles.muted}>No services listed yet.</Text>
+      ) : services.map(s => (
+        <View key={s.id} style={styles.serviceRow}>
+          <View style={styles.serviceIconBox}>
+            {s.icon ? <Text style={{ fontSize: 18 }}>{s.icon}</Text> : <Icon name="sparkles-outline" size={18} color={C.emerald} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>{s.name}</Text>
+            {s.description ? <Text style={styles.muted}>{s.description}</Text> : null}
+          </View>
+          {canEditOrg && (
+            <TouchableOpacity onPress={() => deleteService(s.id)} style={styles.textBtn}><Text style={styles.danger}>Remove</Text></TouchableOpacity>
+          )}
+        </View>
+      ))}
+    </Card>
+  );
+
+  const projectsBlock = (
+    <Card>
+      <CardTitle right={canEditOrg ? (
+        <TouchableOpacity onPress={() => setAddProjectOpen(v => !v)} style={styles.textBtn}><Text style={styles.link}>{addProjectOpen ? 'Cancel' : 'Add project'}</Text></TouchableOpacity>
+      ) : undefined}>Projects</CardTitle>
+      {addProjectOpen && (
+        <View style={{ gap: 10 }}>
+          <TouchableOpacity style={styles.photoPick} onPress={pickProjectImage}>
+            {projectImageUri ? (
+              <Image source={{ uri: projectImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : (
+              <Text style={styles.muted}><Glyph name="camera-outline" style={styles.muted} />{'  '}Add a photo</Text>
+            )}
+          </TouchableOpacity>
+          <TextInput style={styles.input} placeholder="Project title" placeholderTextColor={C.text3} value={projectTitle} onChangeText={setProjectTitle} />
+          <TextInput style={[styles.input, { minHeight: 70, textAlignVertical: 'top' }]} placeholder="What was this project?" placeholderTextColor={C.text3} value={projectDescription} onChangeText={setProjectDescription} multiline />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['ongoing', 'completed'] as const).map(st => (
+              <TouchableOpacity key={st} style={[styles.segment, projectStatus === st && styles.segmentOn]} onPress={() => setProjectStatus(st)}>
+                <Text style={[styles.segmentText, projectStatus === st && styles.segmentTextOn]}>{st === 'ongoing' ? 'Ongoing' : 'Completed'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <PrimaryButton label="Save project" onPress={submitProject} busy={savingProject} disabled={!projectTitle.trim()} />
+        </View>
+      )}
+      {projects.length === 0 ? (
+        <Text style={styles.muted}>No projects listed yet.</Text>
+      ) : (
+        <View style={styles.projectGrid}>
+          {projects.map(p => (
+            <View key={p.id} style={styles.projectCard}>
+              {p.image_url ? <Image source={{ uri: p.image_url }} style={styles.projectImage} resizeMode="cover" /> : <View style={styles.projectImage} />}
+              <View style={{ padding: 12, gap: 6 }}>
+                <Text style={[styles.pill, p.status === 'completed' && { color: C.emerald, backgroundColor: C.emeraldBg }]}>{p.status === 'completed' ? 'Completed' : 'Ongoing'}</Text>
+                <Text style={styles.rowTitle}>{p.title}</Text>
+                {p.description ? <Text style={styles.muted} numberOfLines={3}>{p.description}</Text> : null}
+                {canEditOrg && (
+                  <TouchableOpacity onPress={() => deleteProject(p.id)} style={styles.textBtn}><Text style={styles.danger}>Remove</Text></TouchableOpacity>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </Card>
+  );
+
+  const docsBlock = (
+    <Card>
+      <CardTitle icon="document-text-outline">Financial transparency</CardTitle>
+      {docs.length === 0 ? (
+        <Text style={styles.muted}>No Form 990 documents uploaded yet.</Text>
+      ) : docs.map(doc => (
+        <TouchableOpacity key={doc.id} style={styles.docRow} onPress={() => Linking.openURL(doc.file_url)}>
+          <Icon name="document-outline" size={20} color={C.goldDim} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Form 990 — Tax year {doc.tax_year}</Text>
+            <Text style={styles.muted}>
+              {doc.file_size_kb ? (doc.file_size_kb / 1024).toFixed(1) + ' MB · ' : ''}
+              {doc.status === 'verified' ? 'Verified' : doc.status}
+            </Text>
+          </View>
+          <Icon name="open-outline" size={16} color={C.text2} />
+        </TouchableOpacity>
+      ))}
+      {org.propublica_url ? (
+        <TouchableOpacity onPress={() => Linking.openURL(org.propublica_url!)} style={styles.textBtn}>
+          <Text style={styles.link}>View on ProPublica Nonprofit Explorer ↗</Text>
+        </TouchableOpacity>
+      ) : null}
+    </Card>
+  );
+
+  const paymentBlock = canEditOrg ? (
+    <Card>
+      <CardTitle icon="card-outline">Payment setup</CardTitle>
+      <Text style={styles.muted}>Only you and Siqa admins see this.</Text>
+      <View style={styles.payRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowTitle}>Stripe Connect</Text>
+          <Text style={styles.muted}>
+            {org.stripe_onboarded
+              ? 'Connected — donations go directly to your account'
+              : org.stripe_account_id
+              ? 'Account created — finish onboarding to receive donations'
+              : 'Connect Stripe to receive donations. Log in to an existing account or create one.'}
+          </Text>
+        </View>
+        <PrimaryButton
+          label={org.stripe_onboarded ? 'Connected' : org.stripe_account_id ? 'Resume' : 'Connect'}
+          onPress={connectStripe}
+          busy={connectingStripe}
+          disabled={org.stripe_onboarded}
+          tone={org.stripe_onboarded ? 'ghost' : 'gold'}
+          style={{ minHeight: 44 }}
+        />
+      </View>
+      <View style={styles.divider} />
+      <View style={styles.payRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowTitle}>Can't use Stripe?</Text>
+          <Text style={styles.muted}>
+            {org.payment_method_type && org.payment_method_url
+              ? `${org.payment_method_type.charAt(0).toUpperCase() + org.payment_method_type.slice(1)} linked — donors are sent to your page`
+              : 'Use Zeffy, PayPal, or another platform. Donors are sent to your page.'}
+          </Text>
+        </View>
+        <PrimaryButton
+          label={org.payment_method_url ? 'Edit' : 'Set up'}
+          tone="ghost"
+          style={{ minHeight: 44 }}
+          onPress={() => {
+            setAltPayType((org.payment_method_type as any) || 'zeffy');
+            setAltPayUrl(org.payment_method_url ?? '');
+            setAltPayLabel(org.payment_method_label ?? '');
+            setAltPayModalVisible(true);
+          }}
+        />
+      </View>
+    </Card>
+  ) : null;
+
+  // ── Layout per tab ───────────────────────────────────────────────────
+
+  function renderTab() {
+    if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
+    if (activeTab === 'endorsements') return <View style={styles.stack}>{endorsementsBlock()}</View>;
+    if (activeTab === 'reviews') return <View style={styles.stack}>{reviewsBlock()}</View>;
+    if (activeTab === 'about') {
+      const left = <>{aboutBlock}{trustBlock}{paymentBlock}{docsBlock}</>;
+      const right = <>{servicesBlock}{projectsBlock}</>;
+      return cols === 1 ? (
+        <View style={styles.stack}>{left}{right}</View>
+      ) : (
+        <View style={styles.row}>
+          <View style={[styles.stack, styles.colMain]}>{left}</View>
+          <View style={[styles.stack, styles.colSide]}>{right}</View>
+        </View>
+      );
+    }
+    // Overview
+    if (cols === 3) {
+      return (
+        <View style={styles.row}>
+          <View style={[styles.stack, styles.colLeft]}>{aboutBlock}{trustBlock}{services.length ? servicesBlock : null}</View>
+          <View style={[styles.stack, styles.colMain]}>{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(4)}</View>
+        </View>
+      );
+    }
+    if (cols === 2) {
+      return (
+        <View style={styles.row}>
+          <View style={[styles.stack, styles.colMain]}>{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(3)}{aboutBlock}{trustBlock}</View>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.stack}>
+        {seedsBlock(3)}
+        {endorsementsBlock(3)}
+        {reviewsBlock(3)}
+        {aboutBlock}
+        {trustBlock}
+      </View>
+    );
+  }
 
   return (
     <DesktopShell>
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{org.org_name}</Text>
-        <TouchableOpacity
-          style={styles.shareBtn}
-          onPress={() => {}}
-        >
-          <Text style={styles.shareBtnText}>⋯</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* Cover / Banner */}
-        <TouchableOpacity
-          style={styles.cover}
-          onPress={canEditOrg ? pickBanner : undefined}
-          activeOpacity={canEditOrg ? 0.85 : 1}
-        >
-          {org.banner_url ? (
-            <Image source={{ uri: org.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          ) : (
-            <View style={styles.coverPattern} />
-          )}
-          {canEditOrg && (
-            <View style={styles.bannerEditOverlay}>
-              {uploadingBanner
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={styles.editOverlayText}><Glyph name="camera-outline" style={styles.editOverlayText} />{'  '}Edit Banner</Text>
-              }
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Profile row */}
-        <View style={styles.profileRow}>
-          <TouchableOpacity
-            onPress={canEditOrg ? pickLogo : undefined}
-            activeOpacity={canEditOrg ? 0.85 : 1}
-            style={styles.orgLogoWrap}
-          >
-            {org.logo_url ? (
-              <Image source={{ uri: org.logo_url }} style={styles.orgLogoImg} resizeMode="cover" />
-            ) : (
-              <View style={styles.orgLogo}>
-                <Text style={styles.orgLogoText}>{initials}</Text>
-              </View>
-            )}
-            {canEditOrg && (
-              <View style={styles.logoEditOverlay}>
-                {uploadingLogo
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Glyph name="camera-outline" style={styles.logoEditIcon} color="#fff" />
-                }
-              </View>
-            )}
+      <View style={styles.container}>
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityLabel="Back">
+            <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
-          <View style={styles.profileBtns}>
-            <TouchableOpacity
-              style={[styles.followBtn, following && styles.followBtnActive]}
-              onPress={() => setFollowing(!following)}
-            >
-              <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
-                {following ? 'Following' : 'Follow'}
-              </Text>
-            </TouchableOpacity>
-            {org.website ? (
+          <Text style={styles.topTitle} numberOfLines={1}>{org.org_name}</Text>
+          <TouchableOpacity onPress={share} style={styles.iconBtn} accessibilityLabel="Share">
+            <Icon name="share-outline" size={19} color={C.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <View style={styles.page} onLayout={onLayout}>
+            {/* Header card */}
+            <View style={styles.headerCard}>
               <TouchableOpacity
-                style={styles.visitBtn}
-                onPress={() => Linking.openURL(org.website!)}
+                style={[styles.cover, { height: coverHeight }]}
+                onPress={canEditOrg ? pickBanner : undefined}
+                activeOpacity={canEditOrg ? 0.85 : 1}
+                accessibilityLabel={canEditOrg ? 'Change cover photo' : undefined}
               >
-                <Text style={styles.visitBtnText}>Website ↗</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-
-        {/* Info */}
-        <View style={styles.info}>
-          <View style={styles.nameRow}>
-            <Text style={styles.orgName}>{org.org_name}</Text>
-            {org.is_verified && (
-              <View style={styles.verifiedBadge}>
-                <Text style={styles.verifiedText}>✓ VERIFIED</Text>
-              </View>
-            )}
-          </View>
-          {org.ein && <Text style={styles.ein}>EIN: {org.ein}</Text>}
-          {(org.tagline || org.mission) ? (
-            <Text style={styles.tagline}>{org.tagline || org.mission}</Text>
-          ) : null}
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Text style={styles.metaText}><Glyph name="location-outline" style={styles.metaText} />{' '}{location}</Text>
-            </View>
-            {org.org_type ? (
-              <View style={styles.metaItem}>
-                <Text style={styles.metaText}><Glyph name={typeIcon} style={styles.metaText} />{' '}{org.org_type}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={styles.orgTabs}>
-          {([
-            { key: 'about', label: 'About' },
-            { key: 'seeds', label: `Seeds${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
-            { key: 'community', label: 'Community' },
-          ] as const).map(t => (
-            <TouchableOpacity
-              key={t.key}
-              style={[styles.orgTab, activeTab === t.key && styles.orgTabActive]}
-              onPress={() => setActiveTab(t.key)}
-            >
-              <Text style={[styles.orgTabText, activeTab === t.key && styles.orgTabTextActive]}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {activeTab === 'about' && (
-        <>
-        {/* Details section removed — EIN, type, location, and website
-            were already shown compactly in the header under the
-            banner, and the Website button is already one of the top
-            action buttons. This was a second copy of the same facts. */}
-        {/* Trust score strip */}
-        <View style={styles.trustStrip}>
-          <View style={styles.trustScoreBox}>
-            <Text style={[styles.trustScoreNum, { color: trustColor(org.trust_score, C) }]}>
-              {org.trust_score ?? '—'}
-            </Text>
-            <Text style={styles.trustScoreLabel}>Trust</Text>
-          </View>
-          <View style={styles.trustChecks}>
-            <TrustItem done={org.is_verified} label="Organization verified" />
-            <TrustItem done={docs.some(d => d.status === 'verified')} label="990 on file" />
-            <TrustItem done={!!org.propublica_url} label="ProPublica linked" />
-            <TrustItem done={org.ein_verified} label="EIN verified" />
-          </View>
-        </View>
-
-        {/* Payment Setup — owner only */}
-        {canEditOrg && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Payment Setup</Text>
-            <View style={styles.payCard}>
-              {/* Stripe Connect */}
-              <View style={styles.payRow}>
-                <View style={styles.payIconBox}>
-                  <Glyph name="card-outline" style={styles.payIcon} color={C.gold} />
-                </View>
-                <View style={styles.payInfo}>
-                  <Text style={styles.payTitle}>Stripe Connect</Text>
-                  <Text style={styles.paySub}>
-                    {org.stripe_onboarded
-                      ? 'Connected — donations go directly to your account'
-                      : org.stripe_account_id
-                      ? 'Account created — finish onboarding to receive donations'
-                      : 'Connect your Stripe account to receive donations. Log in to an existing account or create a new one.'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.payBtn, org.stripe_onboarded && styles.payBtnDone]}
-                  onPress={connectStripe}
-                  disabled={connectingStripe || org.stripe_onboarded}
-                >
-                  {connectingStripe
-                    ? <ActivityIndicator color="#000" size="small" />
-                    : <Text style={styles.payBtnText}>
-                        {org.stripe_onboarded ? '✓ Done' : org.stripe_account_id ? 'Resume' : 'Connect'}
-                      </Text>
-                  }
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.paySeparator} />
-
-              {/* Alt payment */}
-              <View style={styles.payRow}>
-                <View style={styles.payIconBox}>
-                  <Glyph name="link-outline" style={styles.payIcon} color={C.gold} />
-                </View>
-                <View style={styles.payInfo}>
-                  <Text style={styles.payTitle}>Can't use Stripe?</Text>
-                  <Text style={styles.paySub}>
-                    {org.payment_method_type && org.payment_method_url
-                      ? `${org.payment_method_type.charAt(0).toUpperCase() + org.payment_method_type.slice(1)} linked — donors will be sent to your page`
-                      : 'Use Zeffy, PayPal, or another platform. Donors will be redirected to your page.'}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.payBtn, styles.payBtnGhost]}
-                  onPress={() => {
-                    setAltPayType((org.payment_method_type as any) || 'zeffy');
-                    setAltPayUrl(org.payment_method_url ?? '');
-                    setAltPayLabel(org.payment_method_label ?? '');
-                    setAltPayModalVisible(true);
-                  }}
-                >
-                  <Text style={styles.payBtnGhostText}>
-                    {org.payment_method_url ? 'Edit' : 'Set up'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Mission */}
-        {org.mission && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mission</Text>
-            <Text style={styles.missionText}>{org.mission}</Text>
-          </View>
-        )}
-
-        {/* 990 Transparency */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Financial Transparency</Text>
-          <View style={styles.transparencyCard}>
-            <View style={styles.transparencyHeader}>
-              <View style={styles.transparencyIconBox}>
-                <Glyph name="shield-checkmark-outline" style={styles.transparencyIcon} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.transparencyTitle}>Form 990 Documents</Text>
-                <Text style={styles.transparencySub}>
-                  {docs.length > 0 ? `${docs.length} document${docs.length !== 1 ? 's' : ''} on file` : 'No documents yet'}
-                </Text>
-              </View>
-            </View>
-
-            {docs.length > 0 ? (
-              docs.map(doc => (
-                <TouchableOpacity
-                  key={doc.id}
-                  style={styles.docRow}
-                  onPress={() => Linking.openURL(doc.file_url)}
-                >
-                  <View style={styles.docIconBox}>
-                    <Glyph name="document-text-outline" style={styles.docIcon} />
+                {org.banner_url ? (
+                  <Image source={{ uri: org.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                ) : (
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: C.emerald }]} />
+                )}
+                {canEditOrg && (
+                  <View style={styles.coverEdit}>
+                    {uploadingBanner ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <><Icon name="camera-outline" size={14} color="#fff" /><Text style={styles.coverEditText}>Edit cover</Text></>
+                    )}
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.docName}>Form 990 — Tax Year {doc.tax_year}</Text>
-                    <Text style={styles.docMeta}>
-                      {doc.file_size_kb ? (doc.file_size_kb / 1024).toFixed(1) + ' MB · ' : ''}
-                      {doc.status === 'verified' ? '✓ Verified' : doc.status}
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.headerBody}>
+                <TouchableOpacity
+                  onPress={canEditOrg ? pickLogo : undefined}
+                  activeOpacity={canEditOrg ? 0.85 : 1}
+                  style={[styles.logoWrap, { width: logoSize, height: logoSize, marginTop: -logoSize / 2 }]}
+                  accessibilityLabel={canEditOrg ? 'Change logo' : undefined}
+                >
+                  <Avatar name={org.org_name} url={org.logo_url} size={logoSize - 8} tone="emerald" square />
+                  {canEditOrg && (
+                    <View style={styles.logoEdit}>
+                      {uploadingLogo ? <ActivityIndicator color="#fff" size="small" /> : <Icon name="camera-outline" size={14} color="#fff" />}
+                    </View>
+                  )}
+                </TouchableOpacity>
+
+                <View style={styles.headerRow}>
+                  <View style={styles.headerInfo}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.orgName}>{org.org_name}</Text>
+                      {org.is_verified && (
+                        <View style={styles.verified}>
+                          <Icon name="checkmark-circle" size={14} color={C.emerald} />
+                          <Text style={styles.verifiedText}>Verified by Siqa</Text>
+                        </View>
+                      )}
+                    </View>
+                    {org.tagline || org.mission ? <Text style={styles.tagline} numberOfLines={3}>{org.tagline || org.mission}</Text> : null}
+                    <Text style={styles.meta}>
+                      {[location, org.org_type, org.ein_verified ? 'EIN verified' : null].filter(Boolean).join(' · ')}
+                    </Text>
+                    <Text style={styles.meta}>
+                      <Text style={styles.metaStrong}>{money(totals.raised)}</Text> raised · <Text style={styles.metaStrong}>{totals.donors.toLocaleString()}</Text> donors · <Text style={styles.metaStrong}>{fundraisers.length}</Text> active seed{fundraisers.length === 1 ? '' : 's'}
                     </Text>
                   </View>
-                  <Text style={styles.docArrow}>↗</Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.noDocsText}>No 990 documents uploaded yet.</Text>
-            )}
-
-            {org.propublica_url ? (
-              <TouchableOpacity
-                style={styles.propublicaBtn}
-                onPress={() => Linking.openURL(org.propublica_url!)}
-              >
-                <Text style={styles.propublicaBtnText}><Glyph name="link-outline" style={styles.propublicaBtnText} />{' '}View on ProPublica Nonprofit Explorer ↗</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-        </>
-        )}
-
-        {activeTab === 'seeds' && (
-        <>
-        {/* Active Fundraisers */}
-        {fundraisers.length > 0 ? (
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Active Seeds</Text>
-              <View style={styles.campaignStatsRow}>
-                <View style={styles.campaignStat}>
-                  <Text style={styles.campaignStatVal}>{fmtMoney(campaignTotals.raised)}</Text>
-                  <Text style={styles.campaignStatLabel}>RAISED</Text>
-                </View>
-                <View style={styles.campaignStat}>
-                  <Text style={styles.campaignStatVal}>{fundraisers.length}</Text>
-                  <Text style={styles.campaignStatLabel}>ACTIVE</Text>
-                </View>
-                <View style={styles.campaignStat}>
-                  <Text style={styles.campaignStatVal}>{campaignTotals.donors.toLocaleString()}</Text>
-                  <Text style={styles.campaignStatLabel}>DONORS</Text>
-                </View>
-              </View>
-            </View>
-            {fundraisers.map(fr => {
-              const pct = fr.goal_amount ? Math.min(100, Math.round((fr.raised_amount / fr.goal_amount) * 100)) : 0;
-              const coverUrl = fr.cover_image_url || fr.image_url || null;
-              return (
-                <View key={fr.id} style={styles.fundraiserCard}>
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fr.id } } as any)}
-                  >
-                    {coverUrl ? (
-                      <Image source={{ uri: coverUrl }} style={styles.frCover} resizeMode="cover" />
-                    ) : null}
-                    <View style={styles.frBody}>
-                      <Text style={styles.frCategory}>{fr.cause_category || 'Fundraiser'}</Text>
-                      <Text style={styles.frTitle}>{fr.title}</Text>
-                    </View>
-                  </TouchableOpacity>
-                  <View style={[styles.frBody, { paddingTop: 0 }]}>
-                    <View style={styles.frProgressTrack}>
-                      <View style={[styles.frProgressFill, { width: `${pct}%` as any }]} />
-                    </View>
-                    <View style={styles.frStats}>
-                      <Text style={styles.frRaised}>{fmtMoney(fr.raised_amount)}</Text>
-                      <Text style={styles.frGoal}>of {fmtMoney(fr.goal_amount)} · {pct}%</Text>
-                      <Text style={styles.frDonors}>{fr.donor_count} donors</Text>
-                    </View>
-                    {/* Was navigating straight to a bare /donate form —
-                        the actual Seeds feed's "Plant a Seed" button
-                        goes to the full /seed/[id] detail page (story,
-                        donor feed, Zakat badges) first. Matching that
-                        so a seed looks and behaves the same everywhere
-                        it appears in the app. */}
-                    <TouchableOpacity
-                      style={styles.donateBtn}
-                      onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fr.id } } as any)}
-                    >
-                      <Text style={styles.donateBtnText}><Glyph name="leaf-outline" style={styles.donateBtnText} />{' '}Plant a Seed</Text>
+                  <View style={[styles.actions, !wide && { width: '100%' }]}>
+                    <TouchableOpacity onPress={toggleFollow} style={[styles.actionBtn, following ? styles.actionBtnOn : styles.actionBtnOutline, !wide && { flex: 1 }]} accessibilityRole="button" accessibilityState={{ selected: following }}>
+                      <Text style={[styles.actionText, { color: following ? C.emerald : C.emerald }]}>{following ? 'Following' : 'Follow'}</Text>
                     </TouchableOpacity>
+                    {org.website ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(org.website!)} style={[styles.actionBtn, styles.actionBtnGhost, !wide && { flex: 1 }]}>
+                        <Text style={[styles.actionText, { color: C.text }]}>Website</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {fundraisers[0] ? (
+                      <TouchableOpacity
+                        onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fundraisers[0].id } } as any)}
+                        style={[styles.actionBtn, styles.actionBtnGold, !wide && { flex: 1 }]}
+                      >
+                        <Text style={[styles.actionText, { color: C.black }]}>Donate</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
-              );
-            })}
-          </View>
-        ) : (
-          <Text style={styles.emptySectionText}>No active seeds right now — check back soon.</Text>
-        )}
-        </>
-        )}
-
-        {activeTab === 'community' && (
-        <>
-        {/* Endorsements — speakers vouching for this org, like a LinkedIn
-            recommendation. Anyone with a speaker profile can endorse an
-            org they haven't already endorsed; they can also remove
-            their own. */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Endorsements {endorsements.length > 0 ? `(${endorsements.length})` : ''}</Text>
-            {mySpeakerId && !hasEndorsed && !isOwner && (
-              <TouchableOpacity onPress={() => setEndorseFormOpen(v => !v)}>
-                <Text style={styles.sectionAction}>{endorseFormOpen ? 'Cancel' : '+ Endorse'}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {endorseFormOpen && (
-            <View style={styles.endorseForm}>
-              <TextInput
-                style={styles.endorseInput}
-                placeholder="Optional — why do you vouch for this org?"
-                placeholderTextColor={C.text3}
-                value={endorseMessage}
-                onChangeText={setEndorseMessage}
-                multiline
-              />
-              <TouchableOpacity style={styles.smallPrimaryBtn} onPress={submitEndorsement} disabled={submittingEndorsement}>
-                {submittingEndorsement ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.smallPrimaryBtnText}>Post Endorsement</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {endorsements.length === 0 ? (
-            <Text style={styles.emptySectionText}>No endorsements yet.</Text>
-          ) : (
-            endorsements.map(e => (
-              <View key={e.id} style={styles.endorsementCard}>
-                <View style={styles.endorsementAvatar}>
-                  {e.speakers?.avatar_url ? (
-                    <Image source={{ uri: e.speakers.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                  ) : (
-                    <Text style={styles.endorsementAvatarText}>{(e.speakers?.display_name || '?').charAt(0).toUpperCase()}</Text>
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.endorsementName}>{e.speakers?.display_name || 'A Siqa speaker'}</Text>
-                  {e.message ? <Text style={styles.endorsementMessage}>{e.message}</Text> : null}
-                </View>
-                {mySpeakerId === e.speaker_id && (
-                  <TouchableOpacity onPress={() => deleteEndorsement(e.id)}>
-                    <Text style={styles.endorsementRemove}>Remove</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-            ))
-          )}
-        </View>
 
-        {/* Projects — a portfolio of work, distinct from active donation
-            campaigns; things the org has done or is doing. */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Projects {projects.length > 0 ? `(${projects.length})` : ''}</Text>
-            {canEditOrg && (
-              <TouchableOpacity onPress={() => setAddProjectOpen(v => !v)}>
-                <Text style={styles.sectionAction}>{addProjectOpen ? 'Cancel' : '+ Add Project'}</Text>
-              </TouchableOpacity>
-            )}
+              {canEditOrg && (
+                <View style={styles.ownerBar}>
+                  <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
+                    <Text style={styles.ownerTitle}>You manage this page</Text>
+                    <Text style={styles.ownerSub}>
+                      {!org.is_verified
+                        ? 'Seeds can be saved as drafts until Siqa verifies your organization.'
+                        : !paymentReady
+                        ? 'Set up payments so donors can give to your seeds.'
+                        : 'Start a seed and invite verified speakers to endorse it.'}
+                    </Text>
+                  </View>
+                  {!paymentReady && (
+                    <TouchableOpacity onPress={() => setActiveTab('about')} style={[styles.actionBtn, styles.actionBtnGhost]}>
+                      <Text style={[styles.actionText, { color: C.text }]}>Payment setup</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => router.push({ pathname: '/seed-create', params: { orgId: org.id } } as any)}
+                    style={[styles.actionBtn, styles.actionBtnGold]}
+                  >
+                    <Icon name="add" size={18} color={C.black} />
+                    <Text style={[styles.actionText, { color: C.black }]}>Start a seed</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={styles.tabsWrap}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+                {tabs.map(t => (
+                  <TouchableOpacity
+                    key={t.key}
+                    onPress={() => setActiveTab(t.key)}
+                    style={[styles.tab, activeTab === t.key && styles.tabOn]}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === t.key }}
+                  >
+                    <Text style={[styles.tabText, activeTab === t.key && styles.tabTextOn]}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              </View>
+            </View>
+
+            {renderTab()}
+            <View style={{ height: 48 }} />
           </View>
+        </ScrollView>
 
-          {addProjectOpen && (
-            <View style={styles.addForm}>
-              <TouchableOpacity style={styles.addFormImage} onPress={pickProjectImage}>
-                {projectImageUri ? (
-                  <Image source={{ uri: projectImageUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                ) : (
-                  <Text style={styles.addFormImageText}><Glyph name="camera-outline" style={styles.addFormImageText} />{' '}Add a photo</Text>
-                )}
-              </TouchableOpacity>
-              <TextInput style={styles.addFormInput} placeholder="Project title" placeholderTextColor={C.text3} value={projectTitle} onChangeText={setProjectTitle} />
-              <TextInput style={[styles.addFormInput, styles.addFormTextarea]} placeholder="What was this project?" placeholderTextColor={C.text3} value={projectDescription} onChangeText={setProjectDescription} multiline />
-              <View style={styles.statusToggleRow}>
-                {(['ongoing', 'completed'] as const).map(s => (
-                  <TouchableOpacity key={s} style={[styles.statusToggle, projectStatus === s && styles.statusToggleActive]} onPress={() => setProjectStatus(s)}>
-                    <Text style={[styles.statusToggleText, projectStatus === s && styles.statusToggleTextActive]}>{s === 'ongoing' ? 'Ongoing' : 'Completed'}</Text>
+        {/* Alternative payment sheet */}
+        <Modal visible={altPayModalVisible} transparent animationType="slide" onRequestClose={() => setAltPayModalVisible(false)}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAltPayModalVisible(false)}>
+            <TouchableOpacity activeOpacity={1} style={styles.altPaySheet}>
+              <Text style={styles.sheetTitle}>Alternative payment setup</Text>
+              <Text style={styles.muted}>Donors see a "Donate externally" button that opens your page. No money flows through Siqa for these donations.</Text>
+              <Text style={styles.label}>Platform</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {(['zeffy', 'paypal', 'other'] as const).map(p => (
+                  <TouchableOpacity key={p} style={[styles.segment, altPayType === p && styles.segmentOn]} onPress={() => setAltPayType(p)}>
+                    <Text style={[styles.segmentText, altPayType === p && styles.segmentTextOn]}>{p === 'zeffy' ? 'Zeffy' : p === 'paypal' ? 'PayPal' : 'Other'}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity style={styles.smallPrimaryBtn} onPress={submitProject} disabled={savingProject || !projectTitle.trim()}>
-                {savingProject ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.smallPrimaryBtnText}>Save Project</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {projects.length === 0 ? (
-            <Text style={styles.emptySectionText}>No projects listed yet.</Text>
-          ) : (
-            <View style={styles.projectsGrid}>
-              {projects.map(p => (
-                <View key={p.id} style={styles.projectCard}>
-                  {p.image_url ? <Image source={{ uri: p.image_url }} style={styles.projectImage} resizeMode="cover" /> : <View style={[styles.projectImage, styles.projectImagePlaceholder]} />}
-                  <View style={styles.projectBody}>
-                    <View style={[styles.statusBadge, p.status === 'completed' && styles.statusBadgeCompleted]}>
-                      <Text style={styles.statusBadgeText}>{p.status === 'completed' ? 'Completed' : 'Ongoing'}</Text>
-                    </View>
-                    <Text style={styles.projectTitle}>{p.title}</Text>
-                    {p.description ? <Text style={styles.projectDescription} numberOfLines={3}>{p.description}</Text> : null}
-                    {canEditOrg && (
-                      <TouchableOpacity onPress={() => deleteProject(p.id)}>
-                        <Text style={styles.endorsementRemove}>Remove</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-
-        {/* Services — things the org offers (janazah, nikah, food pantry,
-            counseling...), separate from fundraising and projects. */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Services {services.length > 0 ? `(${services.length})` : ''}</Text>
-            {canEditOrg && (
-              <TouchableOpacity onPress={() => setAddServiceOpen(v => !v)}>
-                <Text style={styles.sectionAction}>{addServiceOpen ? 'Cancel' : '+ Add Service'}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {addServiceOpen && (
-            <View style={styles.addForm}>
-              <TextInput style={styles.addFormInput} placeholder="Emoji (optional), e.g. 🕌" placeholderTextColor={C.text3} value={serviceIcon} onChangeText={setServiceIcon} maxLength={4} />
-              <TextInput style={styles.addFormInput} placeholder="Service name" placeholderTextColor={C.text3} value={serviceName} onChangeText={setServiceName} />
-              <TextInput style={[styles.addFormInput, styles.addFormTextarea]} placeholder="Brief description" placeholderTextColor={C.text3} value={serviceDescription} onChangeText={setServiceDescription} multiline />
-              <TouchableOpacity style={styles.smallPrimaryBtn} onPress={submitService} disabled={savingService || !serviceName.trim()}>
-                {savingService ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.smallPrimaryBtnText}>Save Service</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {services.length === 0 ? (
-            <Text style={styles.emptySectionText}>No services listed yet.</Text>
-          ) : (
-            services.map(s => (
-              <View key={s.id} style={styles.serviceRow}>
-                <Text style={styles.serviceIcon}>{s.icon || '✦'}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.serviceName}>{s.name}</Text>
-                  {s.description ? <Text style={styles.serviceDescription}>{s.description}</Text> : null}
-                </View>
-                {canEditOrg && (
-                  <TouchableOpacity onPress={() => deleteService(s.id)}>
-                    <Text style={styles.endorsementRemove}>Remove</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))
-          )}
-        </View>
-        </>
-        )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      {/* Alt Payment Modal */}
-      <Modal
-        visible={altPayModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAltPayModalVisible(false)}
-      >
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setAltPayModalVisible(false)}>
-          <TouchableOpacity activeOpacity={1} style={styles.altPaySheet}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Alternative Payment Setup</Text>
-            <Text style={styles.sheetSub}>
-              Donors will see a "Donate Externally" button that opens your page. No money flows through Siqa for these donations.
-            </Text>
-            <Text style={styles.sheetLabel}>Platform</Text>
-            <View style={styles.platformRow}>
-              {(['zeffy', 'paypal', 'other'] as const).map(p => (
-                <TouchableOpacity
-                  key={p}
-                  style={[styles.platformPill, altPayType === p && styles.platformPillActive]}
-                  onPress={() => setAltPayType(p)}
-                >
-                  <Text style={[styles.platformPillText, altPayType === p && styles.platformPillTextActive]}>
-                    {p === 'zeffy' ? 'Zeffy' : p === 'paypal' ? 'PayPal' : 'Other'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={styles.sheetLabel}>Donation page URL</Text>
-            <TextInput
-              style={styles.sheetInput}
-              value={altPayUrl}
-              onChangeText={setAltPayUrl}
-              placeholder="https://www.zeffy.com/..."
-              placeholderTextColor={C.text3}
-              autoCapitalize="none"
-              keyboardType="url"
-            />
-            <Text style={styles.sheetLabel}>Button label (optional)</Text>
-            <TextInput
-              style={styles.sheetInput}
-              value={altPayLabel}
-              onChangeText={setAltPayLabel}
-              placeholder="e.g. Donate via Zeffy"
-              placeholderTextColor={C.text3}
-            />
-            <TouchableOpacity
-              style={[styles.sheetSaveBtn, savingAltPay && { opacity: 0.55 }]}
-              onPress={saveAltPayment}
-              disabled={savingAltPay}
-            >
-              {savingAltPay
-                ? <ActivityIndicator color="#000" size="small" />
-                : <Text style={styles.sheetSaveBtnText}>Save Payment Setup</Text>
-              }
+              <Text style={styles.label}>Donation page URL</Text>
+              <TextInput style={styles.input} value={altPayUrl} onChangeText={setAltPayUrl} placeholder="https://www.zeffy.com/..." placeholderTextColor={C.text3} autoCapitalize="none" keyboardType="url" />
+              <Text style={styles.label}>Button label (optional)</Text>
+              <TextInput style={styles.input} value={altPayLabel} onChangeText={setAltPayLabel} placeholder="e.g. Donate via Zeffy" placeholderTextColor={C.text3} />
+              <PrimaryButton label="Save payment setup" onPress={saveAltPayment} busy={savingAltPay} style={{ marginTop: 8 }} />
             </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        </Modal>
 
-      {Platform.OS === 'web' && (
-        <ImageCropModal
-          visible={!!cropImageUri}
-          imageUri={cropImageUri}
-          aspectRatio={cropTarget === 'banner' ? 3 : 1}
-          outputWidth={cropTarget === 'banner' ? 1200 : 600}
-          onCancel={() => { setCropImageUri(null); setCropTarget(null); }}
-          onCropped={handleCropped}
-        />
-      )}
-    </View>
+        {Platform.OS === 'web' && (
+          <ImageCropModal
+            visible={!!cropImageUri}
+            imageUri={cropImageUri}
+            aspectRatio={cropTarget === 'banner' ? 3 : 1}
+            outputWidth={cropTarget === 'banner' ? 1200 : 600}
+            onCancel={() => { setCropImageUri(null); setCropTarget(null); }}
+            onCropped={handleCropped}
+          />
+        )}
+      </View>
     </DesktopShell>
+  );
+}
+
+// ── Pieces ─────────────────────────────────────────────────────────────
+
+function SeedRow({ fr, endorsed, horizontal }: { fr: Fundraiser; endorsed: number; horizontal: boolean }) {
+  const { colors: C } = useTheme();
+  const pct = fr.goal_amount ? Math.min(100, Math.round((fr.raised_amount / fr.goal_amount) * 100)) : 0;
+  const cover = fr.cover_image_url || fr.image_url;
+  const left = daysLeft(fr.end_date);
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fr.id } } as any)}
+      accessibilityRole="link"
+      style={{
+        flexDirection: horizontal ? 'row' : 'column', gap: horizontal ? 14 : 0, borderWidth: 1, borderColor: C.border2,
+        borderRadius: 14, overflow: 'hidden', padding: horizontal ? 10 : 0, backgroundColor: C.bg,
+      }}
+    >
+      <View style={{
+        width: horizontal ? 168 : '100%', aspectRatio: horizontal ? 3 / 2 : 16 / 9, borderRadius: horizontal ? 10 : 0,
+        overflow: 'hidden', backgroundColor: C.emeraldSoft, justifyContent: 'flex-end', padding: 8,
+      }}>
+        {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+        {fr.cause_category ? (
+          <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{fr.cause_category}</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={{ flex: 1, gap: 8, padding: horizontal ? 2 : 14, minWidth: 0 }}>
+        <Text style={{ color: C.text, fontSize: 16, fontWeight: '700', lineHeight: 21 }} numberOfLines={2}>{fr.title}</Text>
+        <ProgressBar pct={pct} />
+        <Text style={{ color: C.text2, fontSize: 13 }}>
+          <Text style={{ color: C.text, fontWeight: '700' }}>{money(fr.raised_amount)}</Text> raised of {money(fr.goal_amount)}
+          {left !== null ? ` · ${left} day${left === 1 ? '' : 's'} left` : ''}
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          {endorsed > 0 && (
+            <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+              <Icon name="star" size={13} color={C.gold} />
+              <Text style={{ color: C.goldDim, fontSize: 13, fontWeight: '600' }}>Endorsed by {endorsed} speaker{endorsed === 1 ? '' : 's'}</Text>
+            </View>
+          )}
+          {fr.zakat_eligible ? <Text style={{ color: C.emerald, fontSize: 13, fontWeight: '600' }}>Zakat eligible</Text> : null}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function OrgEndorsementRow({ e, mine, onRemove }: { e: OrgEndorsement; mine: boolean; onRemove: () => void }) {
+  const { colors: C } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: 10 }}>
+      <TouchableOpacity onPress={() => router.push(`/speaker/${e.speaker_id}` as any)}>
+        <Avatar name={e.speakers?.display_name} url={e.speakers?.avatar_url} size={40} />
+      </TouchableOpacity>
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{ color: C.text, fontSize: 15, fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>{e.speakers?.display_name || 'A Siqa speaker'}</Text>
+          <Icon name="checkmark-circle" size={14} color={C.emerald} />
+        </View>
+        <Text style={{ color: C.text2, fontSize: 12 }}>Endorses this organization</Text>
+        {e.message ? <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>“{e.message}”</Text> : null}
+        {mine && (
+          <TouchableOpacity onPress={onRemove} style={{ alignSelf: 'flex-start', paddingVertical: 6 }}>
+            <Text style={{ color: C.danger, fontSize: 13, fontWeight: '600' }}>Remove</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function MetaLine({ icon, text, link }: { icon: GlyphName; text: string; link?: boolean }) {
+  const { colors: C } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Icon name={icon as any} size={16} color={C.text2} />
+      <Text style={{ color: link ? C.emerald : C.text, fontSize: 14, flexShrink: 1, fontWeight: link ? '600' : '400' }}>{text}</Text>
+    </View>
   );
 }
 
 function TrustItem({ done, label }: { done: boolean; label: string }) {
   const { colors: C } = useTheme();
-  const styles = makeStyles(C);
   return (
-    <View style={styles.trustItem}>
-      <Text style={[styles.trustItemDot, done ? styles.trustItemDotDone : styles.trustItemDotPending]}>
-        {done ? '✓' : '○'}
-      </Text>
-      <Text style={[styles.trustItemLabel, done ? styles.trustItemLabelDone : styles.trustItemLabelPending]}>
-        {label}
-      </Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Icon name={done ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={done ? C.emerald : C.text3} />
+      <Text style={{ color: done ? C.text : C.text2, fontSize: 14, flexShrink: 1 }}>{label}</Text>
     </View>
   );
 }
 
-function DetailRow({ label, value, link }: { label: string; value: string; link?: boolean }) {
-  const { colors: C } = useTheme();
-  const styles = makeStyles(C);
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={[styles.detailValue, link && { color: C.gold }]}>{value}</Text>
-    </View>
-  );
-}
-
-function makeStyles(C: AppColors) {
+function makeStyles(C: AppColors, cols: number) {
+  const wide = cols > 1;
   return StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
-  emptyText: { color: C.text3, fontSize: 14, marginBottom: 16 },
-  backBtnCenter: { padding: 12 },
-  backBtnText: { color: C.gold, fontSize: 14 },
+    container: { flex: 1, backgroundColor: C.bg2 },
+    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 8 },
 
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 56,
-    paddingBottom: 10,
-    paddingHorizontal: 16,
-    backgroundColor: C.bg,
-  },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backArrow: { fontSize: 22, color: C.text2 },
-  headerTitle: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text, marginHorizontal: 8 },
-  shareBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  shareBtnText: { fontSize: 20, color: C.text2 },
+    topBar: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      paddingTop: Platform.OS === 'web' ? 10 : 54, paddingBottom: 8, paddingHorizontal: 12,
+      backgroundColor: C.bg, borderBottomWidth: 1, borderBottomColor: C.border2,
+    },
+    iconBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    topTitle: { flex: 1, color: C.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
 
-  scroll: { flex: 1 },
-  // isDesktopWeb was imported here but never actually applied to
-  // anything — this page has genuinely been the unmodified mobile
-  // layout stretched full-width this whole time, not just narrower
-  // sections within an otherwise-adapted page.
-  scrollContent: { paddingBottom: 20, maxWidth: 900, width: '100%', alignSelf: 'center' },
-  scrollContentDesktop: { maxWidth: 760, width: '100%', alignSelf: 'center' },
+    page: { width: '100%', maxWidth: 1200, alignSelf: 'center', paddingHorizontal: wide ? 20 : 0, paddingTop: wide ? 16 : 0, gap: 16 },
+    stack: { gap: 16, paddingHorizontal: wide ? 0 : 12 },
+    row: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+    colLeft: { width: 290 },
+    colMain: { flex: 1, minWidth: 0 },
+    colSide: { width: cols === 3 ? 320 : 330 },
 
-  cover: {
-    height: 140,
-    backgroundColor: C.surface,
-    overflow: 'hidden',
-  },
-  coverPattern: {
-    position: 'absolute',
-    inset: 0,
-    backgroundColor: '#071410',
-    opacity: 0.95,
-  },
-  bannerEditOverlay: {
-    position: 'absolute',
-    bottom: 8, right: 10,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  editOverlayText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+    headerCard: { backgroundColor: C.surface, borderRadius: wide ? 18 : 0, borderWidth: wide ? 1 : 0, borderBottomWidth: 1, borderColor: C.border2, overflow: 'hidden' },
+    cover: { width: '100%', backgroundColor: C.emerald, overflow: 'hidden' },
+    coverEdit: { position: 'absolute', right: 12, bottom: 12, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 12, minHeight: 36, borderRadius: 999 },
+    coverEditText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+    headerBody: { paddingHorizontal: wide ? 28 : 16, paddingBottom: 18 },
+    logoWrap: { borderRadius: 26, backgroundColor: C.surface, borderWidth: 4, borderColor: C.surface, alignItems: 'center', justifyContent: 'center' },
+    logoEdit: { position: 'absolute', right: -2, bottom: -2, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.surface },
+    headerRow: { flexDirection: wide ? 'row' : 'column', alignItems: wide ? 'flex-end' : 'stretch', gap: 16, marginTop: 12 },
+    headerInfo: { flex: wide ? 1 : undefined, gap: 6, minWidth: 0 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 },
+    orgName: { color: C.text, fontSize: wide ? 28 : 23, fontWeight: '800', letterSpacing: -0.4 },
+    verified: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.emeraldBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+    verifiedText: { color: C.emerald, fontSize: 12, fontWeight: '700' },
+    tagline: { color: C.text, fontSize: 16, lineHeight: 23 },
+    meta: { color: C.text2, fontSize: 14, lineHeight: 20 },
+    metaStrong: { color: C.text, fontWeight: '700' },
+    actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    actionBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+    actionBtnOutline: { borderWidth: 1, borderColor: C.emerald },
+    actionBtnOn: { borderWidth: 1, borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    actionBtnGhost: { borderWidth: 1, borderColor: C.border },
+    actionBtnGold: { backgroundColor: C.gold },
+    actionText: { fontSize: 14, fontWeight: '700' },
 
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    marginTop: -34,
-    marginBottom: 12,
-  },
-  orgLogoWrap: { position: 'relative' },
-  orgLogo: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
-    backgroundColor: C.emerald,
-    borderWidth: 3,
-    borderColor: C.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orgLogoImg: {
-    width: 68,
-    height: 68,
-    borderRadius: 18,
-    borderWidth: 3,
-    borderColor: C.bg,
-  },
-  orgLogoText: { fontSize: 20, fontWeight: '700', color: C.gold },
-  logoEditOverlay: {
-    position: 'absolute',
-    bottom: 0, right: 0,
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: C.bg,
-  },
-  logoEditIcon: { fontSize: 11 },
-  profileBtns: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
-  followBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 100,
-    borderWidth: 0.5,
-    borderColor: C.goldDim ?? '#8a6f2e',
-    backgroundColor: 'transparent',
-  },
-  followBtnActive: { backgroundColor: C.goldBg },
-  followBtnText: { fontSize: 12, fontWeight: '600', color: C.gold },
-  followBtnTextActive: { color: C.gold },
-  visitBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 100,
-    backgroundColor: C.emeraldBg,
-    borderWidth: 0.5,
-    borderColor: C.emerald,
-  },
-  visitBtnText: { fontSize: 12, fontWeight: '600', color: C.emeraldLight },
+    ownerBar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginHorizontal: wide ? 28 : 16, marginBottom: 16, padding: 14, borderRadius: 12, backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldSoft },
+    ownerTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
+    ownerSub: { color: C.text2, fontSize: 13, lineHeight: 18 },
 
-  info: { paddingHorizontal: 16, paddingBottom: 14 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 3 },
-  orgName: { fontSize: 18, fontWeight: '700', color: C.text },
-  verifiedBadge: {
-    backgroundColor: C.gold,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  verifiedText: { fontSize: 9, fontWeight: '800', color: '#000' },
-  ein: { fontSize: 11, color: C.text3, marginBottom: 4 },
-  tagline: { fontSize: 13, color: C.text2, lineHeight: 20, marginBottom: 10 },
-  metaRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-  metaItem: {},
-  metaText: { fontSize: 12, color: C.text3 },
+    tabsWrap: { borderTopWidth: 1, borderTopColor: C.border2 },
+    tabs: { paddingHorizontal: wide ? 20 : 8, gap: 2 },
+    tab: { minHeight: 48, paddingHorizontal: 12, justifyContent: 'center', borderBottomWidth: 3, borderBottomColor: 'transparent' },
+    tabOn: { borderBottomColor: C.emerald },
+    tabText: { color: C.text2, fontSize: 14, fontWeight: '600' },
+    tabTextOn: { color: C.emerald },
 
-  trustStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.xl,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    padding: 14,
-  },
-  trustScoreBox: { alignItems: 'center', flexShrink: 0 },
-  trustScoreNum: { fontSize: 28, fontWeight: '800', lineHeight: 32 },
-  trustScoreLabel: { fontSize: 9, color: C.text3, textTransform: 'uppercase', letterSpacing: 0.5 },
-  trustChecks: { flex: 1, gap: 4 },
-  trustItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  trustItemDot: { fontSize: 11, fontWeight: '700', width: 14 },
-  trustItemDotDone: { color: C.emeraldLight },
-  trustItemDotPending: { color: C.text3 },
-  trustItemLabel: { fontSize: 11 },
-  trustItemLabelDone: { color: C.emeraldLight },
-  trustItemLabelPending: { color: C.text3 },
+    body: { color: C.text, fontSize: 15, lineHeight: 23 },
+    muted: { color: C.text2, fontSize: 14, lineHeight: 20 },
+    link: { color: C.emerald, fontSize: 14, fontWeight: '700' },
+    smallLink: { color: C.emerald, fontSize: 13, fontWeight: '600', marginLeft: 50 },
+    danger: { color: C.danger, fontSize: 13, fontWeight: '600' },
+    textBtn: { minHeight: 36, justifyContent: 'center' },
+    rowTitle: { color: C.text, fontSize: 15, fontWeight: '700' },
+    label: { color: C.text, fontSize: 14, fontWeight: '700', marginTop: 8 },
+    input: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: C.text, fontSize: 15 },
+    divider: { height: 1, backgroundColor: C.border2 },
 
-  section: { paddingHorizontal: 16, marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.text3,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: 10,
-  },
-  missionText: { fontSize: 13, color: C.text2, lineHeight: 21 },
+    trustNum: { fontSize: 32, fontWeight: '800' },
+    trustLabel: { color: C.text2, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 },
 
-  transparencyCard: {
-    backgroundColor: 'rgba(27,107,74,0.1)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(27,107,74,0.3)',
-    borderRadius: Theme.radius.xl,
-    padding: 14,
-  },
-  transparencyHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  transparencyIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: C.emerald,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  transparencyIcon: { fontSize: 18 },
-  transparencyTitle: { fontSize: 13, fontWeight: '600', color: C.text },
-  transparencySub: { fontSize: 11, color: C.emeraldLight, marginTop: 1 },
+    serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    serviceIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.emeraldBg, alignItems: 'center', justifyContent: 'center' },
+    photoPick: { height: 140, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: C.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    segment: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+    segmentOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    segmentText: { color: C.text2, fontWeight: '600', fontSize: 14 },
+    segmentTextOn: { color: C.emerald },
+    projectGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+    projectCard: { flexGrow: 1, flexBasis: 240, borderRadius: 12, borderWidth: 1, borderColor: C.border2, overflow: 'hidden', backgroundColor: C.bg },
+    projectImage: { width: '100%', aspectRatio: 16 / 9, backgroundColor: C.surface2 },
+    pill: { alignSelf: 'flex-start', color: C.goldDim, backgroundColor: C.goldBg, fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+    docRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border2 },
+    payRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
 
-  docRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.md,
-    padding: 10,
-    marginBottom: 8,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-  },
-  docIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: C.goldBg,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  docIcon: { fontSize: 16 },
-  docName: { fontSize: 12, fontWeight: '600', color: C.text },
-  docMeta: { fontSize: 10, color: C.text3, marginTop: 2 },
-  docArrow: { fontSize: 14, color: C.gold },
-  noDocsText: { fontSize: 12, color: C.text3, paddingVertical: 6 },
-  propublicaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(27,107,74,0.12)',
-    borderRadius: Theme.radius.md,
-    padding: 10,
-    marginTop: 4,
-    borderWidth: 0.5,
-    borderColor: 'rgba(27,107,74,0.25)',
-  },
-  propublicaBtnText: { fontSize: 12, fontWeight: '600', color: C.emeraldLight },
-
-  // Was plain text on a flat card — every campaign shown on the actual
-  // Seeds tab has a real cover image, so campaigns on the org's own
-  // profile looked noticeably flatter than the same content everywhere
-  // else in the app.
-  fundraiserCard: {
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.xl,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  frCover: { width: '100%', aspectRatio: 16 / 9, backgroundColor: C.surface2 },
-  frBody: { padding: 14 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  campaignStatsRow: { flexDirection: 'row', gap: 16 },
-  campaignStat: { alignItems: 'flex-end' },
-  campaignStatVal: { fontSize: 14, fontWeight: '700', color: C.gold },
-  campaignStatLabel: { fontSize: 8, color: C.text3, letterSpacing: 0.5 },
-  frCategory: { fontSize: 10, color: C.gold, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
-  frTitle: { fontSize: 14, fontWeight: '600', color: C.text, lineHeight: 20, marginBottom: 10 },
-  frProgressTrack: { height: 5, backgroundColor: C.surface2, borderRadius: 3, overflow: 'hidden', marginBottom: 8 },
-  frProgressFill: { height: '100%', backgroundColor: C.emerald, borderRadius: 3 },
-  frStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  frRaised: { fontSize: 15, fontWeight: '700', color: C.gold },
-  frGoal: { fontSize: 11, color: C.text3, flex: 1 },
-  frDonors: { fontSize: 11, color: C.text3 },
-  donateBtn: {
-    backgroundColor: C.gold,
-    borderRadius: Theme.radius.md,
-    padding: 10,
-    alignItems: 'center',
-  },
-  donateBtnText: { fontSize: 13, fontWeight: '700', color: '#000' },
-
-  detailsCard: {
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.xl,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    overflow: 'hidden',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: C.border2,
-  },
-  detailLabel: { fontSize: 12, color: C.text3 },
-  detailValue: { fontSize: 12, fontWeight: '500', color: C.text },
-
-  // Payment setup
-  payCard: {
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.xl,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    overflow: 'hidden',
-    padding: 14,
-  },
-  payRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  payIconBox: {
-    width: 38, height: 38, borderRadius: 10,
-    backgroundColor: C.surface2,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  payIcon: { fontSize: 18 },
-  payInfo: { flex: 1 },
-  payTitle: { color: C.text, fontSize: 13, fontWeight: '700', marginBottom: 2 },
-  paySub: { color: C.text3, fontSize: 11, lineHeight: 15 },
-  payBtn: {
-    backgroundColor: C.gold,
-    borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 8,
-    minWidth: 72, alignItems: 'center',
-    flexShrink: 0,
-  },
-  payBtnDone: { backgroundColor: C.emeraldBg, borderWidth: 1, borderColor: C.emeraldLight },
-  payBtnGhost: { backgroundColor: 'transparent', borderWidth: 1, borderColor: C.border },
-  payBtnText: { color: C.black, fontSize: 12, fontWeight: '800' },
-  payBtnGhostText: { color: C.text2, fontSize: 12, fontWeight: '700' },
-  paySeparator: { height: 0.5, backgroundColor: C.border2, marginVertical: 14 },
-
-  // Alt pay modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  altPaySheet: {
-    backgroundColor: C.surface,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 44,
-  },
-  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border2, alignSelf: 'center', marginBottom: 18 },
-  sheetTitle: { color: C.text, fontSize: 18, fontWeight: '800', marginBottom: 6 },
-  sheetSub: { color: C.text3, fontSize: 12, lineHeight: 18, marginBottom: 18 },
-  sheetLabel: { color: C.text3, fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
-  platformRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
-  platformPill: {
-    flex: 1, paddingVertical: 10, borderRadius: 12,
-    borderWidth: 1, borderColor: C.border2,
-    alignItems: 'center', backgroundColor: C.surface2,
-  },
-  platformPillActive: { backgroundColor: C.goldBg, borderColor: C.gold },
-  platformPillText: { color: C.text2, fontSize: 13, fontWeight: '700' },
-  platformPillTextActive: { color: C.gold },
-  sheetInput: {
-    borderWidth: 1, borderColor: C.border,
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    color: C.text, fontSize: 14, marginBottom: 16,
-    backgroundColor: C.bg,
-  },
-  sheetSaveBtn: {
-    backgroundColor: C.gold, borderRadius: 14,
-    paddingVertical: 15, alignItems: 'center', marginTop: 4,
-  },
-  sheetSaveBtnText: { color: C.black, fontSize: 15, fontWeight: '900' },
-
-  // Tab bar — same pill-tab convention as the dashboard's Gems/Seeds/
-  // Saved/Donations tabs, for visual consistency across the app.
-  orgTabs: {
-    flexDirection: 'row', gap: 6, marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: C.surface2, borderRadius: Theme.radius.full, padding: 4,
-  },
-  orgTab: { flex: 1, paddingVertical: 9, borderRadius: Theme.radius.full, alignItems: 'center' },
-  orgTabActive: { backgroundColor: C.gold },
-  orgTabText: { color: C.text3, fontWeight: '600', fontSize: 12 },
-  orgTabTextActive: { color: C.bg },
-
-  // Endorsements / Projects / Services (LinkedIn-style profile additions)
-  sectionAction: { fontSize: 12, fontWeight: '700', color: C.gold },
-  emptySectionText: { fontSize: 13, color: C.text3, fontStyle: 'italic' },
-
-  endorseForm: {
-    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
-    padding: 12, marginBottom: 12, gap: 10,
-  },
-  endorseInput: {
-    backgroundColor: C.bg, borderRadius: Theme.radius.md, borderWidth: 0.5, borderColor: C.border,
-    padding: 10, color: C.text, fontSize: 13, minHeight: 60, textAlignVertical: 'top',
-  },
-  smallPrimaryBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 11, alignItems: 'center' },
-  smallPrimaryBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
-
-  endorsementCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
-    padding: 12, marginBottom: 8,
-  },
-  endorsementAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: C.emerald,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0,
-  },
-  endorsementAvatarText: { color: C.gold, fontSize: 14, fontWeight: '700' },
-  endorsementName: { fontSize: 13, fontWeight: '700', color: C.text },
-  endorsementMessage: { fontSize: 12, color: C.text2, marginTop: 3, lineHeight: 17 },
-  endorsementRemove: { fontSize: 11, color: '#e84545', fontWeight: '600', marginTop: 4 },
-
-  addForm: {
-    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
-    padding: 12, marginBottom: 12, gap: 10,
-  },
-  addFormImage: {
-    height: 120, borderRadius: Theme.radius.md, backgroundColor: C.bg,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    borderWidth: 1, borderColor: C.border, borderStyle: 'dashed',
-  },
-  addFormImageText: { color: C.text3, fontSize: 12 },
-  addFormInput: {
-    backgroundColor: C.bg, borderRadius: Theme.radius.md, borderWidth: 0.5, borderColor: C.border,
-    paddingHorizontal: 12, paddingVertical: 10, color: C.text, fontSize: 13,
-  },
-  addFormTextarea: { minHeight: 60, textAlignVertical: 'top' },
-  statusToggleRow: { flexDirection: 'row', gap: 8 },
-  statusToggle: {
-    flex: 1, paddingVertical: 8, borderRadius: 999, alignItems: 'center',
-    borderWidth: 0.5, borderColor: C.border2, backgroundColor: C.bg,
-  },
-  statusToggleActive: { backgroundColor: C.goldBg, borderColor: C.gold },
-  statusToggleText: { fontSize: 12, color: C.text3, fontWeight: '600' },
-  statusToggleTextActive: { color: C.gold },
-
-  projectsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  projectCard: {
-    width: '100%', backgroundColor: C.surface, borderRadius: Theme.radius.lg,
-    borderWidth: 0.5, borderColor: C.border2, overflow: 'hidden', marginBottom: 8,
-  },
-  projectImage: { width: '100%', aspectRatio: 16 / 9, backgroundColor: C.surface2 },
-  projectImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  projectBody: { padding: 12 },
-  statusBadge: {
-    alignSelf: 'flex-start', backgroundColor: C.goldBg, borderRadius: 999,
-    paddingHorizontal: 8, paddingVertical: 3, marginBottom: 6,
-  },
-  statusBadgeCompleted: { backgroundColor: C.emeraldBg },
-  statusBadgeText: { fontSize: 9, fontWeight: '700', color: C.gold, textTransform: 'uppercase' },
-  projectTitle: { fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 4 },
-  projectDescription: { fontSize: 12, color: C.text2, lineHeight: 17, marginBottom: 6 },
-
-  serviceRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: C.surface, borderRadius: Theme.radius.lg, borderWidth: 0.5, borderColor: C.border2,
-    padding: 12, marginBottom: 8,
-  },
-  serviceIcon: { fontSize: 22 },
-  serviceName: { fontSize: 13, fontWeight: '700', color: C.text },
-  serviceDescription: { fontSize: 12, color: C.text2, marginTop: 2, lineHeight: 16 },
-});
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end', alignItems: 'center' },
+    altPaySheet: { width: '100%', maxWidth: 560, backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 10 },
+    sheetTitle: { color: C.text, fontSize: 19, fontWeight: '800' },
+  });
 }

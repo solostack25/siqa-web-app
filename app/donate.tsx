@@ -12,12 +12,13 @@ import {
 } from 'react-native';
 import { money, quoteDonation } from '../lib/donationFees';
 import { useLocalSearchParams, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
 import { supabase } from '../lib/supabase';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Glyph } from '../components/Glyph';
+import { Avatar } from '../components/SeedSocial';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -43,6 +44,7 @@ export default function DonateScreen() {
     paymentMethodType,
     paymentMethodUrl,
     paymentMethodLabel,
+    via,
   } = useLocalSearchParams<{
     fundraiserId: string;
     orgId: string;
@@ -51,7 +53,40 @@ export default function DonateScreen() {
     paymentMethodType?: string;
     paymentMethodUrl?: string;
     paymentMethodLabel?: string;
+    via?: string;
   }>();
+
+  // A verified speaker's endorsement, shown above the amount picker when the
+  // organizer left "show endorsements on the donate screen" on.
+  const [quote_, setQuote] = useState<{ message: string; name: string; avatar: string | null } | null>(null);
+  useEffect(() => {
+    if (!fundraiserId) return;
+    (async () => {
+      const { data: seed } = await supabase.from('fundraisers').select('show_endorsements_on_donate').eq('id', fundraiserId).maybeSingle();
+      if (seed && seed.show_endorsements_on_donate === false) return;
+      const { data } = await supabase
+        .from('seed_endorsements')
+        .select('speaker_id, message, speakers(display_name, avatar_url)')
+        .eq('fundraiser_id', fundraiserId)
+        .eq('status', 'endorsed')
+        .not('message', 'is', null)
+        .order('responded_at', { ascending: false })
+        .limit(10);
+      const rows = (data || []) as any[];
+      const pick = rows.find(r => via && r.speaker_id === via) || rows[0];
+      if (pick?.message) setQuote({ message: pick.message, name: pick.speakers?.display_name || 'A Siqa speaker', avatar: pick.speakers?.avatar_url ?? null });
+    })();
+  }, [fundraiserId, via]);
+
+  function successParams(paymentIntentId: string | null) {
+    return {
+      amount: money(quote.charge),
+      title,
+      fundraiserId: fundraiserId ?? '',
+      paymentIntentId: paymentIntentId ?? '',
+      via: via ?? '',
+    };
+  }
 
   const isAltPay = !!paymentMethodUrl && paymentMethodType !== 'stripe';
   const isNoPayment = !orgStripeAccountId && !paymentMethodUrl;
@@ -116,7 +151,7 @@ export default function DonateScreen() {
     }
   }
 
-  async function handleWebDonateSuccess(_confirmedPaymentIntentId: string) {
+  async function handleWebDonateSuccess(confirmedPaymentIntentId: string) {
     // Runs after Stripe.js confirmed the payment. The donation itself is
     // recorded by the stripe-webhook function once Stripe confirms it
     // server-side (clients can no longer write donation rows).
@@ -124,7 +159,7 @@ export default function DonateScreen() {
     setWebClientSecret(null);
     router.replace({
       pathname: '/donate-success',
-      params: { amount: money(quote.charge), title },
+      params: successParams(confirmedPaymentIntentId || webPaymentIntentId),
     });
   }
 
@@ -199,10 +234,7 @@ if (fnError) throw new Error(fnError);
       // 6. Success
       router.replace({
         pathname: '/donate-success',
-        params: {
-          amount: money(quote.charge),
-          title,
-        },
+        params: successParams(paymentIntentId),
       });
 
     } catch (err: any) {
@@ -229,6 +261,15 @@ if (fnError) throw new Error(fnError);
           <Text style={styles.campaignLabel}>GIVING TO</Text>
           <Text style={styles.campaignTitle}>{title}</Text>
         </View>
+
+        {quote_ && (
+          <View style={styles.endorseQuote}>
+            <Avatar name={quote_.name} url={quote_.avatar} size={36} />
+            <Text style={styles.endorseQuoteText}>
+              “{quote_.message}” <Text style={styles.endorseQuoteName}>— {quote_.name}</Text>
+            </Text>
+          </View>
+        )}
 
         {/* Amount picker */}
         <Text style={styles.sectionLabel}>SELECT AMOUNT</Text>
@@ -472,6 +513,21 @@ function makeStyles(C: AppColors) {
     borderColor: C.border,
     marginBottom: Theme.spacing.xl,
   },
+  endorseQuote: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+    marginHorizontal: Theme.spacing.lg,
+    marginTop: -Theme.spacing.sm,
+    marginBottom: Theme.spacing.xl,
+    padding: Theme.spacing.md,
+    borderRadius: Theme.radius.lg,
+    backgroundColor: C.goldBg,
+    borderWidth: 1,
+    borderColor: C.goldSoft,
+  },
+  endorseQuoteText: { flex: 1, color: C.text, fontSize: 14, lineHeight: 20 },
+  endorseQuoteName: { color: C.goldDim, fontWeight: '700' },
   campaignLabel: {
     fontSize: Theme.fontSize.xs,
     color: C.text3,

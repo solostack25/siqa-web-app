@@ -24,6 +24,7 @@ import { Icon } from '../../components/Icon';
 import { Glyph, type GlyphName } from '../../components/Glyph';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import ImageCropModal from '../../components/ImageCropModal';
+import { EndorsementInbox } from '../../components/SeedSocial';
 
 type Profile = {
   id: string;
@@ -490,6 +491,8 @@ function DashboardScreenInner() {
         </View>
       )}
 
+      {speaker && <EndorsementInbox speakerId={speaker.id} style={{ marginHorizontal: 16, marginBottom: 16 }} />}
+
       {/* ── My Gems ── */}
       {speaker && (
         <View style={styles.section}>
@@ -781,6 +784,8 @@ function DashboardScreenInner() {
             </View>
           )}
         </View>
+
+        {speaker && <EndorsementInbox speakerId={speaker.id} style={{ marginBottom: 16 }} />}
 
         <View style={styles.dtQuickActions}>
           {speaker && (
