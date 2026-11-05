@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { showToast } from '../components/Toast';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
@@ -83,7 +83,7 @@ export default function SellScreen() {
         .select('id, shop_name, bio, approval_status, stripe_onboarded')
         .single();
       if (error) {
-        Alert.alert('Error', error.message);
+        showToast(`Couldn't create your shop: ${error.message}`);
         setSaving(false);
         return;
       }
@@ -98,19 +98,29 @@ export default function SellScreen() {
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/create-marketplace-connect-account`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        // The function checks this login token and that the shop is yours.
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}`,
+        },
         body: JSON.stringify({
           sellerId: seller.id,
           shopName: seller.shop_name,
-          email: userEmail,
           returnUrl: Platform.OS === 'web' ? window.location.href : undefined,
         }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      await Linking.openURL(data.url);
+      if (Platform.OS === 'web') {
+        // Same-tab navigation: window.open after an await is blocked by
+        // Safari's popup blocker, so "Connect with Stripe" did nothing.
+        window.location.href = data.url;
+      } else {
+        await Linking.openURL(data.url);
+      }
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      showToast(err?.message || 'Could not open Stripe. Please try again.');
     } finally {
       setConnecting(false);
     }

@@ -57,7 +57,7 @@ const responsiveBackground = `
 html, body {
   background-color: #FFFFFF;
 }
-/* No `* { overscroll-behavior: none }` — it breaks touch scrolling on
+/* No "* { overscroll-behavior: none }" rule here — it breaks touch scrolling on
    mobile Chrome. (This file is unused while web.output is single-page;
    public/index.html is the real shell.) */
 @media (prefers-color-scheme: dark) {

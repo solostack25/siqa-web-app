@@ -5,8 +5,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { Theme } from '../constants/theme';
 import type { AppColors } from '../lib/theme';
 
-const STRIPE_PUBLISHABLE_KEY =
-  'pk_test_51T2HncK5xjtBKuF4Y965OsNOGhXJ16tWfdELCQjCVxYBGB9KK8MilrSuuO43Qu7aExBp3uIQh9sEWqnPrInHyBjY00lN8XtXAb';
+import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
 
 // loadStripe is pure JS (no native dependency), safe to call lazily even
 // though this file is only ever imported on the web platform.

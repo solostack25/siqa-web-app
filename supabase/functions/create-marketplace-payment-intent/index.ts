@@ -79,7 +79,7 @@ async function priceCart(buyerId: string, items: { productId: string; quantity: 
     .from('marketplace_products')
     // marketplace_sellers has its own FK back to marketplace_products
     // (featured_product_id), so the embed must name the real FK.
-    .select('id, title, price_cents, currency, inventory_count, is_digital, status, category, seller_id, marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, shipping_cents)')
+    .select('id, title, price_cents, currency, inventory_count, is_digital, status, category, seller_id, marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, shipping_cents, approval_status)')
     .in('id', productIds);
   if (productsError || !products || products.length === 0) throw new CheckoutError('Products not found', 404);
 
@@ -93,6 +93,7 @@ async function priceCart(buyerId: string, items: { productId: string; quantity: 
     const quantity = Number(item.quantity) || 0;
     if (!product) throw new CheckoutError(`Product ${item.productId} not found`, 404);
     if (product.status !== 'active') throw new CheckoutError(`"${product.title}" is no longer available`);
+    if ((product as any).marketplace_sellers?.approval_status !== 'approved') throw new CheckoutError(`"${product.title}" isn't available yet`);
     if (quantity < 1) throw new CheckoutError('Invalid quantity');
     if (!product.is_digital && quantity > product.inventory_count) throw new CheckoutError(`Not enough stock for "${product.title}"`);
     lines.push({ product, quantity, total_cents: product.price_cents * quantity });
@@ -206,10 +207,16 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { buyerId, items, address, mode } = await req.json();
+    // The buyer is whoever is signed in — never an id sent in the body.
+    // (Previously anyone could create checkouts and orders as another user.)
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) return json({ error: 'Sign in again to check out.' }, 401);
+    const buyerId = user.id;
+
+    const { items, address, mode } = await req.json();
     // items: [{ productId: string, quantity: number }]
 
-    if (!buyerId || typeof buyerId !== 'string') return json({ error: 'Missing buyerId' }, 400);
     if (!Array.isArray(items) || items.length === 0) return json({ error: 'Cart is empty' }, 400);
 
     const priced = await priceCart(buyerId, items, (address ?? {}) as Address);
