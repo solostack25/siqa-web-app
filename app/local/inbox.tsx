@@ -82,7 +82,7 @@ export default function LocalInboxScreen() {
     if (!listings.length) return (
       <View style={styles.card}>
         <Text style={styles.h2}>You haven't listed a business yet</Text>
-        <Text style={styles.small}>It's free. People can message you on Siqa, call you, or visit your website.</Text>
+        <Text style={styles.small}>People can message you on Siqa, call you, or visit your website.</Text>
         <TouchableOpacity style={[styles.primaryBtn, { alignSelf: 'flex-start' }]} onPress={() => router.push('/local/edit' as any)}>
           <Text style={styles.primaryBtnText}>List your business</Text>
         </TouchableOpacity>

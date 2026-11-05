@@ -161,7 +161,7 @@ export default function LocalEditScreen() {
   if (!uid) {
     return shell(
       <View style={styles.card}>
-        <Text style={styles.h1}>List your business free</Text>
+        <Text style={styles.h1}>List your business</Text>
         <Text style={styles.body}>Sign in to create a listing. Customers can message you on Siqa, call you, or visit your website. There's nothing to sell or ship through Siqa.</Text>
         <View style={styles.row}>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/(auth)/sign-in' as any)}><Text style={styles.primaryBtnText}>Sign in</Text></TouchableOpacity>
@@ -181,8 +181,8 @@ export default function LocalEditScreen() {
     <>
       <View style={{ gap: 6 }}>
         <Text style={styles.eyebrow}>LOCAL & SERVICES</Text>
-        <Text style={styles.h1}>{id ? 'Edit your listing' : 'List your business free'}</Text>
-        <Text style={styles.body}>People find you in Shop › Local & services and contact you directly. No checkout, no shipping, no fees.</Text>
+        <Text style={styles.h1}>{id ? 'Edit your listing' : 'List your business'}</Text>
+        <Text style={styles.body}>People find you in Shop › Local & services and contact you directly. No checkout or shipping.</Text>
       </View>
 
       {/* Images */}

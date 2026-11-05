@@ -17,7 +17,7 @@ import {
 
 /**
  * Shop › Local & services. Contact-only directory: no cart or checkout.
- * Listings come from owners (free) plus businesses Siqa listed from public
+ * Listings come from owners plus businesses Siqa listed from public
  * sources (unclaimed until the owner claims them).
  */
 
@@ -227,7 +227,7 @@ export default function LocalDirectoryScreen() {
                 )}
                 <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/local/edit' as any)}>
                   <Icon name="add" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>List your business free</Text>
+                  <Text style={styles.primaryBtnText}>List your business</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -393,11 +393,11 @@ export default function LocalDirectoryScreen() {
               <View style={{ flexGrow: 1, flexShrink: 1, flexBasis: 360, gap: 8 }}>
                 <Text style={styles.ctaTitle}>Run a business, teach a class, or offer a service?</Text>
                 <Text style={styles.ctaBody}>
-                  List it free. People find you, message you on Siqa, or call you directly. You never have to sell or ship anything through Siqa.
+                  List it on Siqa. People find you, message you on Siqa, or call you directly. You never have to sell or ship anything through Siqa.
                 </Text>
               </View>
               <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push('/local/edit' as any)}>
-                <Text style={styles.ctaBtnText}>List your business free</Text>
+                <Text style={styles.ctaBtnText}>List your business</Text>
               </TouchableOpacity>
             </View>
           </View>
