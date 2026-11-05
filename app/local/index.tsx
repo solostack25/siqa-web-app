@@ -10,8 +10,12 @@ import { HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { ShopSwitcher } from '../../components/ShopSwitcher';
+import { LocationPicker } from '../../components/LocationPicker';
 import {
-  BUSINESS_CATEGORIES, LISTING_CARD_FIELDS, categoryLabel, initialsOf, isFeatured, placeLine, tintFor,
+  ANYWHERE, getSavedLocation, hasAskedBefore, locateDevice, locationPermission, saveLocation, type SavedLocation,
+} from '../../lib/location';
+import {
+  BUSINESS_CATEGORIES, categoryLabel, initialsOf, placeLine, tintFor,
   type BusinessCategory, type BusinessListing,
 } from '../../lib/businessCategories';
 
@@ -28,7 +32,7 @@ const MAX_WIDTH = 1180;
 type Card = Pick<BusinessListing,
   'id' | 'owner_id' | 'name' | 'category' | 'tagline' | 'city' | 'state' | 'service_area' | 'is_online' | 'is_home_based' |
   'women_owned' | 'sisters_only' | 'halal_status' | 'phone' | 'price_text' | 'logo_url' | 'cover_url' | 'status' |
-  'is_claimed' | 'is_verified' | 'featured_until' | 'source'>;
+  'is_claimed' | 'is_verified' | 'featured_until' | 'source'> & { distance_miles?: number | null; total_count?: number };
 
 type Flag = 'women_owned' | 'sisters_only' | 'is_online' | 'is_home_based';
 const FLAGS: { key: Flag; label: string }[] = [
@@ -53,8 +57,9 @@ export default function LocalDirectoryScreen() {
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [category, setCategory] = useState<BusinessCategory | 'all'>('all');
-  const [stateCode, setStateCode] = useState('');
-  const [statePickerOpen, setStatePickerOpen] = useState(false);
+  // null = still working out the viewer's location on first load.
+  const [loc, setLoc] = useState<SavedLocation | null>(null);
+  const [locReady, setLocReady] = useState(false);
   const [flags, setFlags] = useState<Record<Flag, boolean>>({ women_owned: false, sisters_only: false, is_online: false, is_home_based: false });
 
   const [rows, setRows] = useState<Card[]>([]);
@@ -62,7 +67,6 @@ export default function LocalDirectoryScreen() {
   const [featured, setFeatured] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [stateCounts, setStateCounts] = useState<{ state: string; n: number }[]>([]);
   const [catCounts, setCatCounts] = useState<Record<string, number>>({});
   const [myListings, setMyListings] = useState(0);
   const reqId = useRef(0);
@@ -85,51 +89,76 @@ export default function LocalDirectoryScreen() {
     // Facet counts (states and categories) for published listings.
     (async () => {
       const { data } = await supabase.rpc('business_directory_facets');
-      const s: Record<string, number> = {};
       const c: Record<string, number> = {};
       ((data as { state: string | null; category: string; n: number }[]) ?? []).forEach(r => {
-        const n = Number(r.n);
-        if (r.state) s[r.state] = (s[r.state] ?? 0) + n;
-        c[r.category] = (c[r.category] ?? 0) + n;
+        c[r.category] = (c[r.category] ?? 0) + Number(r.n);
       });
-      setStateCounts(Object.entries(s).map(([state, n]) => ({ state, n })).sort((a, b) => b.n - a.n));
       setCatCounts(c);
     })();
   }, []);
 
-  function applyFilters(q: any) {
-    q = q.eq('status', 'published');
-    if (category !== 'all') q = q.eq('category', category);
-    if (stateCode) q = q.eq('state', stateCode);
-    (Object.keys(flags) as Flag[]).forEach(k => { if (flags[k]) q = q.eq(k, true); });
-    const term = escapeLike(debounced);
-    if (term) q = q.or(`name.ilike.%${term}%,tagline.ilike.%${term}%,city.ilike.%${term}%,service_area.ilike.%${term}%`);
-    return q;
+  // Work out where to search: saved choice, else the device location if the
+  // viewer has allowed it (or hasn't been asked yet), else anywhere.
+  useEffect(() => {
+    (async () => {
+      const saved = await getSavedLocation();
+      if (saved && saved.mode !== 'auto') { setLoc(saved); setLocReady(true); return; }
+      const perm = await locationPermission();
+      const shouldAsk = perm === 'granted' || (perm === 'prompt' && !(await hasAskedBefore()));
+      if (saved?.mode === 'auto' || shouldAsk) {
+        if (saved?.mode === 'auto') { setLoc(saved); setLocReady(true); }   // show last known right away
+        const fresh = perm === 'denied' ? null : await locateDevice(saved?.radius);
+        if (fresh) { await saveLocation(fresh); setLoc(fresh); }
+        else if (!saved) setLoc(ANYWHERE);
+        setLocReady(true);
+        return;
+      }
+      setLoc(saved ?? ANYWHERE);
+      setLocReady(true);
+    })();
+  }, []);
+
+  function rpcArgs(featuredOnly: boolean, offset: number) {
+    const L = loc ?? ANYWHERE;
+    const point = L.mode !== 'anywhere' && L.lat != null && L.lon != null;
+    return {
+      p_lat: point ? L.lat : null,
+      p_lon: point ? L.lon : null,
+      p_radius_miles: L.radius,
+      p_city: !point && L.mode !== 'anywhere' ? L.city ?? null : null,
+      p_state: !point && L.mode !== 'anywhere' ? L.state ?? null : null,
+      p_zip: !point && L.mode !== 'anywhere' ? L.zip ?? null : null,
+      p_query: debounced || null,
+      p_category: category === 'all' ? null : category,
+      p_women_owned: flags.women_owned,
+      p_sisters_only: flags.sisters_only,
+      p_online: flags.is_online,
+      p_home_based: flags.is_home_based,
+      p_featured_only: featuredOnly,
+      p_limit: featuredOnly ? 4 : PAGE,
+      p_offset: offset,
+    };
   }
 
   const load = useCallback(async (append: boolean) => {
+    if (!locReady) return;
     const id = ++reqId.current;
     if (append) setLoadingMore(true); else setLoading(true);
     const from = append ? rows.length : 0;
-    const listQ = applyFilters(supabase.from('business_listings').select(LISTING_CARD_FIELDS, { count: 'exact' }))
-      .order('is_claimed', { ascending: false })
-      .order('is_verified', { ascending: false })
-      .order('created_at', { ascending: false })
-      .range(from, from + PAGE - 1);
-    const featQ = append ? null : applyFilters(supabase.from('business_listings').select(LISTING_CARD_FIELDS))
-      .gt('featured_until', new Date().toISOString())
-      .limit(4);
-    const [listRes, featRes] = await Promise.all([listQ, featQ ?? Promise.resolve({ data: null })]);
+    const [listRes, featRes] = await Promise.all([
+      supabase.rpc('business_directory_search', rpcArgs(false, from)),
+      append ? Promise.resolve({ data: null }) : supabase.rpc('business_directory_search', rpcArgs(true, 0)),
+    ]);
     if (id !== reqId.current) return;
     const list = (listRes.data as Card[]) ?? [];
     setRows(prev => (append ? [...prev, ...list] : list));
-    setTotal(listRes.count ?? list.length);
+    setTotal(list.length ? Number(list[0].total_count) : (append ? total : 0));
     if (!append) setFeatured(((featRes as any).data as Card[]) ?? []);
     setLoading(false);
     setLoadingMore(false);
-  }, [rows.length, debounced, category, stateCode, flags]);
+  }, [rows.length, total, debounced, category, flags, loc, locReady]);
 
-  useEffect(() => { load(false); }, [debounced, category, stateCode, flags]);
+  useEffect(() => { load(false); }, [debounced, category, flags, loc, locReady]);
 
   const cols = contentWidth >= 900 ? 3 : contentWidth >= 580 ? 2 : 1;
   const GAP = 16;
@@ -138,14 +167,15 @@ export default function LocalDirectoryScreen() {
   const tileW = (contentWidth - 10 * (tileCols - 1)) / tileCols;
   const featCols = contentWidth >= 820 ? 2 : 1;
   const featW = (contentWidth - GAP * (featCols - 1)) / featCols;
-  const filtersActive = Boolean(debounced || category !== 'all' || stateCode || Object.values(flags).some(Boolean));
+  const located = Boolean(loc && loc.mode !== 'anywhere');
+  const filtersActive = Boolean(debounced || category !== 'all' || located || Object.values(flags).some(Boolean));
   const visibleCats = useMemo(
     () => BUSINESS_CATEGORIES.filter(c => c.key !== 'other' || (catCounts.other ?? 0) > 0),
     [catCounts],
   );
 
   function clearAll() {
-    setQuery(''); setCategory('all'); setStateCode('');
+    setQuery(''); setCategory('all');
     setFlags({ women_owned: false, sisters_only: false, is_online: false, is_home_based: false });
   }
 
@@ -182,7 +212,9 @@ export default function LocalDirectoryScreen() {
           <View style={styles.cardBody}>
             <Text style={styles.eyebrow}>{categoryLabel(l.category)}</Text>
             <Text style={styles.cardName} numberOfLines={2}>{l.name}</Text>
-            <Text style={styles.small} numberOfLines={1}>{placeLine(l)}</Text>
+            <Text style={styles.small} numberOfLines={1}>
+              {l.distance_miles != null ? `${l.distance_miles < 10 ? l.distance_miles.toFixed(1) : Math.round(l.distance_miles)} mi · ` : ''}{placeLine(l)}
+            </Text>
             {l.tagline ? <Text style={styles.tagline} numberOfLines={2}>{l.tagline}</Text> : null}
             {tags.length > 0 && <View style={styles.tagRow}>{tags.map(t => <Tag key={t} text={t} />)}</View>}
             {l.price_text ? <Text style={styles.price}>{l.price_text}</Text> : null}
@@ -251,28 +283,8 @@ export default function LocalDirectoryScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              <TouchableOpacity
-                style={[styles.stateBtn, stateCode ? styles.stateBtnOn : null]}
-                onPress={() => setStatePickerOpen(o => !o)}
-                accessibilityState={{ expanded: statePickerOpen }}
-              >
-                <Icon name="location-outline" size={18} color={stateCode ? C.emerald : C.text2} />
-                <Text style={[styles.stateText, stateCode ? { color: C.emerald, fontWeight: '700' } : null]}>{stateCode || 'All states'}</Text>
-                <Icon name={statePickerOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
-              </TouchableOpacity>
             </View>
-            {statePickerOpen && (
-              <View style={styles.statePanel}>
-                <TouchableOpacity style={[styles.chip, !stateCode && styles.chipOn]} onPress={() => { setStateCode(''); setStatePickerOpen(false); }}>
-                  <Text style={[styles.chipText, !stateCode && styles.chipTextOn]}>All states</Text>
-                </TouchableOpacity>
-                {stateCounts.map(s => (
-                  <TouchableOpacity key={s.state} style={[styles.chip, stateCode === s.state && styles.chipOn]} onPress={() => { setStateCode(s.state); setStatePickerOpen(false); }}>
-                    <Text style={[styles.chipText, stateCode === s.state && styles.chipTextOn]}>{s.state} · {s.n}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
+            <LocationPicker value={loc} onChange={setLoc} />
 
             {/* Categories: tiles on desktop, one scrolling row on phones */}
             {!isDesktopWeb && (
@@ -303,7 +315,7 @@ export default function LocalDirectoryScreen() {
                   >
                     <Icon name={c.icon as any} size={18} color={on ? C.bg : C.text2} />
                     <Text style={[styles.tileLabel, on && { color: C.bg }]} numberOfLines={2}>{c.label}</Text>
-                    <Text style={[styles.tileHint, on && { color: C.bg, opacity: 0.8 }]} numberOfLines={1}>{n ? `${n.toLocaleString()} listed` : c.hint}</Text>
+                    <Text style={[styles.tileHint, on && { color: C.bg, opacity: 0.8 }]} numberOfLines={1}>{n && !located ? `${n.toLocaleString()} listed` : c.hint}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -355,8 +367,8 @@ export default function LocalDirectoryScreen() {
             {/* Results */}
             <View style={styles.section}>
               <View style={styles.sectionHead}>
-                <Text style={styles.h2}>{category === 'all' ? 'All listings' : categoryLabel(category)}</Text>
-                <Text style={styles.small}>{loading ? ' ' : `${total.toLocaleString()} listing${total === 1 ? '' : 's'}${stateCode ? ` in ${stateCode}` : ''}`}</Text>
+                <Text style={styles.h2}>{category === 'all' ? (located ? 'Near you' : 'All listings') : categoryLabel(category)}</Text>
+                <Text style={styles.small}>{loading ? ' ' : `${total.toLocaleString()} listing${total === 1 ? '' : 's'}${located ? ` near ${loc!.label}` : ''}`}</Text>
               </View>
               {loading ? (
                 <View style={styles.center}><ActivityIndicator color={C.gold} /></View>

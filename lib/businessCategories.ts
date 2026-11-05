@@ -35,6 +35,9 @@ export type BusinessListing = {
   address: string | null;
   city: string | null;
   state: string | null;
+  zip?: string | null;
+  lat?: number | null;
+  lon?: number | null;
   service_area: string | null;
   is_online: boolean;
   is_home_based: boolean;

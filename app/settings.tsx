@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
+import { LocationPicker } from '../components/LocationPicker';
+import { getSavedLocation, type SavedLocation } from '../lib/location';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -112,6 +114,8 @@ export default function SettingsScreen() {
   const [editName, setEditName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>('account');
+  const [savedLoc, setSavedLoc] = useState<SavedLocation | null>(null);
+  useEffect(() => { getSavedLocation().then(setSavedLoc); }, []);
 
   useEffect(() => {
     load();
@@ -310,6 +314,24 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          </Section>
+
+          <Section
+            icon="location-outline"
+            label="Location"
+            sublabel={savedLoc && savedLoc.mode !== 'anywhere' ? `Near ${savedLoc.label}${savedLoc.mode === 'auto' ? ' (current location)' : ''}` : 'Anywhere'}
+            open={openSection === 'location'}
+            onToggle={() => toggle('location')}
+            alwaysOpen={isDesktopWeb}
+            gridWidth={gridWidth}
+          >
+            <View style={{ padding: 14, gap: 10 }}>
+              <Text style={styles.rowLabel}>Local results</Text>
+              <Text style={{ fontSize: 13, color: C.text2, lineHeight: 18 }}>
+                Used to show businesses and services near you in Shop › Local & services.
+              </Text>
+              <LocationPicker value={savedLoc} onChange={setSavedLoc} inline />
             </View>
           </Section>
 
