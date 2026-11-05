@@ -13,6 +13,17 @@
       ],
       "destination": "https://www.siqa.us/:path*",
       "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "marketplace.thesiqaapp.com"
+        }
+      ],
+      "destination": "https://shop.siqa.us/:path*",
+      "permanent": true
     }
   ],
   "rewrites": [
