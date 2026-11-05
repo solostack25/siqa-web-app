@@ -16,17 +16,30 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { makeBunnySeedThumbnailPath, makeBunnySeedVideoPath, uploadThumbnailToBunny, uploadVideoToBunny } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Glyph } from '../components/Glyph';
-import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { Icon } from '../components/Icon';
+import { showToast } from '../components/Toast';
+import { DesktopShell } from '../components/DesktopShell';
+import {
+  Avatar,
+  PrimaryButton,
+  ProgressBar,
+  SpeakerPicker,
+  money,
+  sendEndorsementRequests,
+  useMeasuredWidth,
+  type SpeakerLite,
+} from '../components/SeedSocial';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
 const DRAFT_KEY = 'siqa:seeds:create-draft:v1';
 const CATEGORIES = ['Emergency', 'Water', 'Education', 'Medical', 'Masjid', 'Food', 'Zakat', 'Sadaqah', 'Refugees', 'Community'];
+const STEPS = ['Basics', 'Story & media', 'Endorsements', 'Reviews & publish'] as const;
 
 const DEFAULT_FORM = {
   title: '',
@@ -39,6 +52,12 @@ const DEFAULT_FORM = {
   sadaqahJariyah: true,
   emergency: false,
   visibility: 'draft' as 'draft' | 'submit',
+  allowReviews: true,
+  allowAnonymousReviews: true,
+  showEndorsementsOnDonate: true,
+  reviewPrompt: 'What moved you to give today?',
+  endorsementNote: '',
+  invited: [] as SpeakerLite[],
 };
 
 type OrgOption = {
@@ -47,20 +66,11 @@ type OrgOption = {
   is_verified?: boolean | null;
   approval_status?: string | null;
   stripe_onboarded?: boolean | null;
+  logo_url?: string | null;
 };
 
-type PickedImage = {
-  uri: string;
-  fileName: string;
-  mimeType: string | null;
-};
-
-type PickedVideo = {
-  uri: string;
-  fileName: string;
-  mimeType: string | null;
-  duration?: number | null;
-};
+type PickedImage = { uri: string; fileName: string; mimeType: string | null };
+type PickedVideo = { uri: string; fileName: string; mimeType: string | null; duration?: number | null };
 
 type DraftPayload = typeof DEFAULT_FORM & {
   selectedOrgId: string | null;
@@ -69,8 +79,7 @@ type DraftPayload = typeof DEFAULT_FORM & {
 };
 
 function centsFromGoal(value: string) {
-  const cleaned = value.replace(/[^0-9.]/g, '');
-  const amount = Number(cleaned);
+  const amount = Number(value.replace(/[^0-9.]/g, ''));
   if (!Number.isFinite(amount) || amount <= 0) return 0;
   return Math.round(amount * 100);
 }
@@ -83,8 +92,11 @@ function isOrgRole(role?: string | null) {
   return ['org', 'organization', 'nonprofit', 'masjid'].includes(String(role || '').toLowerCase());
 }
 
-// Every state of this screen (loading, locked, the form) gets the desktop
-// sidebar/top bar from one wrapper instead of wrapping each return.
+function confirmWeb(title: string, onYes: () => void) {
+  if (Platform.OS === 'web') { if (typeof window !== 'undefined' && window.confirm(title)) onYes(); return; }
+  Alert.alert(title, undefined, [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: onYes }]);
+}
+
 export default function SeedCreateScreen() {
   return (
     <DesktopShell>
@@ -95,18 +107,21 @@ export default function SeedCreateScreen() {
 
 function SeedCreateScreenContent() {
   const { colors: C, isDark } = useTheme();
-  const isDesktopWeb = useIsDesktopWeb();
-  const styles = useMemo(() => makeStyles(C, isDark, isDesktopWeb), [C, isDark, isDesktopWeb]);
+  const { orgId: orgParam } = useLocalSearchParams<{ orgId?: string }>();
+  const { width, onLayout } = useMeasuredWidth();
+  const wide = width >= 900;
+  const styles = useMemo(() => makeStyles(C, isDark, wide), [C, isDark, wide]);
   const successScale = useRef(new Animated.Value(0.88)).current;
   const successOpacity = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [progressPct, setProgressPct] = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<null | { live: boolean; id: string; requested: number }>(null);
+  const [step, setStep] = useState(0);
 
   const [profileRole, setProfileRole] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
@@ -115,7 +130,7 @@ function SeedCreateScreenContent() {
   const [video, setVideo] = useState<PickedVideo | null>(null);
   const [form, setForm] = useState(DEFAULT_FORM);
 
-  const selectedOrg = orgs.find((org) => org.id === selectedOrgId) || null;
+  const selectedOrg = orgs.find(org => org.id === selectedOrgId) || null;
   const canSubmitActive = Boolean(selectedOrg?.is_verified || isPrivilegedRole(profileRole));
 
   useEffect(() => {
@@ -129,8 +144,12 @@ function SeedCreateScreenContent() {
     return () => clearTimeout(timeout);
   }, [form, selectedOrgId, cover, video, draftLoaded, saving, success]);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [step]);
+
   function update<K extends keyof typeof DEFAULT_FORM>(key: K, value: (typeof DEFAULT_FORM)[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm(prev => ({ ...prev, [key]: value }));
   }
 
   async function loadAccess() {
@@ -141,35 +160,18 @@ function SeedCreateScreenContent() {
       router.replace('/(auth)/login');
       return;
     }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, role')
-      .eq('id', user.id)
-      .single();
-
+    const { data: profile } = await supabase.from('profiles').select('id, role').eq('id', user.id).single();
     const role = profile?.role || null;
     setProfileRole(role);
 
-    if (isPrivilegedRole(role)) {
-      const { data } = await supabase
-        .from('organizations')
-        .select('id, org_name, is_verified, approval_status, stripe_onboarded')
-        .order('org_name');
-      const list = (data || []) as OrgOption[];
-      setOrgs(list);
-      setSelectedOrgId((current) => current || list[0]?.id || null);
-    } else {
-      const { data } = await supabase
-        .from('organizations')
-        .select('id, org_name, is_verified, approval_status, stripe_onboarded')
-        .eq('profile_id', user.id)
-        .order('created_at', { ascending: false });
-      const list = (data || []) as OrgOption[];
-      setOrgs(list);
-      setSelectedOrgId((current) => current || list[0]?.id || null);
-    }
-
+    const base = supabase.from('organizations').select('id, org_name, is_verified, approval_status, stripe_onboarded, logo_url');
+    const { data } = isPrivilegedRole(role)
+      ? await base.order('org_name')
+      : await base.eq('profile_id', user.id).order('created_at', { ascending: false });
+    const list = (data || []) as OrgOption[];
+    setOrgs(list);
+    const fromParam = orgParam && list.some(o => o.id === orgParam) ? String(orgParam) : null;
+    setSelectedOrgId(current => fromParam || current || list[0]?.id || null);
     setLoading(false);
   }
 
@@ -178,8 +180,8 @@ function SeedCreateScreenContent() {
       const raw = await AsyncStorage.getItem(DRAFT_KEY);
       if (raw) {
         const draft = JSON.parse(raw) as DraftPayload;
-        setForm({ ...DEFAULT_FORM, ...draft });
-        setSelectedOrgId(draft.selectedOrgId || null);
+        setForm({ ...DEFAULT_FORM, ...draft, invited: draft.invited || [] });
+        if (!orgParam) setSelectedOrgId(draft.selectedOrgId || null);
         setCover(draft.cover || null);
         setVideo(draft.video || null);
       }
@@ -190,49 +192,33 @@ function SeedCreateScreenContent() {
     }
   }
 
-  async function saveDraft(showToast = true) {
+  async function saveDraft(showFeedback = true) {
     try {
-      setSavingDraft(true);
       const payload: DraftPayload = { ...form, selectedOrgId, cover, video };
       await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-      if (showToast) Alert.alert('Seed draft saved', 'Your Seed appeal is saved on this device.');
-    } catch (error) {
-      if (showToast) Alert.alert('Draft not saved', 'Something went wrong while saving this Seed draft.');
-    } finally {
-      setSavingDraft(false);
+      if (showFeedback) showToast('Draft saved on this device');
+    } catch {
+      if (showFeedback) showToast("Draft couldn't be saved");
     }
   }
 
-  async function discardDraft() {
+  function discardDraft() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert('Discard Seed draft?', 'This clears the saved Seed draft on this device.', [
-      { text: 'Keep editing', style: 'cancel' },
-      {
-        text: 'Discard',
-        style: 'destructive',
-        onPress: async () => {
-          await AsyncStorage.removeItem(DRAFT_KEY);
-          setForm(DEFAULT_FORM);
-          setCover(null);
-          setVideo(null);
-        },
-      },
-    ]);
+    confirmWeb('Discard this Seed draft?', async () => {
+      await AsyncStorage.removeItem(DRAFT_KEY);
+      setForm(DEFAULT_FORM);
+      setCover(null);
+      setVideo(null);
+      setStep(0);
+    });
   }
 
   async function pickVideo() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow Siqa to access your videos to upload a Seed appeal.');
-      return;
-    }
-
+    if (!permission.granted) { showToast('Allow Siqa to access your videos'); return; }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: false,
-        quality: 1,
-        videoMaxDuration: 600,
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos, allowsEditing: false, quality: 1, videoMaxDuration: 600,
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
@@ -242,24 +228,17 @@ function SeedCreateScreenContent() {
         mimeType: asset.mimeType || 'video/mp4',
         duration: asset.duration || null,
       });
-    } catch (error) {
-      Alert.alert('Could not open video', 'Choose a video downloaded to this device and make sure Siqa has full Photos access.');
+    } catch {
+      showToast('Choose a video saved on this device');
     }
   }
 
   async function pickCover() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow Siqa to access your photos to choose a Seed cover.');
-      return;
-    }
-
+    if (!permission.granted) { showToast('Allow Siqa to access your photos'); return; }
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.88,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [16, 9], quality: 0.88,
       });
       if (result.canceled || !result.assets?.[0]) return;
       const asset = result.assets[0];
@@ -268,26 +247,43 @@ function SeedCreateScreenContent() {
         fileName: asset.fileName || `siqa-seed-cover-${Date.now()}.jpg`,
         mimeType: asset.mimeType || 'image/jpeg',
       });
-    } catch (error) {
-      Alert.alert('Could not open photo', 'Choose a photo downloaded to this device and make sure Siqa has full Photos access.');
+    } catch {
+      showToast('Choose a photo saved on this device');
     }
   }
 
-  function validate() {
-    if (!selectedOrgId) return 'Choose the nonprofit/masjid posting this Seed.';
-    if (!video?.uri) return 'Every Seed needs a video appeal. Choose a short appeal video before publishing.';
-    if (!form.title.trim()) return 'Seed title is required.';
-    if (form.title.trim().length < 8) return 'Use a more descriptive Seed title.';
-    if (!form.story.trim() || form.story.trim().length < 30) return 'Add a stronger appeal story so donors understand the need.';
-    if (!centsFromGoal(form.goal)) return 'Enter a valid fundraising goal.';
-    if (form.visibility === 'submit' && !canSubmitActive) {
-      return 'This organization must be verified before publishing active Seeds. Save as draft for now.';
+  function stepError(s: number): string | null {
+    if (s === 0) {
+      if (!selectedOrgId) return 'Choose the nonprofit or masjid posting this Seed.';
+      if (form.title.trim().length < 8) return 'Use a more descriptive Seed title (8+ characters).';
+      if (!centsFromGoal(form.goal)) return 'Enter a valid fundraising goal.';
+      if (form.endDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(form.endDate.trim())) return 'End date should look like 2026-12-31.';
+    }
+    if (s === 1) {
+      if (!video?.uri) return 'Every Seed needs a short video appeal.';
+      if (form.story.trim().length < 30) return 'Add a fuller story so donors understand the need.';
     }
     return null;
   }
 
+  function validate() {
+    for (let s = 0; s < STEPS.length; s++) {
+      const err = stepError(s);
+      if (err) return { err, step: s };
+    }
+    if (form.visibility === 'submit' && !canSubmitActive) {
+      return { err: 'This organization must be verified before a Seed can go live. Save it as a draft for now.', step: 3 };
+    }
+    return null;
+  }
+
+  function next() {
+    const err = stepError(step);
+    if (err) { showToast(err); return; }
+    setStep(s => Math.min(STEPS.length - 1, s + 1));
+  }
+
   function animateSuccess() {
-    setSuccess(true);
     successScale.setValue(0.88);
     successOpacity.setValue(0);
     Animated.parallel([
@@ -298,17 +294,11 @@ function SeedCreateScreenContent() {
 
   async function createSeed() {
     if (saving) return;
-    const error = validate();
-    if (error) {
-      Alert.alert('Review Seed', error);
-      return;
-    }
+    const problem = validate();
+    if (problem) { setStep(problem.step); showToast(problem.err); return; }
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      router.replace('/(auth)/login');
-      return;
-    }
+    if (!user) { router.replace('/(auth)/login'); return; }
 
     setSaving(true);
     setProgressPct(5);
@@ -319,43 +309,33 @@ function SeedCreateScreenContent() {
       let coverUrl: string | null = null;
 
       if (video) {
-        const videoPath = makeBunnySeedVideoPath(user.id, video.fileName, video.mimeType);
         videoUrl = await uploadVideoToBunny({
           uri: video.uri,
-          fileName: videoPath,
+          fileName: makeBunnySeedVideoPath(user.id, video.fileName, video.mimeType),
           mimeType: video.mimeType,
           progressStart: 6,
           progressEnd: 72,
           label: 'Uploading Seed video appeal...',
-          onProgress: ({ pct, label }) => {
-            setProgressPct(pct);
-            setProgressLabel(label);
-          },
+          onProgress: ({ pct, label }) => { setProgressPct(pct); setProgressLabel(label); },
         });
       }
-
       if (cover) {
-        const coverPath = makeBunnySeedThumbnailPath(user.id, cover.fileName, cover.mimeType);
         coverUrl = await uploadThumbnailToBunny({
           uri: cover.uri,
-          fileName: coverPath,
+          fileName: makeBunnySeedThumbnailPath(user.id, cover.fileName, cover.mimeType),
           mimeType: cover.mimeType,
           progressStart: 73,
           progressEnd: 86,
-          onProgress: ({ pct, label }) => {
-            setProgressPct(pct);
-            setProgressLabel(label);
-          },
+          onProgress: ({ pct, label }) => { setProgressPct(pct); setProgressLabel(label); },
         });
       }
 
       setProgressPct(90);
-      setProgressLabel('Saving Seed appeal...');
+      setProgressLabel('Saving Seed...');
 
       const submitted = form.visibility === 'submit';
       const status = submitted && canSubmitActive ? 'active' : 'draft';
       const cleanStory = form.story.trim();
-      const goalAmount = centsFromGoal(form.goal);
 
       const payload: Record<string, any> = {
         org_id: selectedOrgId,
@@ -363,7 +343,7 @@ function SeedCreateScreenContent() {
         subtitle: form.subtitle.trim() || null,
         description: cleanStory,
         story: cleanStory,
-        goal_amount: goalAmount,
+        goal_amount: centsFromGoal(form.goal),
         raised_amount: 0,
         donor_count: 0,
         cause_category: form.category,
@@ -380,52 +360,40 @@ function SeedCreateScreenContent() {
         is_emergency: form.emergency,
         created_by: user.id,
         submitted_at: submitted ? new Date().toISOString() : null,
+        allow_reviews: form.allowReviews,
+        allow_anonymous_reviews: form.allowAnonymousReviews,
+        show_endorsements_on_donate: form.showEndorsementsOnDonate,
+        review_prompt: form.reviewPrompt.trim() || null,
       };
 
-      let insert = await supabase.from('fundraisers').insert(payload as any).select('id').single();
+      const { data: inserted, error } = await supabase.from('fundraisers').insert(payload as any).select('id').single();
+      if (error) throw error;
 
-      if (insert.error && /subtitle|story|cover_image_url|image_url|video_url|bunny_video_url|media_url|media_type|zakat_eligible|sadaqah_jariyah|is_emergency|created_by|submitted_at/i.test(insert.error.message)) {
-        const {
-          subtitle,
-          story,
-          cover_image_url,
-          image_url,
-          video_url,
-          bunny_video_url,
-          media_url,
-          media_type,
-          zakat_eligible,
-          sadaqah_jariyah,
-          is_emergency,
-          created_by,
-          submitted_at,
-          ...fallbackPayload
-        } = payload;
-        insert = await supabase.from('fundraisers').insert(fallbackPayload as any).select('id').single();
+      let requested = 0;
+      if (form.invited.length) {
+        setProgressPct(95);
+        setProgressLabel('Sending endorsement requests...');
+        const res = await sendEndorsementRequests(inserted.id, form.invited.map(s => s.id), form.endorsementNote);
+        if (res.error) showToast("Seed saved, but endorsement requests didn't send. Try again from the Seed page.");
+        else requested = form.invited.length;
       }
-
-      if (insert.error) throw insert.error;
 
       await AsyncStorage.removeItem(DRAFT_KEY);
       setProgressPct(100);
       setProgressLabel(status === 'active' ? 'Seed published.' : 'Seed saved as draft.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSuccess({ live: status === 'active', id: inserted.id, requested });
       animateSuccess();
-      setTimeout(() => router.replace('/(tabs)/seeds'), 950);
     } catch (error: any) {
       console.error('[SeedCreate] create failed:', error);
-      Alert.alert('Seed not created', error?.message || 'Something went wrong while creating this Seed.');
+      showToast(error?.message || 'Something went wrong while creating this Seed.');
     } finally {
       setSaving(false);
     }
   }
 
   if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator color={C.gold} size="large" />
-      </View>
-    );
+    return <View style={styles.centered}><ActivityIndicator color={C.gold} size="large" /></View>;
   }
 
   const allowed = isPrivilegedRole(profileRole) || isOrgRole(profileRole) || orgs.length > 0;
@@ -434,329 +402,416 @@ function SeedCreateScreenContent() {
     return (
       <View style={styles.screen}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.cancel}>Back</Text>
-          </TouchableOpacity>
-          <View style={styles.headerTitleWrap}>
-            <Text style={styles.headerTitle}>Create Seed</Text>
-            <Text style={styles.headerArabic}>صِقا</Text>
-          </View>
-          <View style={{ width: 56 }} />
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}><Text style={styles.headerLink}>Back</Text></TouchableOpacity>
+          <Text style={styles.headerTitle}>Start a seed</Text>
+          <View style={{ width: 64 }} />
         </View>
         <View style={styles.lockedWrap}>
-          <Glyph name="leaf-outline" style={styles.lockedIcon} color={C.gold} />
+          <Glyph name="leaf-outline" style={{ fontSize: 48, marginBottom: 12 }} color={C.gold} />
           <Text style={styles.lockedTitle}>Nonprofit access required</Text>
-          <Text style={styles.lockedSub}>Seeds can only be created by verified or pending nonprofits, masajid, and admins.</Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/org-register' as any)}>
-            <Text style={styles.primaryBtnText}>Register Organization</Text>
-          </TouchableOpacity>
+          <Text style={styles.lockedSub}>Seeds can be started by nonprofits and masajid registered on Siqa. Register yours and Siqa will review it.</Text>
+          <PrimaryButton label="Register organization" onPress={() => router.push('/org-register' as any)} />
         </View>
       </View>
     );
   }
 
+  if (success) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <Animated.View style={[styles.successCard, { opacity: successOpacity, transform: [{ scale: successScale }] }]}>
+          <View style={styles.successIcon}><Icon name="leaf" size={32} color={C.emerald} /></View>
+          <Text style={styles.successTitle}>{success.live ? 'Your seed is live' : 'Seed saved as a draft'}</Text>
+          <Text style={styles.successText}>
+            {success.live
+              ? 'It now appears on your profile and in the Seeds feed.'
+              : canSubmitActive
+              ? 'Publish it whenever you’re ready.'
+              : 'It goes live once Siqa verifies your organization.'}
+            {success.requested ? ` ${success.requested} speaker${success.requested === 1 ? ' has' : 's have'} been asked to endorse it.` : ''}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <PrimaryButton label="View seed" onPress={() => router.replace({ pathname: '/seed/[id]', params: { id: success.id } } as any)} />
+            {selectedOrgId ? (
+              <PrimaryButton label="Back to profile" tone="ghost" onPress={() => router.replace({ pathname: '/org-profile', params: { id: selectedOrgId } } as any)} />
+            ) : null}
+          </View>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  const goalCents = centsFromGoal(form.goal);
+
+  // ── Step bodies ────────────────────────────────────────────────────────
+
+  const basics = (
+    <>
+      <StepHead title="The basics" sub="A seed is one focused campaign with a clear goal." />
+      <Field label="Organization">
+        {orgs.length === 0 ? (
+          <View style={styles.notice}><Text style={styles.muted}>Register a nonprofit or masjid before starting a seed.</Text></View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {orgs.map(org => {
+              const on = selectedOrgId === org.id;
+              return (
+                <TouchableOpacity key={org.id} style={[styles.orgPill, on && styles.orgPillOn]} onPress={() => setSelectedOrgId(org.id)} disabled={saving}>
+                  <Avatar name={org.org_name} url={org.logo_url} size={32} tone="emerald" square />
+                  <View>
+                    <Text style={[styles.orgPillText, on && { color: C.emerald }]} numberOfLines={1}>{org.org_name}</Text>
+                    <Text style={styles.orgPillMeta}>{org.is_verified ? 'Verified' : org.approval_status || 'Pending review'}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+      </Field>
+      <Field label="Seed title" help="Donor-facing and specific — e.g. “Winter food boxes for 500 families”.">
+        <TextInput style={styles.input} value={form.title} onChangeText={v => update('title', v)} placeholder="Winter food boxes for 500 families" placeholderTextColor={C.text3} maxLength={90} editable={!saving} />
+      </Field>
+      <Field label="Short subtitle (optional)">
+        <TextInput style={styles.input} value={form.subtitle} onChangeText={v => update('subtitle', v)} placeholder="Help families get through the coldest months" placeholderTextColor={C.text3} maxLength={130} editable={!saving} />
+      </Field>
+      <View style={styles.twoCol}>
+        <Field label="Goal (USD)" style={{ flex: 1, minWidth: 140 }}>
+          <TextInput style={styles.input} value={form.goal} onChangeText={v => update('goal', v)} placeholder="25000" placeholderTextColor={C.text3} keyboardType="decimal-pad" editable={!saving} />
+        </Field>
+        <Field label="End date (optional)" style={{ flex: 1, minWidth: 140 }}>
+          <TextInput style={styles.input} value={form.endDate} onChangeText={v => update('endDate', v)} placeholder="YYYY-MM-DD" placeholderTextColor={C.text3} editable={!saving} />
+        </Field>
+      </View>
+      <Field label="Category">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {CATEGORIES.map(cat => (
+            <TouchableOpacity key={cat} style={[styles.chip, form.category === cat && styles.chipOn]} onPress={() => update('category', cat)} disabled={saving}>
+              <Text style={[styles.chipText, form.category === cat && styles.chipTextOn]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Field>
+      <View style={styles.box}>
+        <ToggleRow title="Zakat eligible" sub="Only if your organization has confirmed the funds go to zakat-eligible recipients." value={form.zakatEligible} onChange={v => update('zakatEligible', v)} />
+        <View style={styles.divider} />
+        <ToggleRow title="Sadaqah jariyah" sub="For appeals with ongoing benefit." value={form.sadaqahJariyah} onChange={v => update('sadaqahJariyah', v)} />
+        <View style={styles.divider} />
+        <ToggleRow title="Emergency appeal" sub="Highlights this seed as urgent." value={form.emergency} onChange={v => update('emergency', v)} />
+      </View>
+    </>
+  );
+
+  const storyStep = (
+    <>
+      <StepHead title="Story & media" sub="Tell donors the need, what their money buys, and how you'll report back." />
+      <TouchableOpacity style={styles.mediaBox} onPress={pickVideo} disabled={saving} activeOpacity={0.86}>
+        <Icon name={video ? 'checkmark-circle' : 'videocam-outline'} size={32} color={video ? C.emerald : C.gold} />
+        <Text style={styles.mediaTitle}>{video ? 'Video appeal selected' : 'Upload your video appeal'}</Text>
+        <Text style={styles.mediaSub} numberOfLines={1}>{video ? video.fileName : 'Required — every Seed leads with a short video.'}</Text>
+        {video ? <Text style={styles.link}>Change video</Text> : null}
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.mediaBox, { minHeight: 150 }]} onPress={pickCover} disabled={saving} activeOpacity={0.86}>
+        {cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+        {cover ? <View style={styles.mediaScrim} /> : null}
+        <Icon name="image-outline" size={28} color={cover ? '#fff' : C.gold} />
+        <Text style={[styles.mediaTitle, cover && { color: '#fff' }]}>{cover ? 'Change cover photo' : 'Cover photo (optional)'}</Text>
+        {!cover ? <Text style={styles.mediaSub}>Shown on the seed card. 16:9 works best.</Text> : null}
+      </TouchableOpacity>
+      <Field label="The story" help="Why this seed exists, who it helps, what the money buys, and how donors will hear back.">
+        <TextInput
+          style={[styles.input, { minHeight: 200, textAlignVertical: 'top', lineHeight: 22 }]}
+          value={form.story}
+          onChangeText={v => update('story', v)}
+          placeholder="Explain the need, who benefits, how funds are used, and why this seed matters."
+          placeholderTextColor={C.text3}
+          multiline
+          editable={!saving}
+        />
+      </Field>
+    </>
+  );
+
+  const endorseStep = (
+    <>
+      <StepHead title="Request speaker endorsements" sub="Optional. Verified speakers get a request in Siqa and decide whether to endorse. You can't write or edit what they say." />
+      {form.invited.length > 0 && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {form.invited.map(sp => (
+            <TouchableOpacity key={sp.id} style={styles.invitedChip} onPress={() => update('invited', form.invited.filter(x => x.id !== sp.id))} accessibilityLabel={`Remove ${sp.display_name}`}>
+              <Avatar name={sp.display_name} url={sp.avatar_url} size={26} />
+              <Text style={styles.invitedText} numberOfLines={1}>{sp.display_name}</Text>
+              <Icon name="close" size={14} color={C.text2} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+      <SpeakerPicker
+        selected={Object.fromEntries(form.invited.map(s => [s.id, true]))}
+        onToggle={sp => update('invited', form.invited.some(x => x.id === sp.id) ? form.invited.filter(x => x.id !== sp.id) : [...form.invited, sp])}
+      />
+      <Field label="Note to speakers (optional)">
+        <TextInput
+          style={[styles.input, { minHeight: 90, textAlignVertical: 'top' }]}
+          value={form.endorsementNote}
+          onChangeText={v => update('endorsementNote', v)}
+          placeholder="Assalamu alaikum — we'd be honored if you'd look at this seed…"
+          placeholderTextColor={C.text3}
+          maxLength={500}
+          multiline
+        />
+      </Field>
+    </>
+  );
+
+  const publishStep = (
+    <>
+      <StepHead title="Donor reviews & publish" sub="After donating, donors can say why they gave. Reviews show on the seed and your profile." />
+      <View style={styles.box}>
+        <ToggleRow title="Let donors leave a review" sub="Shown right after checkout." value={form.allowReviews} onChange={v => update('allowReviews', v)} />
+        <View style={styles.divider} />
+        <ToggleRow title="Allow anonymous reviews" sub="Donor name hidden; amount never shown." value={form.allowAnonymousReviews} onChange={v => update('allowAnonymousReviews', v)} disabled={!form.allowReviews} />
+        <View style={styles.divider} />
+        <ToggleRow title="Show endorsements on the donate screen" sub="A speaker quote appears above the amount picker." value={form.showEndorsementsOnDonate} onChange={v => update('showEndorsementsOnDonate', v)} />
+      </View>
+      {form.allowReviews && (
+        <Field label="Question donors see">
+          <TextInput style={styles.input} value={form.reviewPrompt} onChangeText={v => update('reviewPrompt', v)} maxLength={120} placeholderTextColor={C.text3} />
+        </Field>
+      )}
+      <Field label="Publishing">
+        <View style={styles.segmentWrap}>
+          {(['draft', 'submit'] as const).map(v => (
+            <TouchableOpacity key={v} style={[styles.segment, form.visibility === v && styles.segmentOn]} onPress={() => update('visibility', v)}>
+              <Text style={[styles.segmentText, form.visibility === v && styles.segmentTextOn]}>
+                {v === 'draft' ? 'Save as draft' : canSubmitActive ? 'Publish now' : 'Submit'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </Field>
+      {!canSubmitActive ? (
+        <View style={styles.goldNotice}>
+          <Text style={styles.body}><Text style={{ fontWeight: '800' }}>Before it goes live:</Text> Siqa verifies every organization. Until yours is verified, seeds are saved as drafts.</Text>
+        </View>
+      ) : null}
+      {saving && (
+        <View style={styles.box}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+            <Text style={[styles.body, { fontWeight: '800', color: C.goldDim }]}>{progressPct}%</Text>
+            <Text style={[styles.muted, { flex: 1, textAlign: 'right' }]}>{progressLabel}</Text>
+          </View>
+          <ProgressBar pct={progressPct} height={6} />
+        </View>
+      )}
+    </>
+  );
+
+  const preview = (
+    <View style={{ gap: 10 }}>
+      <Text style={styles.previewLabel}>LIVE PREVIEW</Text>
+      <View style={styles.previewCard}>
+        <View style={styles.previewImage}>
+          {cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+          <View style={styles.previewCat}><Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{form.category}</Text></View>
+        </View>
+        <View style={{ padding: 14, gap: 8 }}>
+          <Text style={styles.muted}>{selectedOrg?.org_name || 'Your organization'}</Text>
+          <Text style={styles.previewTitle} numberOfLines={3}>{form.title.trim() || 'Your seed title'}</Text>
+          <ProgressBar pct={0} />
+          <Text style={styles.muted}><Text style={{ color: C.text, fontWeight: '700' }}>$0</Text> raised of {goalCents ? money(goalCents) : '$—'}</Text>
+          {form.invited.length > 0 ? (
+            <Text style={{ color: C.goldDim, fontSize: 13, fontWeight: '600' }}>{form.invited.length} endorsement request{form.invited.length === 1 ? '' : 's'} pending</Text>
+          ) : null}
+        </View>
+      </View>
+      <Text style={styles.muted}>This card appears on your profile and in the Seeds feed.</Text>
+    </View>
+  );
+
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} disabled={saving}>
-          <Text style={styles.cancel}>Cancel</Text>
+        <TouchableOpacity onPress={() => router.back()} disabled={saving} style={styles.headerBtn}>
+          <Text style={styles.headerLink}>Cancel</Text>
         </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>New Seed</Text>
-          <Text style={styles.headerArabic}>صِقا</Text>
-        </View>
-        <TouchableOpacity onPress={createSeed} disabled={saving} style={[styles.postBtn, saving && styles.postBtnDisabled]}>
-          <Text style={styles.postBtnText}>{saving ? 'Saving' : form.visibility === 'submit' ? 'Publish' : 'Save'}</Text>
+        <Text style={styles.headerTitle}>Start a seed</Text>
+        <TouchableOpacity onPress={() => saveDraft(true)} disabled={saving} style={[styles.headerBtn, { alignItems: 'flex-end' }]}>
+          <Text style={styles.headerLink}>Save draft</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.draftRow}>
-          <TouchableOpacity style={styles.draftBtn} onPress={() => saveDraft(true)} disabled={saving || savingDraft}>
-            <Text style={styles.draftBtnText}>{savingDraft ? 'Saving...' : 'Save Draft'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.draftBtnGhost} onPress={discardDraft} disabled={saving}>
-            <Text style={styles.draftBtnGhostText}>Discard</Text>
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.coverBox} onPress={pickVideo} disabled={saving} activeOpacity={0.86}>
-          <View style={styles.coverScrim} />
-          <Text style={styles.coverIcon}>{video ? '▶' : '＋'}</Text>
-          <Text style={styles.coverTitle}>{video ? 'Seed video selected' : 'Upload Seed video appeal'}</Text>
-          <Text style={styles.coverSub}>{video ? video.fileName : 'Every Seed is a video-first appeal with a donation layer.'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.coverBox, styles.thumbnailBox]} onPress={pickCover} disabled={saving} activeOpacity={0.86}>
-          {cover ? <Image source={{ uri: cover.uri }} style={styles.coverImage} /> : null}
-          <View style={styles.coverScrim} />
-          <Text style={styles.coverIcon}>{cover ? '✓' : '＋'}</Text>
-          <Text style={styles.coverTitle}>{cover ? 'Thumbnail selected' : 'Optional thumbnail'}</Text>
-          <Text style={styles.coverSub}>Choose a calm cover image for the Seed card, or let the video lead.</Text>
-        </TouchableOpacity>
-
-        {saving && (
-          <View style={styles.progressBox}>
-            <View style={styles.progressTop}>
-              <Text style={styles.progressPct}>{progressPct}%</Text>
-              <Text style={styles.progressLabel}>{progressLabel}</Text>
-            </View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
-            </View>
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Organization</Text>
-          {orgs.length === 0 ? (
-            <View style={styles.noticeBox}>
-              <Text style={styles.noticeTitle}>No organization connected</Text>
-              <Text style={styles.noticeText}>Register a nonprofit or masjid before creating Seeds.</Text>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-              {orgs.map((org) => (
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+        <View style={styles.page} onLayout={onLayout}>
+          <View style={styles.stepper}>
+            {STEPS.map((label, i) => {
+              const cur = i === step, done = i < step;
+              return (
                 <TouchableOpacity
-                  key={org.id}
-                  style={[styles.pill, selectedOrgId === org.id && styles.pillActive]}
-                  onPress={() => setSelectedOrgId(org.id)}
+                  key={label}
+                  style={[styles.stepBtn, cur && styles.stepBtnOn]}
+                  onPress={() => setStep(i)}
                   disabled={saving}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: cur }}
                 >
-                  <Text style={[styles.pillText, selectedOrgId === org.id && styles.pillTextActive]}>{org.org_name}</Text>
-                  <Text style={styles.pillMeta}>{org.is_verified ? 'Verified' : org.approval_status || 'Pending'}</Text>
+                  <View style={[styles.stepDot, (cur || done) && styles.stepDotOn]}>
+                    {done ? <Icon name="checkmark" size={14} color="#fff" /> : <Text style={[styles.stepNum, cur && { color: '#fff' }]}>{i + 1}</Text>}
+                  </View>
+                  {(wide || cur) && <Text style={styles.stepLabel} numberOfLines={1}>{label}</Text>}
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Seed title</Text>
-          <TextInput
-            style={styles.input}
-            value={form.title}
-            onChangeText={(value) => update('title', value)}
-            placeholder="Emergency rent support for families"
-            placeholderTextColor={C.text3}
-            maxLength={90}
-            editable={!saving}
-          />
-          <Text style={styles.helper}>Make this donor-facing and specific.</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Short subtitle</Text>
-          <TextInput
-            style={styles.input}
-            value={form.subtitle}
-            onChangeText={(value) => update('subtitle', value)}
-            placeholder="Help plant lasting relief for local families"
-            placeholderTextColor={C.text3}
-            maxLength={130}
-            editable={!saving}
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Appeal story</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={form.story}
-            onChangeText={(value) => update('story', value)}
-            placeholder="Explain the need, who benefits, how funds are used, and why this Seed matters."
-            placeholderTextColor={C.text3}
-            multiline
-            textAlignVertical="top"
-            editable={!saving}
-          />
-        </View>
-
-        <View style={styles.twoCol}>
-          <View style={[styles.card, styles.halfCard]}>
-            <Text style={styles.label}>Goal</Text>
-            <TextInput
-              style={styles.input}
-              value={form.goal}
-              onChangeText={(value) => update('goal', value)}
-              placeholder="5000"
-              placeholderTextColor={C.text3}
-              keyboardType="decimal-pad"
-              editable={!saving}
-            />
+              );
+            })}
           </View>
-          <View style={[styles.card, styles.halfCard]}>
-            <Text style={styles.label}>End date</Text>
-            <TextInput
-              style={styles.input}
-              value={form.endDate}
-              onChangeText={(value) => update('endDate', value)}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={C.text3}
-              editable={!saving}
-            />
-          </View>
-        </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Category</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.topicPill, form.category === cat && styles.topicPillActive]}
-                onPress={() => update('category', cat)}
-                disabled={saving}
-              >
-                <Text style={[styles.topicText, form.category === cat && styles.topicTextActive]}>{cat}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchCopy}>
-              <Text style={styles.switchTitle}>Sadaqah Jariyah Seed</Text>
-              <Text style={styles.switchSub}>Use this for appeals with ongoing benefit.</Text>
+          <View style={styles.columns}>
+            <View style={styles.formCard}>
+              {step === 0 && basics}
+              {step === 1 && storyStep}
+              {step === 2 && endorseStep}
+              {step === 3 && publishStep}
+              <View style={styles.navRow}>
+                {step > 0 ? (
+                  <PrimaryButton label="Back" tone="ghost" onPress={() => setStep(s => s - 1)} disabled={saving} style={{ minWidth: 100 }} />
+                ) : (
+                  <TouchableOpacity onPress={discardDraft} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={styles.danger}>Discard draft</Text></TouchableOpacity>
+                )}
+                {step < STEPS.length - 1 ? (
+                  <PrimaryButton label={step === 2 && form.invited.length === 0 ? 'Skip for now' : 'Continue'} tone="emerald" onPress={next} style={{ minWidth: 140 }} />
+                ) : (
+                  <PrimaryButton
+                    label={form.visibility === 'submit' && canSubmitActive ? 'Publish seed' : 'Save seed'}
+                    onPress={createSeed}
+                    busy={saving}
+                    style={{ minWidth: 160 }}
+                  />
+                )}
+              </View>
             </View>
-            <Switch value={form.sadaqahJariyah} onValueChange={(value) => update('sadaqahJariyah', value)} disabled={saving} />
+            {wide && <View style={styles.aside}>{preview}</View>}
           </View>
-          <View style={styles.divider} />
-          <View style={styles.switchRow}>
-            <View style={styles.switchCopy}>
-              <Text style={styles.switchTitle}>Zakat eligible</Text>
-              <Text style={styles.switchSub}>Only enable if your organization has reviewed eligibility.</Text>
-            </View>
-            <Switch value={form.zakatEligible} onValueChange={(value) => update('zakatEligible', value)} disabled={saving} />
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.switchRow}>
-            <View style={styles.switchCopy}>
-              <Text style={styles.switchTitle}>Emergency appeal</Text>
-              <Text style={styles.switchSub}>Highlights this Seed as urgent.</Text>
-            </View>
-            <Switch value={form.emergency} onValueChange={(value) => update('emergency', value)} disabled={saving} />
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.label}>Publishing</Text>
-          <View style={styles.segment}>
-            <TouchableOpacity style={[styles.segmentBtn, form.visibility === 'draft' && styles.segmentBtnActive]} onPress={() => update('visibility', 'draft')}>
-              <Text style={[styles.segmentText, form.visibility === 'draft' && styles.segmentTextActive]}>Draft</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.segmentBtn, form.visibility === 'submit' && styles.segmentBtnActive]} onPress={() => update('visibility', 'submit')}>
-              <Text style={[styles.segmentText, form.visibility === 'submit' && styles.segmentTextActive]}>{canSubmitActive ? 'Publish' : 'Submit'}</Text>
-            </TouchableOpacity>
-          </View>
-          {!canSubmitActive && (
-            <Text style={styles.helper}>Unverified organizations can save drafts now. Admin approval should publish Seeds later.</Text>
-          )}
         </View>
       </ScrollView>
-
-      {success && (
-        <View style={styles.successOverlay} pointerEvents="none">
-          <Animated.View style={[styles.successCard, { opacity: successOpacity, transform: [{ scale: successScale }] }]}>
-            <Glyph name="leaf-outline" style={styles.successIcon} color={C.gold} />
-            <Text style={styles.successTitle}>{form.visibility === 'submit' && canSubmitActive ? 'Seed published' : 'Seed saved'}</Text>
-            <Text style={styles.successText}>Your appeal is ready in Siqa.</Text>
-          </Animated.View>
-        </View>
-      )}
     </KeyboardAvoidingView>
   );
 }
 
-function makeStyles(C: AppColors, isDark: boolean, isDesktopWeb = false) {
-  // On desktop the header and form sit in one centered column instead of
-  // stretching across the window; the tall top padding only exists to
-  // clear a phone's status bar, so it's dropped there too.
-  const desktopColumn = isDesktopWeb
-    ? { maxWidth: 760, width: '100%' as const, alignSelf: 'center' as const }
-    : {};
+function StepHead({ title, sub }: { title: string; sub: string }) {
+  const { colors: C } = useTheme();
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ color: C.text, fontSize: 24, fontWeight: '800' }}>{title}</Text>
+      <Text style={{ color: C.text2, fontSize: 15, lineHeight: 22 }}>{sub}</Text>
+    </View>
+  );
+}
+
+function Field({ label, help, children, style }: { label: string; help?: string; children: React.ReactNode; style?: any }) {
+  const { colors: C } = useTheme();
+  return (
+    <View style={[{ gap: 6 }, style]}>
+      <Text style={{ color: C.text, fontSize: 14, fontWeight: '700' }}>{label}</Text>
+      {children}
+      {help ? <Text style={{ color: C.text2, fontSize: 13, lineHeight: 18 }}>{help}</Text> : null}
+    </View>
+  );
+}
+
+function ToggleRow({ title, sub, value, onChange, disabled }: { title: string; sub: string; value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  const { colors: C } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.5 : 1 }}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{title}</Text>
+        <Text style={{ color: C.text2, fontSize: 13, lineHeight: 18 }}>{sub}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        disabled={disabled}
+        trackColor={{ false: C.surface3, true: C.emerald }}
+        thumbColor="#fff"
+        {...({ activeThumbColor: '#fff' } as any)}
+        accessibilityLabel={title}
+      />
+    </View>
+  );
+}
+
+function makeStyles(C: AppColors, isDark: boolean, wide: boolean) {
   return StyleSheet.create({
-    screen: { flex: 1, backgroundColor: C.bg },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+    screen: { flex: 1, backgroundColor: C.bg2 },
+    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 24 },
     header: {
-      paddingTop: isDesktopWeb ? 20 : 54,
-      paddingHorizontal: 18,
-      paddingBottom: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      borderBottomWidth: 0.5,
-      borderBottomColor: C.border2,
-      backgroundColor: C.bg,
-      ...desktopColumn,
+      paddingTop: Platform.OS === 'web' ? 10 : 54, paddingHorizontal: 12, paddingBottom: 8,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      borderBottomWidth: 1, borderBottomColor: C.border2, backgroundColor: C.bg,
     },
-    cancel: { color: C.text2, fontSize: 14, fontWeight: '600', minWidth: 56 },
-    headerTitleWrap: { alignItems: 'center' },
+    headerBtn: { minWidth: 88, minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 },
+    headerLink: { color: C.text2, fontSize: 15, fontWeight: '600' },
     headerTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
-    headerArabic: { color: C.gold, fontSize: 14, marginTop: 1 },
-    postBtn: { backgroundColor: C.gold, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999 },
-    postBtnDisabled: { opacity: 0.62 },
-    postBtnText: { color: C.black, fontSize: 13, fontWeight: '900' },
-    content: { padding: 18, paddingBottom: 120, gap: 14, ...desktopColumn },
-    draftRow: { flexDirection: 'row', gap: 10 },
-    draftBtn: { flex: 1, backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldDim, borderRadius: 14, padding: 12, alignItems: 'center' },
-    draftBtnText: { color: C.gold, fontWeight: '800' },
-    draftBtnGhost: { flex: 1, backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2, borderRadius: 14, padding: 12, alignItems: 'center' },
-    draftBtnGhostText: { color: C.text2, fontWeight: '700' },
-    coverBox: { height: 210, borderRadius: 24, overflow: 'hidden', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border2, alignItems: 'center', justifyContent: 'center' },
-    thumbnailBox: { height: 160 },
-    coverImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-    coverScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: isDark ? 'rgba(0,0,0,0.42)' : 'rgba(255,255,255,0.16)' },
-    coverIcon: { color: C.gold, fontSize: 42, fontWeight: '200' },
-    coverTitle: { color: C.text, fontSize: 18, fontWeight: '900', marginTop: 4 },
-    coverSub: { color: C.text2, fontSize: 12, marginTop: 5, textAlign: 'center', paddingHorizontal: 28 },
-    progressBox: { backgroundColor: C.surface, borderRadius: 18, borderWidth: 0.5, borderColor: C.border2, padding: 14 },
-    progressTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, gap: 12 },
-    progressPct: { color: C.gold, fontWeight: '900' },
-    progressLabel: { color: C.text2, fontSize: 12, flex: 1, textAlign: 'right' },
-    progressTrack: { height: 6, borderRadius: 999, backgroundColor: C.surface2, overflow: 'hidden' },
-    progressFill: { height: '100%', borderRadius: 999, backgroundColor: C.gold },
-    card: { backgroundColor: C.surface, borderRadius: 20, borderWidth: 0.5, borderColor: C.border2, padding: 15 },
-    label: { color: C.text3, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 },
-    input: { backgroundColor: C.bg, borderWidth: 0.5, borderColor: C.border2, borderRadius: 14, padding: 13, color: C.text, fontSize: 14 },
-    textArea: { minHeight: 136, lineHeight: 20 },
-    helper: { color: C.text3, fontSize: 11, marginTop: 8, lineHeight: 16 },
-    twoCol: { flexDirection: 'row', gap: 10 },
-    halfCard: { flex: 1 },
-    pillRow: { gap: 8, paddingRight: 6 },
-    pill: { minWidth: 150, backgroundColor: C.bg, borderRadius: 16, borderWidth: 0.5, borderColor: C.border2, paddingHorizontal: 13, paddingVertical: 11 },
-    pillActive: { borderColor: C.goldDim, backgroundColor: C.goldBg },
-    pillText: { color: C.text2, fontSize: 13, fontWeight: '800' },
-    pillTextActive: { color: C.gold },
-    pillMeta: { color: C.text3, fontSize: 10, marginTop: 3, textTransform: 'uppercase' },
-    topicPill: { backgroundColor: C.bg, borderWidth: 0.5, borderColor: C.border2, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
-    topicPillActive: { backgroundColor: C.gold, borderColor: C.gold },
-    topicText: { color: C.text2, fontSize: 12, fontWeight: '800' },
-    topicTextActive: { color: C.black },
-    switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 },
-    switchCopy: { flex: 1 },
-    switchTitle: { color: C.text, fontSize: 14, fontWeight: '800' },
-    switchSub: { color: C.text3, fontSize: 11, marginTop: 3, lineHeight: 16 },
-    divider: { height: 0.5, backgroundColor: C.border2, marginVertical: 13 },
-    segment: { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 14, borderWidth: 0.5, borderColor: C.border2, padding: 4 },
-    segmentBtn: { flex: 1, borderRadius: 11, paddingVertical: 10, alignItems: 'center' },
-    segmentBtnActive: { backgroundColor: C.gold },
-    segmentText: { color: C.text3, fontWeight: '800', fontSize: 12 },
-    segmentTextActive: { color: C.black },
-    noticeBox: { backgroundColor: C.bg, borderRadius: 14, borderWidth: 0.5, borderColor: C.border2, padding: 14 },
-    noticeTitle: { color: C.text, fontWeight: '800', marginBottom: 4 },
-    noticeText: { color: C.text3, fontSize: 12, lineHeight: 18 },
-    lockedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34 },
-    lockedIcon: { fontSize: 50, marginBottom: 12 },
-    lockedTitle: { color: C.text, fontSize: 22, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
-    lockedSub: { color: C.text2, fontSize: 14, lineHeight: 21, textAlign: 'center', marginBottom: 22 },
-    primaryBtn: { backgroundColor: C.gold, borderRadius: 16, paddingHorizontal: 24, paddingVertical: 14 },
-    primaryBtnText: { color: C.black, fontWeight: '900' },
-    successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 28 },
-    successCard: { width: '100%', backgroundColor: C.surface, borderRadius: 28, borderWidth: 1, borderColor: C.goldDim, padding: 28, alignItems: 'center' },
-    successIcon: { fontSize: 48, marginBottom: 8 },
-    successTitle: { color: C.text, fontSize: 21, fontWeight: '900', marginBottom: 5 },
-    successText: { color: C.text2, fontSize: 13 },
+
+    page: { width: '100%', maxWidth: 1180, alignSelf: 'center', padding: wide ? 24 : 12, gap: 16 },
+    stepper: { flexDirection: 'row', gap: 8 },
+    stepBtn: { flex: 1, minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: wide ? 'flex-start' : 'center', gap: 10, paddingHorizontal: wide ? 14 : 6, borderRadius: 12, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface },
+    stepBtnOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg, flex: wide ? 1 : 2.4 },
+    stepDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.surface3, alignItems: 'center', justifyContent: 'center' },
+    stepDotOn: { backgroundColor: C.emerald },
+    stepNum: { color: C.text2, fontSize: 13, fontWeight: '700' },
+    stepLabel: { color: C.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
+
+    columns: { flexDirection: wide ? 'row' : 'column', gap: 24, alignItems: 'flex-start' },
+    formCard: { flex: wide ? 1 : undefined, width: wide ? undefined : '100%', minWidth: 0, backgroundColor: C.surface, borderRadius: 18, borderWidth: 1, borderColor: C.border2, padding: wide ? 28 : 18, gap: 20 },
+    aside: { width: 320 },
+    navRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: C.border2, paddingTop: 18 },
+
+    input: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: C.text, fontSize: 16, minHeight: 48 },
+    twoCol: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+    box: { borderWidth: 1, borderColor: C.border2, borderRadius: 14, padding: 16, gap: 14, backgroundColor: C.bg },
+    divider: { height: 1, backgroundColor: C.border2 },
+    notice: { padding: 14, borderRadius: 12, backgroundColor: C.surface2 },
+    goldNotice: { padding: 14, borderRadius: 12, backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldSoft },
+
+    orgPill: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180, maxWidth: 280, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg },
+    orgPillOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    orgPillText: { color: C.text, fontSize: 14, fontWeight: '700' },
+    orgPillMeta: { color: C.text2, fontSize: 12, marginTop: 1, textTransform: 'capitalize' },
+    chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border, justifyContent: 'center' },
+    chipOn: { backgroundColor: C.emerald, borderColor: C.emerald },
+    chipText: { color: C.text2, fontSize: 14, fontWeight: '600' },
+    chipTextOn: { color: '#fff' },
+
+    mediaBox: { minHeight: 190, borderRadius: 16, borderWidth: 2, borderStyle: 'dashed', borderColor: C.border, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 20, overflow: 'hidden' },
+    mediaScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+    mediaTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
+    mediaSub: { color: C.text2, fontSize: 13, textAlign: 'center' },
+
+    invitedChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4, paddingRight: 10, minHeight: 36, borderRadius: 999, backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldSoft, maxWidth: 240 },
+    invitedText: { color: C.text, fontSize: 13, fontWeight: '600', flexShrink: 1 },
+
+    segmentWrap: { flexDirection: 'row', gap: 8 },
+    segment: { flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+    segmentOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    segmentText: { color: C.text2, fontWeight: '700', fontSize: 14 },
+    segmentTextOn: { color: C.emerald },
+
+    previewLabel: { color: C.text2, fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
+    previewCard: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border2, overflow: 'hidden' },
+    previewImage: { aspectRatio: 16 / 9, backgroundColor: C.emeraldSoft, justifyContent: 'flex-end', padding: 10 },
+    previewCat: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+    previewTitle: { color: C.text, fontSize: 17, fontWeight: '700', lineHeight: 22 },
+
+    lockedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 34, gap: 8 },
+    lockedTitle: { color: C.text, fontSize: 22, fontWeight: '900', textAlign: 'center' },
+    lockedSub: { color: C.text2, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 14, maxWidth: 420 },
+
+    successCard: { width: '100%', maxWidth: 460, backgroundColor: C.surface, borderRadius: 24, borderWidth: 1, borderColor: C.border2, padding: 28, alignItems: 'center', gap: 12 },
+    successIcon: { width: 68, height: 68, borderRadius: 34, backgroundColor: C.emeraldBg, alignItems: 'center', justifyContent: 'center' },
+    successTitle: { color: C.text, fontSize: 22, fontWeight: '900', textAlign: 'center' },
+    successText: { color: C.text2, fontSize: 15, lineHeight: 22, textAlign: 'center', marginBottom: 6 },
+
+    body: { color: C.text, fontSize: 15, lineHeight: 22 },
+    muted: { color: C.text2, fontSize: 14, lineHeight: 20 },
+    link: { color: C.emerald, fontSize: 14, fontWeight: '700' },
+    danger: { color: C.danger, fontSize: 14, fontWeight: '600' },
   });
 }
