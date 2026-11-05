@@ -19,7 +19,7 @@ import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialo
 
 type ProfileClaimRow = {
   id: string;
-  entity_type: 'speaker' | 'business';
+  entity_type: 'speaker' | 'business' | 'organization';
   entity_id: string;
   entity_name: string | null;
   relationship: 'self' | 'representative';
@@ -468,7 +468,7 @@ export default function AdminScreen() {
             <View style={styles.cardInfo}>
               <Text style={styles.cardTitle}>{c.entity_name || `Unnamed ${c.entity_type}`}</Text>
               <Text style={styles.cardMeta}>
-                {c.entity_type === 'speaker' ? 'Speaker' : 'Business'} · claimed by {c.full_name}
+                {c.entity_type === 'speaker' ? 'Speaker' : c.entity_type === 'organization' ? 'Organization' : 'Business'} · claimed by {c.full_name}
                 {c.relationship === 'representative' ? ` (${c.title || 'representative'})` : ' (self)'}
               </Text>
               <Text style={styles.cardMeta} selectable>{c.contact_email}{c.contact_phone ? ` · ${c.contact_phone}` : ''}</Text>
@@ -480,9 +480,12 @@ export default function AdminScreen() {
               <Text style={styles.cardMeta}>{new Date(c.created_at).toLocaleString()}</Text>
             </View>
             <View style={styles.actionsRow}>
-              {c.entity_type === 'speaker' && (
-                <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push(`/speaker/${c.entity_id}` as any)}>
-                  <Text style={styles.ghostBtnText}>View profile</Text>
+              {c.entity_type !== 'business' && (
+                <TouchableOpacity
+                  style={styles.ghostBtn}
+                  onPress={() => router.push((c.entity_type === 'speaker' ? `/speaker/${c.entity_id}` : `/org-listing/${c.entity_id}`) as any)}
+                >
+                  <Text style={styles.ghostBtnText}>{c.entity_type === 'speaker' ? 'View profile' : 'View listing'}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.ghostBtn} onPress={() => rejectClaim(c)} disabled={busyId === c.id}>
