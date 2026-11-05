@@ -4,12 +4,12 @@ import { showToast } from '../components/Toast';
 /**
  * Base URL used to build shareable links.
  * On web this reads the real origin, so links shared from
- * marketplace.thesiqaapp.com stay on the Marketplace and links from
- * gems.thesiqaapp.com stay on the full app. On native there's no
+ * shop.siqa.us stay on the Marketplace and links from www.siqa.us stay
+ * on the full app. On native there's no
  * window.location, so it falls back to the full app's domain — update
  * this if the production domain changes (e.g. siqa.us).
  */
-export const NATIVE_SHARE_BASE_URL = 'https://gems.thesiqaapp.com';
+export const NATIVE_SHARE_BASE_URL = 'https://www.siqa.us';
 
 export function getAppBaseUrl(): string {
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location) {

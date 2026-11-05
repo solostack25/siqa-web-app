@@ -11,7 +11,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const DEFAULT_RETURN_URL = 'https://gems.thesiqaapp.com/seller-dashboard';
+const DEFAULT_RETURN_URL = 'https://www.siqa.us/seller-dashboard';
 
 /** Only send sellers back to our own sites (or the app), never an arbitrary URL. */
 function isAllowedReturnUrl(value: unknown): value is string {
