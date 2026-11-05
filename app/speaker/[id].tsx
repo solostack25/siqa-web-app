@@ -807,7 +807,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     },
     identityText: { flex: desktop ? 1 : undefined, minWidth: 0, gap: 4, paddingBottom: desktop ? 4 : 0 },
     avatar: {
-      width: 88, height: 88, borderRadius: 44, backgroundColor: C.emeraldBg,
+      width: 88, height: 88, borderRadius: 44, backgroundColor: C.surface2,
       borderWidth: 4, borderColor: C.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
     avatarDesktop: { width: 128, height: 128, borderRadius: 64, marginLeft: 0 },
@@ -871,7 +871,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       gap: 12, marginBottom: 14,
     },
     sectionTitle: { fontSize: 18, fontWeight: '700', color: C.text },
-    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, flexShrink: 1, maxWidth: '100%' },
     pill: {
       height: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
       justifyContent: 'center', backgroundColor: C.surface,
@@ -897,8 +897,8 @@ function makeStyles(C: AppColors, desktop: boolean) {
       flexDirection: 'row', flexWrap: 'wrap', gap: 24, padding: 16, marginBottom: 28,
       borderRadius: Theme.radius.lg, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface,
     },
-    featuredThumb: { flexGrow: 1, flexBasis: 420 },
-    featuredInfo: { flexGrow: 1, flexBasis: 260, justifyContent: 'center', gap: 8 },
+    featuredThumb: { flexGrow: 1, flexShrink: 1, flexBasis: 420 },
+    featuredInfo: { flexGrow: 1, flexShrink: 1, flexBasis: 260, justifyContent: 'center', gap: 8 },
     eyebrow: { fontSize: 12, fontWeight: '700', color: C.emerald, letterSpacing: 0.8 },
     featuredTitle: { fontSize: 24, fontWeight: '700', color: C.text, lineHeight: 30 },
     playCircle: {

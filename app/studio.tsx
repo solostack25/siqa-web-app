@@ -101,6 +101,7 @@ function localTimeZone() {
 type CommentRow = { id: string; video_id: string; profile_id: string; parent_id: string | null; created_at: string };
 
 const RANGE_LABEL: Record<Range, string> = { '7': 'Last 7 days', '28': 'Last 28 days', '90': 'Last 90 days', all: 'Last 12 months' };
+const RANGE_SHORT: Record<Range, string> = { '7': '7 days', '28': '28 days', '90': '90 days', all: '12 months' };
 
 function videoStatus(v: StudioVideo): StatusKey {
   if (v.status === 'rejected') return 'removed';
@@ -184,7 +185,7 @@ export default function StudioScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
   const wide = contentWidth >= 900;
-  const styles = makeStyles(C, isDesktopWeb);
+  const styles = makeStyles(C, isDesktopWeb, wide);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -610,7 +611,7 @@ export default function StudioScreen() {
                       <Text style={styles.primaryBtnText}>Create</Text>
                     </TouchableOpacity>
                     {createOpen && (
-                      <View style={styles.createMenu}>
+                      <View style={[styles.createMenu, !wide && { right: undefined, left: 0 }]}>
                         {createItems.map(item => (
                           <TouchableOpacity
                             key={item.key}
@@ -652,7 +653,7 @@ export default function StudioScreen() {
                   accessibilityRole="radio"
                   accessibilityState={{ selected: range === r }}
                 >
-                  <Text style={[styles.segText, range === r && styles.segTextActive]}>{RANGE_LABEL[r]}</Text>
+                  <Text style={[styles.segText, range === r && styles.segTextActive]}>{wide ? RANGE_LABEL[r] : RANGE_SHORT[r]}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -660,7 +661,7 @@ export default function StudioScreen() {
             {/* KPIs */}
             <View style={styles.kpiGrid}>
               {kpis.map(k => (
-                <View key={k.label} style={[styles.card, styles.kpi, { flexBasis: wide ? 160 : 150 }]}>
+                <View key={k.label} style={[styles.card, styles.kpi, { flexBasis: wide ? 128 : 140 }]}>
                   <View style={styles.kpiHead}>
                     <Icon name={k.icon} size={15} color={C.text3} />
                     <Text style={styles.kpiLabel}>{k.label}</Text>
@@ -682,7 +683,7 @@ export default function StudioScreen() {
 
             {/* Chart + format split */}
             <View style={styles.row}>
-              <View style={[styles.card, { flexGrow: 3, flexBasis: 480 }]}>
+              <View style={[styles.card, { flexGrow: 3, flexShrink: 1, flexBasis: 480 }]}>
                 <View style={styles.cardHead}>
                   <View style={styles.pillRow}>
                     <Chip active={metric === 'views'} label="Views on Siqa" onPress={() => setMetric('views')} />
@@ -719,7 +720,7 @@ export default function StudioScreen() {
                 </View>
               </View>
 
-              <View style={[styles.card, { flexGrow: 1, flexBasis: 280, gap: 14 }]}>
+              <View style={[styles.card, { flexGrow: 1, flexShrink: 1, flexBasis: 280, gap: 14 }]}>
                 <Text style={styles.cardTitle}>Where your views come from</Text>
                 {[formatSplit[0], formatSplit[1]].map(s => (
                   <View key={s.label}>
@@ -738,7 +739,7 @@ export default function StudioScreen() {
 
             {/* Top videos + attention */}
             <View style={styles.row}>
-              <View style={[styles.card, { flexGrow: 2, flexBasis: 380 }]}>
+              <View style={[styles.card, { flexGrow: 2, flexShrink: 1, flexBasis: 380 }]}>
                 <Text style={[styles.cardTitle, { marginBottom: 12 }]}>
                   {topVideos.period ? `Top videos · ${RANGE_LABEL[range].toLowerCase()}` : 'Top videos (lifetime views)'}
                 </Text>
@@ -754,7 +755,7 @@ export default function StudioScreen() {
                 ))}
               </View>
 
-              <View style={[styles.card, styles.attnCard, { flexGrow: 1, flexBasis: 280 }]}>
+              <View style={[styles.card, styles.attnCard, { flexGrow: 1, flexShrink: 1, flexBasis: 280 }]}>
                 <Text style={[styles.cardTitle, { marginBottom: 6 }]}>Needs your attention</Text>
                 {attention.map(a => (
                   <TouchableOpacity key={a.label} style={styles.attnRow} onPress={a.onPress} disabled={!a.onPress}>
@@ -904,7 +905,7 @@ export default function StudioScreen() {
   );
 }
 
-function makeStyles(C: AppColors, desktop: boolean) {
+function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
   return StyleSheet.create({
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: C.bg },
     gateTitle: { fontSize: 20, fontWeight: '700', color: C.text, textAlign: 'center' },
@@ -936,10 +937,13 @@ function makeStyles(C: AppColors, desktop: boolean) {
     bannerText: { flex: 1, fontSize: 13, color: C.text, lineHeight: 18 },
 
     segment: {
-      flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'flex-start', gap: 2, padding: 4,
+      flexDirection: 'row', alignSelf: wide ? 'flex-start' : 'stretch', gap: 2, padding: 4,
       borderRadius: 999, backgroundColor: C.bg3,
     },
-    segBtn: { height: 36, paddingHorizontal: 14, borderRadius: 999, justifyContent: 'center' },
+    segBtn: {
+      height: 36, paddingHorizontal: wide ? 14 : 4, borderRadius: 999, justifyContent: 'center', alignItems: 'center',
+      ...(wide ? {} : { flex: 1 }),
+    },
     segBtnActive: { backgroundColor: C.surface },
     segText: { fontSize: 13, color: C.text2, fontWeight: '500' },
     segTextActive: { color: C.text, fontWeight: '700' },
@@ -949,10 +953,10 @@ function makeStyles(C: AppColors, desktop: boolean) {
       padding: desktop ? 20 : 16,
     },
     kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    kpi: { flexGrow: 1, gap: 6, padding: 16 },
+    kpi: { flexGrow: 1, gap: 6, padding: wide ? 16 : 12 },
     kpiHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     kpiLabel: { fontSize: 13, color: C.text2, fontWeight: '500' },
-    kpiValue: { fontSize: 28, fontWeight: '700', color: C.text, letterSpacing: -0.5 },
+    kpiValue: { fontSize: wide ? 28 : 22, fontWeight: '700', color: C.text, letterSpacing: -0.5 },
     kpiNote: { fontSize: 12, color: C.text3 },
 
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
@@ -962,7 +966,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     cardFoot: { fontSize: 12, color: C.text3, marginTop: 'auto' as any },
 
     chart: {
-      height: 200, flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 16,
+      height: wide ? 200 : 150, flexDirection: 'row', alignItems: 'flex-end', gap: wide ? 3 : 2, marginTop: 16,
       borderBottomWidth: 1, borderBottomColor: C.border2,
     },
     barSlot: { flex: 1, height: '100%', justifyContent: 'flex-end' },
@@ -995,11 +999,11 @@ function makeStyles(C: AppColors, desktop: boolean) {
     h2Count: { fontSize: 15, fontWeight: '500', color: C.text2 },
     searchBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 14,
-      borderRadius: 999, backgroundColor: C.surface2, width: 280, maxWidth: '100%',
+      borderRadius: 999, backgroundColor: C.surface2, width: wide ? 280 : '100%', maxWidth: '100%',
     },
     searchInput: { flex: 1, fontSize: 14, color: C.text, minWidth: 0, ...(Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {}) },
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
-    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+    pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', flexShrink: 1, maxWidth: '100%' },
     pill: {
       height: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
       justifyContent: 'center', backgroundColor: C.surface,
