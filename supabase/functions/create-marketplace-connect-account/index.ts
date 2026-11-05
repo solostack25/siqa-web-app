@@ -11,6 +11,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const DEFAULT_RETURN_URL = 'https://gems.thesiqaapp.com/seller-dashboard';
+
+/** Only send sellers back to our own sites (or the app), never an arbitrary URL. */
+function isAllowedReturnUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const u = new URL(value);
+    if (u.protocol === 'siqa:') return true;
+    if (u.protocol !== 'https:') return false;
+    const h = u.hostname.toLowerCase();
+    return h === 'thesiqaapp.com' || h.endsWith('.thesiqaapp.com') || h === 'siqa.us' || h.endsWith('.siqa.us')
+      || (h.endsWith('.vercel.app') && h.startsWith('siqa-web-'));
+  } catch {
+    return false;
+  }
+}
+
 // Mirrors create-connect-account (used for org donation payouts) but
 // targets marketplace_sellers / business_type 'individual' instead of
 // organizations / 'non_profit' — sellers here are typically individual
@@ -26,20 +43,29 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { sellerId, shopName, email, returnUrl } = await req.json();
+    const respond = (body: Record<string, unknown>, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    if (!sellerId) {
-      return new Response(JSON.stringify({ error: 'Missing sellerId' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    // Who is calling: the seller's own Supabase login token. Previously this
+    // trusted any sellerId in the body, so anyone could finish payout setup
+    // on another seller's not-yet-onboarded Stripe account.
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (!user) return respond({ error: 'Sign in again to connect payouts.' }, 401);
+
+    const { sellerId, shopName, returnUrl } = await req.json();
+    if (!sellerId) return respond({ error: 'Missing sellerId' }, 400);
 
     const { data: seller } = await supabase
       .from('marketplace_sellers')
-      .select('stripe_account_id, stripe_onboarded')
+      .select('user_id, stripe_account_id, stripe_onboarded')
       .eq('id', sellerId)
       .single();
+    if (!seller) return respond({ error: 'Shop not found' }, 404);
+    if (seller.user_id !== user.id) return respond({ error: 'You can only set up payouts for your own shop.' }, 403);
+
+    const email = user.email ?? undefined;
+    const safeReturnUrl = isAllowedReturnUrl(returnUrl) ? returnUrl : DEFAULT_RETURN_URL;
 
     let accountId = seller?.stripe_account_id;
 
@@ -68,8 +94,8 @@ Deno.serve(async (req) => {
 
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: returnUrl ?? 'https://gems.thesiqaapp.com/seller-dashboard',
-      return_url: returnUrl ?? 'https://gems.thesiqaapp.com/seller-dashboard',
+      refresh_url: safeReturnUrl,
+      return_url: safeReturnUrl,
       type: 'account_onboarding',
     });
 

@@ -65,7 +65,12 @@ function notify(title: string, message: string) {
 async function callCheckout(body: Record<string, unknown>) {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/create-marketplace-payment-intent`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+    // The function takes the buyer from this login token, not from the body.
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}`,
+    },
     body: JSON.stringify(body),
   });
   const data = await res.json();
