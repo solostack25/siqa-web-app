@@ -45,7 +45,8 @@
     <style>
       /* Match the app background so overscroll / slow loads never flash white. */
       html, body { background-color: #FFFFFF; }
-      * { overscroll-behavior: none; }
+      /* Do NOT add `* { overscroll-behavior: none }` here: it breaks touch
+         scrolling on Home and Shop in mobile Chrome (nested scroll views). */
       @media (prefers-color-scheme: dark) {
         html, body { background-color: #0A0F1C; }
       }
