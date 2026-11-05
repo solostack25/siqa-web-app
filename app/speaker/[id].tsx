@@ -19,6 +19,7 @@ import { useTheme, AppColors } from '../../lib/theme';
 import { DesktopShell, useIsDesktopWeb, DESKTOP_BREAKPOINT } from '../../components/DesktopShell';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import { Icon } from '../../components/Icon';
+import { shareSpeaker } from '../../lib/share';
 import ImageCropModal from '../../components/ImageCropModal';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
@@ -502,6 +503,14 @@ export default function SpeakerProfileScreen() {
               <TouchableOpacity style={styles.backBtn} onPress={handleBack} activeOpacity={0.8}>
                 <Text style={styles.backIcon}>←</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.backBtn, styles.shareBtnMobile]}
+                onPress={() => shareSpeaker(speaker.id, speaker.display_name)}
+                activeOpacity={0.8}
+                accessibilityLabel={`Share ${speaker.display_name}'s channel`}
+              >
+                <Icon name="share-outline" size={17} color="#fff" />
+              </TouchableOpacity>
               {canEdit && (
                 <View style={styles.editBannerBtnMobile}>
                   {uploadingBanner ? (
@@ -621,6 +630,7 @@ function makeStyles(C: AppColors) {
       backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
     },
     backIcon: { color: '#fff', fontSize: 18 },
+    shareBtnMobile: { left: undefined, right: 14 },
     profileRow: {
       flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
       paddingHorizontal: 16, marginTop: -38, marginBottom: 12, zIndex: 2,

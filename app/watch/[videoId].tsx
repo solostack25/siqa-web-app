@@ -7,7 +7,6 @@ import {
   Image,
   ActivityIndicator,
   useWindowDimensions,
-  Alert,
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -136,10 +135,8 @@ export default function WatchScreen() {
 
   async function handleShare() {
     if (!video) return;
-    const result = await shareVideo(video.id, video.title);
-    if (result.copied) {
-      Alert.alert('Link copied', 'The video link has been copied to your clipboard.');
-    }
+    // shareVideo shows its own "Link copied" toast when it falls back to the clipboard.
+    await shareVideo(video.id, video.title, video.speakers?.display_name);
   }
 
   async function toggleFollow() {

@@ -7,7 +7,6 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  Alert,
   Switch,
 } from 'react-native';
 import { useEffect, useState } from 'react';
@@ -18,6 +17,7 @@ import { uploadMarketplaceImage } from '../lib/supabaseStorage';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { showToast } from '../components/Toast';
 import { DesktopShell } from '../components/DesktopShell';
 
 const CATEGORIES = [
@@ -60,9 +60,9 @@ export default function ListingCreateScreen() {
       .maybeSingle();
 
     if (!seller) {
-      Alert.alert('Set up your shop first', 'You need a shop before you can list a product.', [
-        { text: 'OK', onPress: () => router.replace('/sell' as any) },
-      ]);
+      // A native alert does nothing on web, which left the spinner running forever.
+      showToast('Set up your shop first');
+      router.replace('/sell' as any);
       return;
     }
     setSellerId(seller.id);
@@ -73,7 +73,7 @@ export default function ListingCreateScreen() {
   async function pickImages() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow Siqa to access your photos.');
+      showToast('Allow Siqa to access your photos to add images');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -92,7 +92,7 @@ export default function ListingCreateScreen() {
       }
       setImages(prev => [...prev, ...uploaded]);
     } catch (err: any) {
-      Alert.alert('Upload failed', err.message);
+      showToast(`Upload failed: ${err?.message ?? 'please try again'}`);
     } finally {
       setUploading(false);
     }
@@ -103,10 +103,14 @@ export default function ListingCreateScreen() {
   }
 
   async function submit() {
-    if (!sellerId || !title.trim() || !price.trim()) return;
+    if (saving) return; // guard against double-taps creating duplicate listings
+    if (!sellerId || !title.trim() || !price.trim()) {
+      showToast('Add a title and a price');
+      return;
+    }
     const priceCents = Math.round(parseFloat(price) * 100);
     if (!Number.isFinite(priceCents) || priceCents < 1) {
-      Alert.alert('Invalid price', 'Enter a valid price.');
+      showToast('Enter a valid price');
       return;
     }
 
@@ -125,16 +129,17 @@ export default function ListingCreateScreen() {
     setSaving(false);
 
     if (error) {
-      Alert.alert('Error', error.message);
+      showToast(`Couldn't save: ${error.message}`);
       return;
     }
-    Alert.alert(
-      'Listing created',
+    // Navigate straight away — on web the old confirmation dialog never
+    // showed, so sellers stayed on the filled-in form and published twice.
+    showToast(
       sellerApproved
-        ? 'Your product is live on the Marketplace.'
-        : "Your product is saved and will go live once your shop is approved.",
-      [{ text: 'OK', onPress: () => router.replace('/seller-dashboard' as any) }]
+        ? 'Listing created — it’s live on the Marketplace'
+        : 'Listing saved — it goes live once your shop is approved',
     );
+    router.replace('/seller-dashboard' as any);
   }
 
   if (loading) {

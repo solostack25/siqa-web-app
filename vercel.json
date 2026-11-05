@@ -3,6 +3,51 @@
   "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+    {
+      "source": "/watch/:id",
+      "destination": "/api/og?type=video&id=:id"
+    },
+    {
+      "source": "/gems",
+      "has": [
+        {
+          "type": "query",
+          "key": "videoId"
+        }
+      ],
+      "destination": "/api/og?type=short"
+    },
+    {
+      "source": "/product/:id",
+      "destination": "/api/og?type=product&id=:id"
+    },
+    {
+      "source": "/seed/:id",
+      "destination": "/api/og?type=seed&id=:id"
+    },
+    {
+      "source": "/speaker/:id",
+      "destination": "/api/og?type=speaker&id=:id"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "api/og.js": {
+      "includeFiles": "dist/index.html"
+    }
+  }
 }

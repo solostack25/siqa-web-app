@@ -13,7 +13,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Share,
   Animated,
   Easing,
   PanResponder,
@@ -27,6 +26,7 @@ import { YouTubeShortEmbed, type YouTubeShortHandle } from "../../components/You
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useFocusEffect, router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { shareShort } from "../../lib/share";
 import { Theme } from "../../constants/theme";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Audio } from "expo-av";
@@ -974,11 +974,7 @@ function GemClip({
   }
 
   async function handleShare() {
-    try {
-      await Share.share({
-        message: `${speaker?.display_name ?? "Speaker"} — ${item.title ?? ""} | Siqa`,
-      });
-    } catch (e) {}
+    await shareShort(item.id, item.title, speaker?.display_name);
   }
 
   async function handleSave() {
@@ -1361,12 +1357,32 @@ function GemsScreenInner() {
       )
       .eq("is_published", true)
       .eq("format", "short")
-      .eq("platform", "youtube")
+      // Both YouTube shorts and Gems uploaded in the app (Bunny MP4s).
+      // This used to be YouTube-only, so uploaded Gems never showed here.
       .not("video_url", "is", null)
       .range(0, BATCH_SIZE - 1);
 
     if (result.data) {
       const shuffled = [...result.data].sort(() => Math.random() - 0.5) as any[];
+      // A shared link (/gems?videoId=…) has to open that exact short, but
+      // the first batch is only 20 videos. If it isn't in there, fetch it
+      // and put it first so shared links always land on the right Gem.
+      if (targetVideoId && !shuffled.some((video: any) => video.id === targetVideoId)) {
+        const { data: target } = await supabase
+          .from("videos")
+          .select(
+            `
+            id, title, video_url, thumbnail_url, platform, platform_video_id,
+            like_count, comment_count, view_count, topics, comments_enabled,
+            speakers(id, display_name, denomination, state)
+          `,
+          )
+          .eq("id", targetVideoId)
+          .eq("is_published", true)
+          .eq("format", "short")
+          .maybeSingle();
+        if (target) shuffled.unshift(target as any);
+      }
       setVideos(shuffled);
       setOffset(BATCH_SIZE);
       setAllLoaded(result.data.length < BATCH_SIZE);
@@ -1394,7 +1410,8 @@ function GemsScreenInner() {
       )
       .eq("is_published", true)
       .eq("format", "short")
-      .eq("platform", "youtube")
+      // Both YouTube shorts and Gems uploaded in the app (Bunny MP4s).
+      // This used to be YouTube-only, so uploaded Gems never showed here.
       .not("video_url", "is", null)
       .range(offset, offset + BATCH_SIZE - 1);
 
