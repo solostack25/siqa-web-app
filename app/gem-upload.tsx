@@ -30,6 +30,7 @@ import {
   uploadVideoToBunny,
 } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 
@@ -753,7 +754,7 @@ function GemUploadScreenContent() {
                 <Image source={{ uri: thumbnail.uri }} style={styles.thumbnailImage} />
               ) : (
                 <View style={styles.thumbnailEmpty}>
-                  <Text style={styles.thumbnailPlus}>🎞</Text>
+                  <Glyph name="film-outline" style={styles.thumbnailPlus} />
                   <Text style={styles.thumbnailText}>{video ? 'Pick frame' : 'Pick cover'}</Text>
                 </View>
               )}
@@ -774,14 +775,14 @@ function GemUploadScreenContent() {
                     onPress={openFramePicker}
                     disabled={uploading}
                   >
-                    <Text style={styles.thumbActionBtnText}>🎬  From clip</Text>
+                    <Text style={styles.thumbActionBtnText}><Glyph name="film-outline" style={styles.thumbActionBtnText} />{'  '}From clip</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.thumbActionBtn, styles.thumbActionBtnGhost]}
                     onPress={pickThumbnail}
                     disabled={uploading}
                   >
-                    <Text style={styles.thumbActionBtnGhostText}>🖼  From library</Text>
+                    <Text style={styles.thumbActionBtnGhostText}><Glyph name="image-outline" style={styles.thumbActionBtnGhostText} />{'  '}From library</Text>
                   </TouchableOpacity>
                 </View>
               )}

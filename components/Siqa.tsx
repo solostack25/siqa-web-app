@@ -66,9 +66,12 @@ export function SiqaEyebrow({ children, accent }: { children: React.ReactNode; a
 export function SiqaWordmark({ size = 26 }: { size?: number }) {
   const { colors: C } = useTheme();
   return (
-    <View>
-      <Text style={{ fontSize: size, color: C.gold, lineHeight: size * 1.1, fontWeight: '700' }}>صِقا</Text>
-      <Text style={{ fontSize: size * 0.32, color: C.inkSoft, letterSpacing: size * 0.18, marginTop: -size * 0.1 }}>SIQA</Text>
+    // alignItems + explicit textAlign: the Arabic line is RTL text, so on
+    // a wide container (the desktop sidebar) it used to float right while
+    // "SIQA" sat left. Both now line up on the left edge.
+    <View style={{ alignItems: 'flex-start' }}>
+      <Text style={{ fontSize: size, color: C.gold, lineHeight: size * 1.1, fontWeight: '700', textAlign: 'left', writingDirection: 'rtl' }}>صِقا</Text>
+      <Text style={{ fontSize: size * 0.32, color: C.inkSoft, letterSpacing: size * 0.18, marginTop: size * 0.12, textAlign: 'left' }}>SIQA</Text>
     </View>
   );
 }

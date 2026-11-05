@@ -9,11 +9,13 @@ import { Colors } from '../constants/colors';
 export const DarkColors = { ...Colors };
 
 export const LightColors = {
-  gold: '#B8860B',
-  goldLight: '#DAA520',
-  goldDim: '#8B6914',
-  goldBg: 'rgba(184,134,11,0.1)',
-  goldSoft: 'rgba(184,134,11,0.14)',
+  // Was '#B8860B' (CSS "darkgoldenrod"): very saturated, read as dated.
+  // A calmer antique gold; black text on it is ~6:1 contrast.
+  gold: '#A8843F',
+  goldLight: '#C4A266',
+  goldDim: '#7E6330',
+  goldBg: 'rgba(168,132,63,0.10)',
+  goldSoft: 'rgba(168,132,63,0.14)',
   emerald: '#1B6B4A',
   emeraldLight: '#2D9B6E',
   emeraldBg: 'rgba(27,107,74,0.1)',

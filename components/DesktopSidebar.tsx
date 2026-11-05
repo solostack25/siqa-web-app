@@ -145,7 +145,7 @@ export function DesktopSidebar() {
       </TouchableOpacity>
 
       {profile ? (
-        <TouchableOpacity style={styles.accountCard} onPress={() => router.push('/settings' as any)}>
+        <TouchableOpacity style={styles.accountCard} onPress={() => router.push('/settings' as any)} {...({ dataSet: { hover: 'row' } } as any)}>
           <View style={styles.accountAvatar}>
             {profile.avatar_url ? (
               <Image source={{ uri: profile.avatar_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -159,8 +159,14 @@ export function DesktopSidebar() {
           </View>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity style={styles.signInCard} onPress={() => router.push('/(auth)/sign-in' as any)}>
-          <Text style={styles.signInCardText}>Sign In</Text>
+        // Signed out: the top bar already has the Sign In button, so no
+        // second big gold one here — just a quiet prompt.
+        <TouchableOpacity
+          style={styles.signInPrompt}
+          onPress={() => router.push('/(auth)/sign-in' as any)}
+          {...({ dataSet: { hover: 'row' } } as any)}
+        >
+          <Text style={styles.signInPromptText}>Sign in to follow speakers, save Gems and track orders.</Text>
         </TouchableOpacity>
       )}
 
@@ -173,6 +179,7 @@ export function DesktopSidebar() {
               key={item.key}
               style={[styles.navItem, active && styles.navItemActive]}
               onPress={() => router.push(item.path as any)}
+              {...({ dataSet: { hover: 'row' } } as any)}
             >
               <View style={[styles.iconWrap, isGems && { backgroundColor: active ? C.gold : C.surface2 }]}>
                 {item.icon(isGems ? (active ? C.bg : C.gold) : active ? C.gold : C.text3)}
@@ -194,6 +201,7 @@ export function DesktopSidebar() {
                 <TouchableOpacity
                   key={cat}
                   style={[styles.catItem, active && styles.navItemActive]}
+                  {...({ dataSet: { hover: 'row' } } as any)}
                   onPress={() => router.push({ pathname: '/marketplace', params: { category: cat } } as any)}
                 >
                   <Text style={[styles.catLabel, active && styles.navLabelActive]} numberOfLines={1}>{cat}</Text>
@@ -216,6 +224,7 @@ export function DesktopSidebar() {
                   key={item.key}
                   style={[styles.navItem, active && styles.navItemActive]}
                   onPress={() => router.push(item.path as any)}
+                  {...({ dataSet: { hover: 'row' } } as any)}
                 >
                   <View style={styles.iconWrap}>
                     <Icon name={item.icon as any} size={17} color={active ? C.gold : C.text3} />
@@ -224,7 +233,7 @@ export function DesktopSidebar() {
                 </TouchableOpacity>
               );
             })}
-            <TouchableOpacity style={styles.navItem} onPress={handleSignOut}>
+            <TouchableOpacity style={styles.navItem} onPress={handleSignOut} {...({ dataSet: { hover: 'row' } } as any)}>
               <View style={styles.iconWrap}>
                 <Icon name="log-out-outline" size={17} color="#e84545" />
               </View>
@@ -243,9 +252,9 @@ function makeStyles(C: any) {
     sidebar: {
       width: 220,
       flexShrink: 0,
-      backgroundColor: C.bg2,
-      borderRightWidth: 0.5,
-      borderRightColor: C.border,
+      backgroundColor: C.bg,
+      borderRightWidth: 1,
+      borderRightColor: C.borderSoft,
       paddingTop: 20,
       paddingHorizontal: 12,
     },
@@ -256,8 +265,7 @@ function makeStyles(C: any) {
 
     accountCard: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: C.surface, borderRadius: 12, padding: 10, marginBottom: 18,
-      borderWidth: 0.5, borderColor: C.border2,
+      backgroundColor: C.surface2, borderRadius: 12, padding: 10, marginBottom: 14,
     },
     accountAvatar: {
       width: 34, height: 34, borderRadius: 17, backgroundColor: C.gold,
@@ -267,22 +275,22 @@ function makeStyles(C: any) {
     accountName: { fontSize: 13, fontWeight: '700', color: C.text },
     accountSub: { fontSize: 11, color: C.text3, marginTop: 1 },
 
-    signInCard: {
-      backgroundColor: C.gold, borderRadius: 12, paddingVertical: 10,
-      alignItems: 'center', marginBottom: 18,
+    signInPrompt: {
+      borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 14,
+      backgroundColor: C.surface2,
     },
-    signInCardText: { color: C.black, fontSize: 13, fontWeight: '800' },
+    signInPromptText: { color: C.text2, fontSize: 12.5, lineHeight: 18 },
 
     navList: { gap: 4 },
     navItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 14,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
+      gap: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
       borderRadius: 10,
     },
-    navItemActive: { backgroundColor: C.surface },
+    navItemActive: { backgroundColor: C.goldBg },
     iconWrap: {
       width: 30,
       height: 30,
@@ -291,7 +299,7 @@ function makeStyles(C: any) {
       justifyContent: 'center',
     },
     navLabel: { fontSize: 14, fontWeight: '500', color: C.text2 },
-    navLabelActive: { color: C.text, fontWeight: '700' },
+    navLabelActive: { color: C.text, fontWeight: '600' },
 
     divider: { height: 0.5, backgroundColor: C.border, marginVertical: 16, marginHorizontal: 12 },
     sectionLabel: {

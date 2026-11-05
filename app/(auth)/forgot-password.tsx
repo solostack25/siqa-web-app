@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
+import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 
 export default function ForgotPasswordScreen() {
@@ -43,7 +44,7 @@ export default function ForgotPasswordScreen() {
     return (
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.centeredWrap}>
-          <Text style={styles.sentEmoji}>📬</Text>
+          <Glyph name="mail-open-outline" style={styles.sentEmoji} color={Colors.gold} />
           <Text style={styles.sentTitle}>Check your email</Text>
           <Text style={styles.sentSub}>
             We sent a password reset link to{' '}

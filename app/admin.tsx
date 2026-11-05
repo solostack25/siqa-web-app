@@ -269,7 +269,7 @@ export default function AdminScreen() {
                 .eq('id', app.id);
 
               setApplications(prev => prev.filter(a => a.id !== app.id));
-              Alert.alert('✅ Approved', `${app.display_name} is now a verified speaker.`);
+              Alert.alert('Approved', `${app.display_name} is now a verified speaker.`);
             } catch (e: any) {
               Alert.alert('Error', e.message || 'Could not approve application');
             } finally {

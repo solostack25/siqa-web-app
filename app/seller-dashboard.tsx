@@ -14,6 +14,7 @@ import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from '../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
@@ -194,7 +195,7 @@ export default function SellerDashboardScreen() {
 
         {!seller.stripe_onboarded && (
           <TouchableOpacity style={styles.notice} onPress={() => router.push('/sell' as any)}>
-            <Text style={styles.noticeText}>⚠️ Connect Stripe to receive payments — tap to finish setup.</Text>
+            <Text style={styles.noticeText}><Glyph name="warning-outline" style={styles.noticeText} />{' '}Connect Stripe to receive payments — tap to finish setup.</Text>
           </TouchableOpacity>
         )}
 
@@ -252,7 +253,7 @@ export default function SellerDashboardScreen() {
           {tab === 'orders' ? (
             orders.length === 0 ? (
               <View style={styles.empty}>
-                <Text style={styles.emptyEmoji}>📭</Text>
+                <Glyph name="file-tray-outline" style={styles.emptyEmoji} />
                 <Text style={styles.emptyText}>No orders yet</Text>
               </View>
             ) : (
@@ -361,7 +362,7 @@ export default function SellerDashboardScreen() {
             )
           ) : products.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🛍️</Text>
+              <Glyph name="bag-handle-outline" style={styles.emptyEmoji} />
               <Text style={styles.emptyText}>No listings yet</Text>
               <TouchableOpacity style={styles.smallBtn} onPress={() => router.push('/listing-create' as any)}>
                 <Text style={styles.smallBtnText}>Create your first listing</Text>

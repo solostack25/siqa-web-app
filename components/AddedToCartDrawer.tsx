@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme, type AppColors } from '../lib/theme';
+import { Glyph } from './Glyph';
 import { Theme } from '../constants/theme';
 import { Icon } from './Icon';
 import { useIsDesktopWeb } from './DesktopShell';
@@ -86,7 +87,7 @@ export function AddedToCartDrawer({ item, onClose }: { item: AddedItem | null; o
               {item.image ? (
                 <Image source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
               ) : (
-                <Text style={{ fontSize: 40, opacity: 0.4 }}>🛍️</Text>
+                <Glyph name="bag-handle-outline" style={{ fontSize: 40, opacity: 0.4 }} />
               )}
             </View>
             <View style={isDesktopWeb ? undefined : { flex: 1, minWidth: 0 }}>

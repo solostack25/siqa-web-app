@@ -18,6 +18,7 @@ import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
+import { Glyph } from "../../components/Glyph";
 import { Theme } from "../../constants/theme";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { SearchIcon, ClearIcon } from "../../components/Siqa";
@@ -98,7 +99,10 @@ function HomeScreenInner() {
   // minus that, not the full window. Using raw window width here previously
   // both overestimated space AND was capped at an arbitrary 1600px, which
   // left a dead empty column on wide monitors instead of filling it.
-  const availableWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
+  // Content stops growing past CONTENT_MAX_WIDTH and centers, so cards
+  // don't keep stretching on big monitors.
+  const CONTENT_MAX_WIDTH = 1680;
+  const availableWidth = isDesktopWeb ? Math.min(windowWidth - SIDEBAR_WIDTH, CONTENT_MAX_WIDTH) : windowWidth;
   // Was a fixed "4 columns above 1100px, forever" rule — cards kept
   // getting narrower as the window grew past that, instead of getting
   // roomier the way YouTube's actual grid does (it's still only 3-4
@@ -107,7 +111,9 @@ function HomeScreenInner() {
   // a target minimum card width instead of a hardcoded column count,
   // so it naturally lands on fewer, wider cards at typical desktop
   // sizes and still scales up sensibly on very large displays.
-  const CARD_MIN_WIDTH = 420;
+  // 320 → 3 per row on a laptop (1440px), 4 on a 1920px monitor —
+  // about YouTube's density. 420 gave only 2 huge cards per row.
+  const CARD_MIN_WIDTH = 320;
   const GRID_GAP = Theme.spacing.xl;
   const numColumns = isDesktopWeb
     ? Math.max(1, Math.floor((availableWidth - Theme.spacing.lg * 2 + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)))
@@ -243,6 +249,7 @@ function HomeScreenInner() {
     <FlatList
       key={numColumns}
       style={styles.container}
+      contentContainerStyle={isDesktopWeb ? { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' } : undefined}
       data={videos}
       keyExtractor={(v) => v.id}
       numColumns={numColumns}
@@ -310,13 +317,14 @@ function HomeScreenInner() {
           <FlatList
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.chipList}
+            style={[styles.chipList, isDesktopWeb && { marginTop: Theme.spacing.lg }]}
             data={CATEGORIES}
             keyExtractor={(c) => c}
             contentContainerStyle={styles.chipRow}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={[styles.chip, item === "All" && styles.chipActive]}
+                {...({ dataSet: item === "All" ? undefined : { hover: 'row' } } as any)}
                 onPress={() => {
                   if (item !== "All") router.push(`/browse?category=${encodeURIComponent(item)}` as any);
                 }}
@@ -328,7 +336,10 @@ function HomeScreenInner() {
 
           {shorts.length > 0 ? (
             <View style={styles.shortsSection}>
-              <Text style={styles.shortsLabel}>⚡ Shorts</Text>
+              <View style={styles.shortsLabelRow}>
+                <Glyph name="flash" size={16} color={C.gold} />
+                <Text style={styles.shortsLabel}>Shorts</Text>
+              </View>
               <FlatList
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -337,16 +348,21 @@ function HomeScreenInner() {
                 contentContainerStyle={styles.shortsRow}
                 renderItem={({ item }) => (
                   <TouchableOpacity
-                    style={styles.shortCard}
+                    style={[styles.shortCard, isDesktopWeb && styles.shortCardDesktop]}
                     onPress={() => router.push(`/(tabs)/gems?videoId=${item.id}` as any)}
+                    {...({ dataSet: { hover: 'card' } } as any)}
                   >
-                    {item.thumbnail_url ? (
-                      <Image source={{ uri: item.thumbnail_url }} style={styles.shortThumb} resizeMode="cover" />
-                    ) : (
-                      <View style={[styles.shortThumb, styles.shortThumbPlaceholder]}>
-                        <Text style={{ fontSize: 22, opacity: 0.4 }}>▶</Text>
-                      </View>
-                    )}
+                    <View style={[styles.shortThumb, isDesktopWeb && styles.shortThumbDesktop, styles.shortThumbClip]}>
+                      {item.thumbnail_url ? (
+                        <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
+                          <Image source={{ uri: item.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        </View>
+                      ) : (
+                        <View style={[StyleSheet.absoluteFill, styles.shortThumbPlaceholder]}>
+                          <Glyph name="play" size={22} color={C.text3} />
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.shortTitle} numberOfLines={2}>{item.title}</Text>
                   </TouchableOpacity>
                 )}
@@ -361,23 +377,21 @@ function HomeScreenInner() {
         // card on desktop, unlike every YouTube card. Pressable's style
         // callback gets a real `hovered` flag on web (harmlessly
         // undefined on native, where hover doesn't apply anyway).
+        // Hover (lift + thumbnail zoom) comes from the data-hover="card"
+        // CSS in public/index.html, which works on every web card.
         <Pressable
-          style={(state: any) => {
-            const hovered = state.hovered;
-            return [
-              styles.videoCard,
-              numColumns > 1 && { paddingHorizontal: 0, width: cardWidth },
-              hovered && styles.videoCardHovered,
-            ];
-          }}
+          style={[styles.videoCard, numColumns > 1 && { paddingHorizontal: 0, width: cardWidth }]}
           onPress={() => router.push(`/watch/${item.id}` as any)}
+          {...({ dataSet: { hover: 'card' } } as any)}
         >
           <View style={styles.thumbWrap}>
             {item.thumbnail_url ? (
-              <Image source={{ uri: item.thumbnail_url }} style={styles.thumb} resizeMode="cover" />
+              <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
+                <Image source={{ uri: item.thumbnail_url }} style={styles.thumb} resizeMode="cover" />
+              </View>
             ) : (
               <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                <Text style={{ fontSize: 28, opacity: 0.3 }}>▶</Text>
+                <Glyph name="play" size={28} color={C.text3} />
               </View>
             )}
             {item.duration_secs ? (
@@ -388,12 +402,14 @@ function HomeScreenInner() {
           </View>
 
           <View style={styles.videoMetaRow}>
-            <View style={styles.avatarPlaceholder} />
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarInitial}>{(item.speakers?.display_name ?? "S").trim().charAt(0).toUpperCase()}</Text>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
               <Text style={styles.videoMeta}>
                 {item.speakers?.display_name ?? "Siqa"}
-                {item.speakers?.is_verified ? " ✓" : ""}
+                {item.speakers?.is_verified ? <Text>{" "}<Glyph name="checkmark-circle" size={13} color={C.text3} /></Text> : null}
               </Text>
               <Text style={styles.videoMeta}>
                 {formatViews(item.view_count)} · {timeAgo(item.published_at ?? item.created_at)}
@@ -464,43 +480,42 @@ function makeStyles(C: AppColors) {
       paddingBottom: Theme.spacing.lg,
       alignItems: "center",
     },
+    // Same chip spec as Shop and Seeds: 13px text, ink fill when active.
     chip: {
-      paddingHorizontal: Theme.spacing.lg,
-      paddingVertical: Theme.spacing.sm,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
       borderRadius: Theme.radius.full,
       backgroundColor: C.surface2,
     },
-    chipActive: { backgroundColor: C.gold },
-    chipText: { color: C.text2, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.medium },
+    chipActive: { backgroundColor: C.text },
+    chipText: { color: C.text2, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
     chipTextActive: { color: C.bg, fontWeight: Theme.fontWeight.semibold },
 
     shortsSection: { marginBottom: Theme.spacing.lg },
+    shortsLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      paddingHorizontal: Theme.spacing.lg,
+      marginBottom: Theme.spacing.md,
+    },
     shortsLabel: {
       color: C.text,
-      fontSize: Theme.fontSize.base,
-      fontWeight: Theme.fontWeight.semibold,
-      paddingHorizontal: Theme.spacing.lg,
-      marginBottom: Theme.spacing.sm,
+      fontSize: Theme.fontSize.lg,
+      fontWeight: Theme.fontWeight.bold,
+      letterSpacing: -0.2,
     },
     shortsRow: { paddingHorizontal: Theme.spacing.lg, gap: Theme.spacing.sm },
     shortCard: { width: 110 },
-    shortThumb: { width: 110, height: 190, borderRadius: Theme.radius.md, backgroundColor: C.surface },
+    shortCardDesktop: { width: 150 },
+    shortThumb: { width: 110, height: 190, borderRadius: Theme.radius.md, backgroundColor: C.surface2 },
+    shortThumbDesktop: { width: 150, height: 266 },
+    shortThumbClip: { overflow: "hidden" },
     shortThumbPlaceholder: { alignItems: "center", justifyContent: "center" },
-    shortTitle: { color: C.text2, fontSize: Theme.fontSize.xs, marginTop: 6 },
+    shortTitle: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium, marginTop: 8, lineHeight: 18 },
 
-    videoCard: { paddingHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.xl },
-    // A literal per-thumbnail color-matched glow would need extracting
-    // a dominant color from each image (real, but a much bigger feature
-    // than a hover state) — this is the standard "card lifts toward
-    // you" treatment instead: slight scale, a soft shadow underneath.
-    videoCardHovered: {
-      transform: [{ scale: 1.02 }],
-      shadowColor: '#000',
-      shadowOpacity: 0.25,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 8 },
-    },
-    thumbWrap: { aspectRatio: 16 / 9, borderRadius: Theme.radius.md, overflow: "hidden", backgroundColor: C.surface },
+    videoCard: { paddingHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.xxl },
+    thumbWrap: { aspectRatio: 16 / 9, borderRadius: Theme.radius.lg, overflow: "hidden", backgroundColor: C.surface2 },
     thumb: { width: "100%", height: "100%" },
     thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
     durationBadge: {
@@ -515,8 +530,12 @@ function makeStyles(C: AppColors) {
     durationText: { color: "#fff", fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.medium },
 
     videoMetaRow: { flexDirection: "row", gap: Theme.spacing.sm, marginTop: Theme.spacing.sm },
-    avatarPlaceholder: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.goldSoft },
-    videoTitle: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
+    avatarPlaceholder: {
+      width: 36, height: 36, borderRadius: 18, backgroundColor: C.goldSoft,
+      alignItems: "center", justifyContent: "center",
+    },
+    avatarInitial: { color: C.goldDim, fontSize: 15, fontWeight: Theme.fontWeight.bold },
+    videoTitle: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, lineHeight: 22, letterSpacing: -0.1 },
     videoMeta: { color: C.text2, fontSize: Theme.fontSize.sm, marginTop: 2 },
 
     emptyState: { alignItems: "center", paddingTop: Theme.spacing.xxxl * 2 },

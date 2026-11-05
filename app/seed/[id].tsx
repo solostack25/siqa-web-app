@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { Glyph, type GlyphName } from '../../components/Glyph';
 
 type SeedDetail = {
   id: string;
@@ -67,11 +68,11 @@ function daysLeft(endDate: string | null): number | null {
   return d > 0 ? d : null;
 }
 
-function getCategoryEmoji(cat: string | null) {
-  const map: Record<string, string> = {
-    water: '💧', education: '📚', medical: '🏥', masjid: '🕌', emergency: '🆘',
+function getCategoryIcon(cat: string | null): GlyphName {
+  const map: Record<string, GlyphName> = {
+    water: 'water-outline', education: 'book-outline', medical: 'medkit-outline', masjid: 'moon-outline', emergency: 'alert-circle-outline',
   };
-  return map[cat?.toLowerCase() ?? ''] ?? '🌿';
+  return map[cat?.toLowerCase() ?? ''] ?? 'leaf-outline';
 }
 
 function timeAgo(ts: string) {
@@ -172,7 +173,7 @@ export default function SeedDetailScreen() {
   const pct = seed.goal_amount ? Math.min(Math.round((seed.raised_amount / seed.goal_amount) * 100), 100) : 0;
   const left = daysLeft(seed.end_date);
   const org = seed.organizations;
-  const emoji = getCategoryEmoji(seed.cause_category);
+  const categoryIcon = getCategoryIcon(seed.cause_category);
   const badges = [
     seed.zakat_eligible && 'Zakat Eligible',
     seed.sadaqah_jariyah && 'Sadaqah Jariyah',
@@ -212,7 +213,7 @@ export default function SeedDetailScreen() {
               <Image source={{ uri: coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : (
               <View style={styles.heroFallback}>
-                <Text style={styles.heroFallbackEmoji}>{emoji}</Text>
+                <Glyph name={categoryIcon} style={styles.heroFallbackEmoji} color={C.gold} />
               </View>
             )}
             {videoUrl && !playing && (
@@ -228,7 +229,7 @@ export default function SeedDetailScreen() {
           <View style={styles.body}>
             {seed.cause_category && (
               <View style={styles.categoryChip}>
-                <Text style={styles.categoryChipText}>{emoji} {seed.cause_category}</Text>
+                <Text style={styles.categoryChipText}><Glyph name={categoryIcon} style={styles.categoryChipText} />{' '}{seed.cause_category}</Text>
               </View>
             )}
             <Text style={styles.title}>{seed.title}</Text>
@@ -243,7 +244,7 @@ export default function SeedDetailScreen() {
                 {org?.logo_url ? (
                   <Image source={{ uri: org.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                 ) : (
-                  <Text style={styles.orgAvatarEmoji}>{emoji}</Text>
+                  <Glyph name={categoryIcon} style={styles.orgAvatarEmoji} color={C.gold} />
                 )}
               </View>
               <View style={{ flex: 1 }}>
@@ -287,7 +288,7 @@ export default function SeedDetailScreen() {
             )}
 
             <TouchableOpacity style={styles.donateBtnInline} onPress={goToDonate}>
-              <Text style={styles.donateBtnInlineText}>🌱 Plant a Seed</Text>
+              <Text style={styles.donateBtnInlineText}><Glyph name="leaf-outline" style={styles.donateBtnInlineText} />{' '}Plant a Seed</Text>
             </TouchableOpacity>
 
             {/* Story */}
@@ -338,7 +339,7 @@ export default function SeedDetailScreen() {
                 scrollable content: guaranteed correct, no overlay risk,
                 at the cost of not following you while you scroll. */}
             <TouchableOpacity style={styles.donateBtnBottom} onPress={goToDonate}>
-              <Text style={styles.donateBtnBottomText}>🌱 Plant a Seed</Text>
+              <Text style={styles.donateBtnBottomText}><Glyph name="leaf-outline" style={styles.donateBtnBottomText} />{' '}Plant a Seed</Text>
             </TouchableOpacity>
           </View>
         </View>

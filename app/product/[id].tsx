@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
+import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
@@ -361,7 +362,7 @@ export default function ProductDetailScreen() {
           {images.length > 0 ? (
             <Image source={{ uri: images[activeImage] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           ) : (
-            <Text style={styles.galleryEmoji}>🛍️</Text>
+            <Glyph name="bag-handle-outline" style={styles.galleryEmoji} />
           )}
 
           <TouchableOpacity
@@ -654,7 +655,7 @@ export default function ProductDetailScreen() {
               {item.images?.[0] ? (
                 <Image source={{ uri: item.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
               ) : (
-                <Text style={{ fontSize: 28, opacity: 0.4 }}>🛍️</Text>
+                <Glyph name="bag-handle-outline" style={{ fontSize: 28, opacity: 0.4 }} />
               )}
             </View>
             <Text style={styles.gridTitle} numberOfLines={2}>{item.title}</Text>

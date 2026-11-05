@@ -31,6 +31,7 @@ import { Theme } from "../../constants/theme";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Audio } from "expo-av";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
+import { Glyph } from '../../components/Glyph';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -554,14 +555,13 @@ function CommentsSheet({
                 onPress={() => toggleCommentLike(c.id)}
                 style={styles.commentLikeBtn}
               >
-                <Text
+                <Glyph
+                  name={c.is_liked ? "heart" : "heart-outline"}
                   style={[
                     styles.commentLikeIcon,
                     c.is_liked && styles.commentLikeIconActive,
                   ]}
-                >
-                  {c.is_liked ? "♥" : "♡"}
-                </Text>
+                />
                 {c.like_count > 0 && (
                   <Text style={styles.commentLikeCount}>{c.like_count}</Text>
                 )}
@@ -727,15 +727,15 @@ function SignupNudge({
 
           <View style={styles.nudgePerks}>
             <View style={styles.nudgePerk}>
-              <Text style={styles.nudgePerkIcon}>★</Text>
+              <Glyph name="bookmark-outline" style={styles.nudgePerkIcon} />
               <Text style={styles.nudgePerkText}>Save Gems</Text>
             </View>
             <View style={styles.nudgePerk}>
-              <Text style={styles.nudgePerkIcon}>✓</Text>
+              <Glyph name="person-add-outline" style={styles.nudgePerkIcon} />
               <Text style={styles.nudgePerkText}>Follow speakers</Text>
             </View>
             <View style={styles.nudgePerk}>
-              <Text style={styles.nudgePerkIcon}>🌿</Text>
+              <Glyph name="leaf-outline" style={styles.nudgePerkIcon} />
               <Text style={styles.nudgePerkText}>Support Seeds</Text>
             </View>
           </View>
@@ -1215,15 +1215,12 @@ function GemClip({
         ]}
       >
         <TouchableOpacity style={styles.action} onPress={handleLike}>
-          <Animated.Text
-            style={[
-              styles.actionIcon,
-              liked && styles.actionIconLiked,
-              { transform: [{ scale: likeScale }] },
-            ]}
-          >
-            {liked ? "♥" : "♡"}
-          </Animated.Text>
+          <Animated.View style={{ transform: [{ scale: likeScale }] }}>
+            <Glyph
+              name={liked ? "heart" : "heart-outline"}
+              style={[styles.actionIcon, liked && styles.actionIconLiked]}
+            />
+          </Animated.View>
           <Text style={styles.actionCount}>{formatCount(likeCount)}</Text>
         </TouchableOpacity>
 
@@ -1233,7 +1230,7 @@ function GemClip({
             onCommentOpen(item.id, item.comments_enabled !== false)
           }
         >
-          <Text style={styles.actionIcon}>💬</Text>
+          <Glyph name="chatbubble-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>{formatCount(commentCount)}</Text>
         </TouchableOpacity>
 
@@ -1247,12 +1244,12 @@ function GemClip({
           onPress={handleSave}
           disabled={savingVideo}
         >
-          <Text style={[styles.actionIcon, saved && styles.actionIconSaved]}>{saved ? "★" : "☆"}</Text>
+          <Glyph name={saved ? "bookmark" : "bookmark-outline"} style={[styles.actionIcon, saved && styles.actionIconSaved]} />
           <Text style={styles.actionCount}>{saved ? "Saved" : "Save"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.action} onPress={handleReport}>
-          <Text style={styles.actionIcon}>⚑</Text>
+          <Glyph name="flag-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>Report</Text>
         </TouchableOpacity>
 

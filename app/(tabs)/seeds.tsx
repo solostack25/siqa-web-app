@@ -10,6 +10,7 @@ import {
   Alert,
   Image,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -17,6 +18,7 @@ import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
 import { Theme, HEADER_TOP_PADDING } from "../../constants/theme";
+import { Glyph, type GlyphName } from "../../components/Glyph";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 
 type Fundraiser = {
@@ -196,15 +198,15 @@ function SeedsScreenInner() {
     return d > 0 ? d : null;
   }
 
-  function getCategoryEmoji(cat: string | null) {
-    const map: Record<string, string> = {
-      water: "💧",
-      education: "📚",
-      medical: "🏥",
-      masjid: "🕌",
-      emergency: "🆘",
+  function getCategoryIcon(cat: string | null): GlyphName {
+    const map: Record<string, GlyphName> = {
+      water: "water-outline",
+      education: "school-outline",
+      medical: "medkit-outline",
+      masjid: "moon-outline",
+      emergency: "alert-circle-outline",
     };
-    return map[cat?.toLowerCase() ?? ""] ?? "🌿";
+    return map[cat?.toLowerCase() ?? ""] ?? "leaf-outline";
   }
 
   function getSeedVideoUrl(item: Fundraiser) {
@@ -238,7 +240,7 @@ function SeedsScreenInner() {
     const pct = item.goal_amount
       ? Math.min(Math.round((item.raised_amount / item.goal_amount) * 100), 100)
       : 0;
-    const emoji = getCategoryEmoji(item.cause_category);
+    const categoryIcon = getCategoryIcon(item.cause_category);
     const left = daysLeft(item.end_date);
     const videoUrl = getSeedVideoUrl(item);
     const hasVideo = Boolean(videoUrl);
@@ -249,7 +251,7 @@ function SeedsScreenInner() {
       <View style={styles.card}>
         <View style={styles.orgRow}>
           <View style={styles.orgAvatar}>
-            <Text style={styles.orgAvatarText}>{emoji}</Text>
+            <Glyph name={categoryIcon} size={20} color={C.emerald} />
           </View>
           <View style={styles.orgInfo}>
             <Text style={styles.orgName}>
@@ -285,6 +287,10 @@ function SeedsScreenInner() {
               shouldPlay={isPlaying}
               isLooping
               useNativeControls={false}
+              // Show the cover image until it plays (was a flat grey box).
+              posterSource={coverUrl ? { uri: coverUrl } : undefined}
+              usePoster={Boolean(coverUrl)}
+              posterStyle={{ resizeMode: 'cover' } as any}
               onError={(error) =>
                 console.warn("Seed video playback error:", error)
               }
@@ -295,14 +301,14 @@ function SeedsScreenInner() {
           <View style={styles.videoScrim} />
           {!isPlaying && (
             <View style={styles.playCircle}>
-              <Text style={styles.playIcon}>▶</Text>
+              <Glyph name="play" style={styles.playIcon} />
             </View>
           )}
           <Text style={styles.videoLabel}>
             {hasVideo
               ? isPlaying
                 ? "Playing Appeal"
-                : "Tap to play appeal"
+                : Platform.OS === "web" ? "Play appeal" : "Tap to play appeal"
               : "Video pending"}
           </Text>
         </TouchableOpacity>
@@ -368,7 +374,7 @@ function SeedsScreenInner() {
             } as any)
           }
         >
-          <Text style={styles.donateBtnText}>🌱 Plant a Seed</Text>
+          <Text style={styles.donateBtnText}><Glyph name="leaf-outline" style={styles.donateBtnText} />{" "}Plant a Seed</Text>
         </TouchableOpacity>
         {(userRole === 'admin' || (item.org_id && userOrgIds.includes(item.org_id))) && (
           <TouchableOpacity
@@ -413,6 +419,7 @@ function SeedsScreenInner() {
               activeCategory === cat && styles.catPillActive,
             ]}
             onPress={() => setActiveCategory(cat)}
+            {...({ dataSet: activeCategory === cat ? undefined : { hover: 'row' } } as any)}
           >
             <Text
               style={[
@@ -442,7 +449,7 @@ function SeedsScreenInner() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🌿</Text>
+              <Glyph name="leaf-outline" style={styles.emptyEmoji} />
               <Text style={styles.emptyTitle}>No active seeds</Text>
               <Text style={styles.emptySub}>
                 Check back soon for active fundraising campaigns.
@@ -504,25 +511,24 @@ function makeStyles(C: AppColors) {
       gap: Theme.spacing.sm,
       alignItems: 'center',
     },
+    // Same chip spec as Home and Shop.
     catPill: {
-      paddingHorizontal: Theme.spacing.md,
+      paddingHorizontal: 14,
       paddingVertical: 7,
       minHeight: 32,
       flexShrink: 0,
       borderRadius: Theme.radius.full,
-      backgroundColor: C.surface,
-      borderWidth: 0.5,
-      borderColor: C.border2,
+      backgroundColor: C.surface2,
       alignItems: "center",
       justifyContent: "center",
     },
-    catPillActive: { backgroundColor: C.gold, borderColor: C.gold },
+    catPillActive: { backgroundColor: C.text },
     catText: {
       fontSize: Theme.fontSize.sm,
       color: C.text2,
       fontWeight: Theme.fontWeight.medium,
     },
-    catTextActive: { color: C.black, fontWeight: Theme.fontWeight.bold },
+    catTextActive: { color: C.bg, fontWeight: Theme.fontWeight.semibold },
     list: {
       padding: Theme.spacing.lg,
       gap: Theme.spacing.lg,
@@ -560,17 +566,16 @@ function makeStyles(C: AppColors) {
       backgroundColor: "rgba(0,0,0,0.38)",
     },
     playCircle: {
-      width: 54,
-      height: 54,
+      width: 52,
+      height: 52,
       borderRadius: 999,
-      backgroundColor: C.gold,
+      backgroundColor: "rgba(255,255,255,0.92)",
       alignItems: "center",
       justifyContent: "center",
     },
     playIcon: {
-      color: C.black,
+      color: "#111",
       fontSize: 22,
-      fontWeight: "900",
       marginLeft: 3,
     },
     videoLabel: {
@@ -578,10 +583,9 @@ function makeStyles(C: AppColors) {
       left: 12,
       bottom: 10,
       color: "white",
-      fontSize: 11,
-      fontWeight: "900",
-      letterSpacing: 1,
-      textTransform: "uppercase",
+      fontSize: 12,
+      fontWeight: "600",
+      letterSpacing: 0.2,
     },
     orgRow: {
       flexDirection: "row",
@@ -597,7 +601,6 @@ function makeStyles(C: AppColors) {
       alignItems: "center",
       justifyContent: "center",
     },
-    orgAvatarText: { fontSize: 20 },
     orgInfo: { flex: 1 },
     orgName: {
       fontSize: Theme.fontSize.lg,
@@ -701,17 +704,17 @@ function makeStyles(C: AppColors) {
     donateBtn: {
       backgroundColor: C.gold,
       borderRadius: Theme.radius.md,
-      paddingVertical: Theme.spacing.lg,
+      paddingVertical: 12,
       paddingHorizontal: Theme.spacing.md,
       alignItems: "center",
     },
     donateBtnText: {
       color: C.black,
-      fontSize: Theme.fontSize.lg,
-      fontWeight: Theme.fontWeight.bold,
+      fontSize: Theme.fontSize.md,
+      fontWeight: Theme.fontWeight.semibold,
     },
     empty: { alignItems: "center", paddingTop: 60, gap: Theme.spacing.md },
-    emptyEmoji: { fontSize: 40 },
+    emptyEmoji: { fontSize: 40, color: C.text3 },
     emptyTitle: {
       fontSize: Theme.fontSize.lg,
       fontWeight: Theme.fontWeight.semibold,

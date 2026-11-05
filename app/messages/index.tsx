@@ -11,6 +11,7 @@ import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
+import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
@@ -140,7 +141,7 @@ export default function MessagesInboxScreen() {
           </View>
         ) : threads.length === 0 ? (
           <View style={styles.centered}>
-            <Text style={styles.emptyEmoji}>💬</Text>
+            <Glyph name="chatbubbles-outline" style={styles.emptyEmoji} />
             <Text style={styles.emptyText}>No messages yet</Text>
             <Text style={styles.emptySub}>Message a seller from a product page to start a conversation.</Text>
           </View>
@@ -161,7 +162,7 @@ export default function MessagesInboxScreen() {
                     {product?.images?.[0] ? (
                       <Image source={{ uri: product.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                     ) : (
-                      <Text style={{ fontSize: 18, opacity: 0.4 }}>📦</Text>
+                      <Glyph name="cube-outline" style={{ fontSize: 18, opacity: 0.4 }} />
                     )}
                   </View>
                   <View style={{ flex: 1 }}>
