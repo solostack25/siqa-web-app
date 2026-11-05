@@ -91,13 +91,14 @@ export default function DonateScreen() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session?.access_token ?? SUPABASE_ANON_KEY}`,
         },
         body: JSON.stringify({
           amount: selectedAmount,
           fundraiserId,
           orgStripeAccountId: orgStripeAccountId || null,
-          donorName: session?.user?.email ?? 'Anonymous',
+          donorName: (session?.user?.user_metadata?.full_name as string | undefined) || 'Anonymous',
           campaignTitle: title,
           coverFees,
         }),
@@ -115,25 +116,10 @@ export default function DonateScreen() {
     }
   }
 
-  async function handleWebDonateSuccess(confirmedPaymentIntentId: string) {
-    const { data: { session } } = await supabase.auth.getSession();
-
-    // Real payment confirmed by Stripe.js (stripe.confirmCardPayment resolved
-    // with status 'succeeded') before this runs — unlike the old web path,
-    // this only executes after money has actually moved.
-    await supabase.from('donations').insert({
-      fundraiser_id: fundraiserId,
-      org_id: orgId,
-      donor_profile_id: session?.user?.id ?? null,
-      donor_name: session?.user?.email ?? 'Anonymous',
-      donor_email: session?.user?.email ?? null,
-      amount: quote.charge,
-      platform_fee: quote.platformFee,
-      stripe_payment_intent_id: confirmedPaymentIntentId,
-      campaign_title: title,
-      status: 'completed',
-      currency: 'USD',
-    });
+  async function handleWebDonateSuccess(_confirmedPaymentIntentId: string) {
+    // Runs after Stripe.js confirmed the payment. The donation itself is
+    // recorded by the stripe-webhook function once Stripe confirms it
+    // server-side (clients can no longer write donation rows).
 
     setWebClientSecret(null);
     router.replace({
@@ -160,13 +146,14 @@ export default function DonateScreen() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            apikey: SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${session?.access_token ?? SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
             amount: selectedAmount,
             fundraiserId,
             orgStripeAccountId: orgStripeAccountId || null,
-            donorName: session?.user?.email ?? 'Anonymous',
+            donorName: (session?.user?.user_metadata?.full_name as string | undefined) || 'Anonymous',
             campaignTitle: title,
             coverFees,
           }),
@@ -206,20 +193,8 @@ if (fnError) throw new Error(fnError);
         return;
       }
 
-      // 5. Save donation to Supabase
-      await supabase.from('donations').insert({
-        fundraiser_id: fundraiserId,
-        org_id: orgId,
-        donor_profile_id: session?.user?.id ?? null,
-        donor_name: session?.user?.email ?? 'Anonymous',
-        donor_email: session?.user?.email ?? null,
-        amount: quote.charge,
-        platform_fee: quote.platformFee,
-        stripe_payment_intent_id: paymentIntentId,
-        campaign_title: title,
-        status: 'completed',
-        currency: 'USD',
-      });
+      // The donation is recorded by the stripe-webhook function once Stripe
+      // confirms the payment (clients can no longer write donation rows).
 
       // 6. Success
       router.replace({

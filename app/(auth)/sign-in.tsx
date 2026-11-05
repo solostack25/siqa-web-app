@@ -21,8 +21,8 @@ type Role = 'viewer' | 'speaker' | 'org';
 
 const ROLES: { key: Role; label: string; icon: GlyphName; desc: string }[] = [
   { key: 'viewer',  label: 'Community Member', icon: 'people-outline', desc: 'Follow speakers, save clips, donate' },
-  { key: 'speaker', label: 'Speaker',           icon: 'mic-outline', desc: 'Share knowledge, grow your reach' },
-  { key: 'org',     label: 'Organization',      icon: 'business-outline', desc: 'Fundraise and manage your nonprofit' },
+  { key: 'speaker', label: 'Speaker',           icon: 'mic-outline', desc: 'Apply to share Gems (reviewed by Siqa)' },
+  { key: 'org',     label: 'Organization',      icon: 'business-outline', desc: 'Apply to fundraise (verified by Siqa)' },
 ];
 
 export default function LoginScreen() {
@@ -52,12 +52,15 @@ export default function LoginScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { full_name: fullName, role } },
+      // No role in metadata: every new account starts as a viewer. Speakers
+      // and organizations apply and are approved by Siqa (enforced in the DB).
+      options: { data: { full_name: fullName } },
     });
     if (error) { setError(error.message); setLoading(false); return; }
     if (data.session) {
-      await supabase.from('profiles').update({ role }).eq('id', data.session.user.id);
-      router.replace(SITE_HOME as any);
+      if (role === 'speaker') router.replace('/apply-speaker' as any);
+      else if (role === 'org') router.replace('/org-register' as any);
+      else router.replace(SITE_HOME as any);
     } else {
       setError('Check your email to confirm your account.');
       setLoading(false);

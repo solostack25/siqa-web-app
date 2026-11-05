@@ -113,13 +113,7 @@ export default function ChannelScreen() {
       setSpeaker((prev) => (prev ? { ...prev, follower_count: prev.follower_count + 1 } : prev));
     }
 
-    // Best-effort denormalized count sync — not atomic, fine for now.
-    // TODO: move to a Postgres trigger on the follows table if follower_count
-    // needs to stay accurate under concurrent follows.
-    await supabase
-      .from('speakers')
-      .update({ follower_count: following ? Math.max(0, speaker.follower_count - 1) : speaker.follower_count + 1 })
-      .eq('id', speaker.id);
+    // follower_count is maintained by the update_follower_count trigger on follows.
   }
 
   useFocusEffect(

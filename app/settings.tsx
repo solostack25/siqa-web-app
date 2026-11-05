@@ -392,6 +392,14 @@ export default function SettingsScreen() {
               open={openSection === 'marketplace'}
               onToggle={() => toggle('marketplace')}
             >
+              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/apply-speaker' as any)}>
+                <Icon name="mic-outline" size={18} color={C.text2} />
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuLabel}>Become a speaker</Text>
+                  <Text style={styles.menuSubLabel}>Apply to share Gems on Siqa</Text>
+                </View>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/orders' as any)}>
                 <Icon name="receipt-outline" size={18} color={C.text2} />
                 <View style={styles.menuTextWrap}>
