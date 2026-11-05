@@ -27,10 +27,11 @@ const MARKETPLACE_DESCRIPTION = 'Shop from Muslim-owned businesses on Siqa Marke
 let cachedShell = null;
 
 module.exports = async function handler(req, res) {
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'gems.thesiqaapp.com';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'www.siqa.us';
   const proto = req.headers['x-forwarded-proto'] || 'https';
   const origin = `${proto}://${host}`;
-  const isMarketplace = String(host).toLowerCase().startsWith('marketplace.');
+  const h = String(host).toLowerCase();
+  const isMarketplace = h.startsWith('shop.') || h.startsWith('marketplace.');
 
   const q = req.query || {};
   const type = String(q.type || '');

@@ -2,6 +2,19 @@
   "buildCommand": "npx expo export -p web",
   "outputDirectory": "dist",
   "framework": null,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "gems.thesiqaapp.com"
+        }
+      ],
+      "destination": "https://www.siqa.us/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/watch/:id",

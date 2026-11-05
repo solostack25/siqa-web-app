@@ -1,11 +1,13 @@
 import { Platform } from 'react-native';
 
 // One codebase, two websites:
-//   gems.thesiqaapp.com        -> the full Siqa app (Gems, Shop, Seeds, Orgs)
-//   marketplace.thesiqaapp.com -> Shop only: same look and the same live
+//   siqa.us / www.siqa.us      -> the full Siqa app (Gems, Shop, Seeds, Orgs)
+//   shop.siqa.us               -> Shop only: same look and the same live
 //                                 data, but no videos and no nonprofit
 //                                 features (Seeds, Orgs, donations).
 // The native app is always the full app.
+// Old addresses (gems./marketplace.thesiqaapp.com) redirect to these in
+// vercel.json; marketplace.* is still recognized here just in case.
 //
 // For testing on a Vercel preview URL, add ?site=marketplace once; it is
 // remembered for that browser tab (?site=full switches back).
@@ -15,7 +17,7 @@ export type SiteMode = 'full' | 'marketplace';
 function detect(): SiteMode {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location) return 'full';
   const host = window.location.hostname.toLowerCase();
-  if (host.startsWith('marketplace.')) return 'marketplace';
+  if (host.startsWith('shop.') || host.startsWith('marketplace.')) return 'marketplace';
   try {
     const param = new URLSearchParams(window.location.search).get('site');
     if (param === 'marketplace' || param === 'full') {
