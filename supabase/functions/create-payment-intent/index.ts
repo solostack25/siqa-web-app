@@ -16,6 +16,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const MAX_DONATION_CENTS = 2_500_000; // $25,000
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -49,12 +51,27 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { amount, fundraiserId, donorName, coverFees } = await req.json();
+    const { amount, fundraiserId, donorName, coverFees, isAnonymous, message } = await req.json();
     const donationAmount = Number(amount);
 
     if (!Number.isInteger(donationAmount) || donationAmount < 100) {
       return json({ error: 'Minimum donation is $1.00' }, 400);
     }
+    if (donationAmount > MAX_DONATION_CENTS) {
+      return json({ error: 'For gifts over $25,000 please contact the organization directly.' }, 400);
+    }
+
+    // Donating signed out is allowed. If signed in, the donor is taken from
+    // the login token (never from the body) so the webhook can record who gave.
+    const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+    let donor: { id: string; email: string | null } | null = null;
+    if (token) {
+      const { data } = await supabase.auth.getUser(token);
+      if (data?.user) donor = { id: data.user.id, email: data.user.email ?? null };
+    }
+    const anonymous = isAnonymous === true;
+    const cleanName = typeof donorName === 'string' ? donorName.trim().slice(0, 120) : '';
+    const cleanMessage = typeof message === 'string' ? message.trim().slice(0, 450) : '';
 
     if (!fundraiserId || typeof fundraiserId !== 'string') {
       return json({ error: 'Missing fundraiserId' }, 400);
@@ -100,7 +117,13 @@ Deno.serve(async (req: Request) => {
       metadata: {
         fundraiser_id: fundraiser.id,
         org_id: fundraiser.org_id ?? '',
-        donor_name: typeof donorName === 'string' && donorName.trim() ? donorName.trim() : 'Anonymous',
+        // Read by stripe-webhook, which records the donation once Stripe
+        // confirms the payment (the app no longer writes donation rows).
+        donor_name: anonymous ? 'Anonymous' : (cleanName || 'Anonymous'),
+        donor_profile_id: donor?.id ?? '',
+        donor_email: donor?.email ?? '',
+        is_anonymous: anonymous ? 'true' : 'false',
+        message: cleanMessage,
         campaign_title: fundraiser.title ?? '',
         platform_fee: String(platformFee),
         gift_amount: String(donationAmount),

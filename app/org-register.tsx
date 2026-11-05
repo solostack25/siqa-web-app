@@ -182,11 +182,8 @@ export default function OrgRegisterScreen() {
 
       if (appErr) throw appErr;
 
-      // Update profile role to org
-      await supabase
-        .from('profiles')
-        .update({ role: 'org' })
-        .eq('id', profile.id);
+      // The 'org' role is granted by a Siqa admin when the organization is
+      // verified (users can't set their own role).
 
       setStep(4); // success step
     } catch (e: any) {

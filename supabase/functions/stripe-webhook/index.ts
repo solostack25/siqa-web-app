@@ -319,29 +319,38 @@ Deno.serve(async (req) => {
       const intent = event.data.object as Stripe.PaymentIntent;
       const meta = intent.metadata;
 
-      // Update donation status
-      await supabase
-        .from('donations')
-        .update({ status: 'completed' })
-        .eq('stripe_payment_intent_id', intent.id);
-
-      // Increment fundraiser raised_amount and donor_count
-      if (meta.fundraiser_id) {
-        const { data: current } = await supabase
-          .from('fundraisers')
-          .select('raised_amount, donor_count')
-          .eq('id', meta.fundraiser_id)
-          .single();
-
-        if (current) {
-          await supabase
-            .from('fundraisers')
-            .update({
-              raised_amount: (current.raised_amount || 0) + intent.amount,
-              donor_count: (current.donor_count || 0) + 1,
-            })
-            .eq('id', meta.fundraiser_id);
-        }
+      // Donations: this webhook is the only writer. The app used to insert
+      // the row itself (so anyone could insert fake donations), and this
+      // handler ALSO incremented raised_amount on top of the
+      // update_fundraiser_totals trigger, so every gift counted twice.
+      // Now: one row per PaymentIntent, inserted here once Stripe confirms
+      // the payment; the trigger does the counting. Stripe retries hit the
+      // unique index and are ignored, so nothing is double counted.
+      if (meta.fundraiser_id && meta.product !== 'marketplace') {
+        const gift = Number(meta.gift_amount);
+        const { error: donationError } = await supabase
+          .from('donations')
+          .upsert(
+            {
+              stripe_payment_intent_id: intent.id,
+              fundraiser_id: meta.fundraiser_id,
+              org_id: meta.org_id || null,
+              donor_profile_id: meta.donor_profile_id || null,
+              donor_name: meta.donor_name || 'Anonymous',
+              donor_email: meta.donor_email || null,
+              is_anonymous: meta.is_anonymous === 'true',
+              message: meta.message || null,
+              amount: Number.isFinite(gift) && gift > 0 ? gift : intent.amount,
+              platform_fee: Number(meta.platform_fee) || null,
+              campaign_title: meta.campaign_title || null,
+              currency: (intent.currency || 'usd').toUpperCase(),
+              status: 'completed',
+              payment_method: 'card',
+              stripe_account_id: typeof intent.transfer_data?.destination === 'string' ? intent.transfer_data.destination : null,
+            },
+            { onConflict: 'stripe_payment_intent_id', ignoreDuplicates: true },
+          );
+        if (donationError) console.error('Recording donation failed:', donationError.message);
       }
 
       // Marketplace orders: buyers have no client-side UPDATE policy on

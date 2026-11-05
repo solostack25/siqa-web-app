@@ -159,15 +159,7 @@ export default function WatchScreen() {
       await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
       setFollowing(true);
     }
-
-    await supabase
-      .from('speakers')
-      .update({
-        follower_count: following
-          ? Math.max(0, video.speakers.follower_count - 1)
-          : video.speakers.follower_count + 1,
-      })
-      .eq('id', video.speakers.id);
+    // follower_count is maintained by the update_follower_count trigger on follows.
   }
 
   useFocusEffect(

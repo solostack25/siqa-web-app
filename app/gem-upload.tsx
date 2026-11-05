@@ -172,6 +172,7 @@ function GemUploadScreenContent() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [speakerId, setSpeakerId] = useState<string | null>(null);
+  const [speakerApproved, setSpeakerApproved] = useState(false);
   const [speakers, setSpeakers] = useState<SpeakerOption[]>([]);
   const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
   const [seeds, setSeeds] = useState<SeedOption[]>([]);
@@ -296,8 +297,13 @@ function GemUploadScreenContent() {
       setSpeakers(list);
       setSelectedSpeakerId((current) => current || list[0]?.id || null);
     } else {
-      const { data: speaker } = await supabase.from('speakers').select('id').eq('profile_id', user.id).single();
+      const { data: speaker } = await supabase
+        .from('speakers')
+        .select('id, approval_status, is_verified')
+        .eq('profile_id', user.id)
+        .maybeSingle();
       setSpeakerId(speaker?.id || null);
+      setSpeakerApproved(Boolean(speaker && speaker.approval_status === 'approved' && speaker.is_verified));
     }
 
     await loadSeeds();
@@ -620,7 +626,15 @@ function GemUploadScreenContent() {
 
     const finalSpeakerId = isAdmin ? selectedSpeakerId : speakerId;
     if (!finalSpeakerId) {
-      notify('Speaker profile required', 'This account is not linked to a speaker profile yet.');
+      // Speaker accounts are approved by Siqa; send them to apply.
+      notify('Apply to become a speaker', 'Only verified speakers can post Gems. Apply and the Siqa team will review it.');
+      router.push('/apply-speaker' as any);
+      return;
+    }
+    if (!isAdmin && !speakerApproved) {
+      // Check before uploading the video, not after (the database would
+      // reject the post anyway, and the upload would be wasted).
+      notify('Awaiting approval', 'Your speaker account is still being reviewed. You can post Gems once it’s approved.');
       return;
     }
 

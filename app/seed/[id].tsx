@@ -116,7 +116,8 @@ export default function SeedDetailScreen() {
     if (data) setSeed(data as any);
 
     const { data: donationData } = await supabase
-      .from('donations')
+      // public_donations: no emails, anonymous donors shown as "Anonymous".
+      .from('public_donations')
       .select('id, donor_name, amount, is_anonymous, message, created_at')
       .eq('fundraiser_id', seedId)
       .eq('status', 'completed')
