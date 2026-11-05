@@ -25,14 +25,18 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0D0B"
+        "backgroundColor": "#0A0F1C"
       },
       "package": "com.solostack.siqa"
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
-      "output": "single-page"
+      "output": "single-page",
+      "name": "Siqa",
+      "shortName": "Siqa",
+      "themeColor": "#0A0F1C",
+      "backgroundColor": "#0A0F1C"
     },
     "scheme": "siqa",
     "plugins": [

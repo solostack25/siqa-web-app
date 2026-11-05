@@ -18,6 +18,7 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { formatPrice } from '../../lib/money';
+import { shareProduct } from '../../lib/share';
 import { addToCart as addItemToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
 
@@ -370,6 +371,14 @@ export default function ProductDetailScreen() {
             accessibilityLabel={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
           >
             <Icon name={isFavorited ? 'heart' : 'heart-outline'} size={20} color={isFavorited ? C.live : '#1A1A1A'} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.favOverlay, styles.shareOverlay]}
+            onPress={() => shareProduct(product.id, product.title, formatPrice(product.price_cents, product.currency))}
+            accessibilityLabel="Share this item"
+          >
+            <Icon name="share-outline" size={20} color="#1A1A1A" />
           </TouchableOpacity>
 
           {images.length > 1 && (
@@ -745,6 +754,7 @@ function makeStyles(C: AppColors) {
       position: 'absolute', top: 12, right: 12, width: 40, height: 40, borderRadius: 20,
       backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',
     },
+    shareOverlay: { top: 60 },
     navArrow: {
       position: 'absolute', top: '50%', marginTop: -20, width: 40, height: 40, borderRadius: 20,
       backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',

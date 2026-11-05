@@ -8,6 +8,7 @@ import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
 import { SearchProvider } from '../contexts/SearchContext';
 import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
+import { ToastHost } from '../components/Toast';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -97,7 +98,9 @@ function AppContent() {
   // instead, same as ScrollViewStyleReset already does for body itself.
   const rootBackdropStyle =
     Platform.OS === 'web'
-      ? { flex: 1, backgroundColor: C.bg, height: '100vh' as any, overflow: 'hidden' as any }
+      // 100dvh, not 100vh: in mobile Safari 100vh is taller than the visible
+      // area, which pushed the bottom tab bar under the browser toolbar.
+      ? { flex: 1, backgroundColor: C.bg, height: '100dvh' as any, overflow: 'hidden' as any }
       : { flex: 1, backgroundColor: C.bg };
 
   return (
@@ -128,6 +131,7 @@ function AppContent() {
         <Stack.Screen name="seed-create" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
+      <ToastHost />
     </StripeProvider>
     </View>
   );

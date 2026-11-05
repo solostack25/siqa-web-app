@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  Share,
   useWindowDimensions,
 } from 'react-native';
 import { Video, ResizeMode } from 'expo-av';
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { shareSeed } from '../../lib/share';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
@@ -127,13 +127,8 @@ export default function SeedDetailScreen() {
   }
 
   async function handleShare() {
-    try {
-      await Share.share({
-        message: seed ? `Support "${seed.title}" on Siqa` : 'Support this Seed on Siqa',
-      });
-    } catch {
-      // ignore — share sheet dismissed or unsupported
-    }
+    if (!id) return;
+    await shareSeed(String(id), seed?.title);
   }
 
   function goToDonate() {

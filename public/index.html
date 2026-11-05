@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!--
+      This is the real HTML shell for the web app. app.json uses
+      web.output = "single-page", and in that mode Expo ignores
+      app/+html.tsx entirely and uses this file as the template instead
+      (keep the two in sync if you ever switch to "static" output).
+    -->
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Siqa</title>
+    <meta name="description" content="Siqa — trusted Islamic talks from real scholars, a Muslim marketplace, and causes worth supporting." />
+
+    <!-- Default link-preview tags. Shared /watch, /gems?videoId, /product,
+         /seed and /speaker links get page-specific ones from api/og.js. -->
+    <meta property="og:site_name" content="Siqa" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Siqa" />
+    <meta property="og:description" content="Siqa — trusted Islamic talks from real scholars, a Muslim marketplace, and causes worth supporting." />
+    <meta property="og:image" content="/og-default.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Installable web app (PWA) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0A0F1C" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Siqa" />
+    <!-- "black" (not black-translucent) and no viewport-fit=cover: the app's
+         headers use a fixed web top padding, not safe-area insets, so letting
+         content run under the iPhone status bar/home indicator would clip it. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- react-native-web recommended style reset -->
+    <style id="expo-reset">
+      html, body { height: 100%; }
+      body { overflow: hidden; }
+      #root { display: flex; height: 100%; flex: 1; }
+    </style>
+    <style>
+      /* Match the app background so overscroll / slow loads never flash white. */
+      html, body { background-color: #FFFFFF; }
+      * { overscroll-behavior: none; }
+      @media (prefers-color-scheme: dark) {
+        html, body { background-color: #0A0F1C; }
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run Siqa.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
