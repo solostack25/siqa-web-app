@@ -4,23 +4,34 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   ScrollView,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
   Image,
+  Platform,
   useWindowDimensions,
 } from 'react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { Icon } from '../../components/Icon';
-import { Glyph, type GlyphName } from '../../components/Glyph';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { useSearchContext } from '../../contexts/SearchContext';
+import {
+  ORG_CATEGORY_LABEL, ORG_FILTERS, categoryFromOrgType, type OrgCategory,
+} from '../../lib/orgCategories';
+
+/**
+ * Organizations directory.
+ *  - On Siqa: organizations that run their own page here (verified, can take
+ *    donations, run Seeds).
+ *  - Listed: US Islamic organizations from public records (crawl_islamic_orgs,
+ *    read through the directory_listed_* functions). Unclaimed until someone
+ *    from the organization claims them.
+ */
 
 type Org = {
   id: string;
@@ -28,409 +39,663 @@ type Org = {
   org_type: string | null;
   city: string | null;
   state: string | null;
-  mission: string | null;
   tagline: string | null;
-  is_verified: boolean;
-  trust_score: number | null;
-  ein: string | null;
+  mission: string | null;
+  is_verified: boolean | null;
+  ein_verified: boolean | null;
   logo_url: string | null;
   banner_url: string | null;
+  stripe_onboarded: boolean | null;
+  payment_method_url: string | null;
 };
 
-const FILTERS = ['All', 'Masjid', 'Nonprofit', 'Charity', 'School'];
+type Seed = {
+  id: string;
+  title: string;
+  goal_amount: number | null;
+  raised_amount: number | null;
+  donor_count: number | null;
+  cause_category: string | null;
+  org_id: string | null;
+  organizations: { org_name: string | null } | null;
+};
 
-function orgIcon(type: string | null): GlyphName {
-  const map: Record<string, GlyphName> = {
-    masjid: 'moon-outline', nonprofit: 'hand-left-outline', charity: 'heart-outline', school: 'school-outline', relief: 'earth-outline', community: 'people-outline',
-  };
-  return map[type?.toLowerCase() ?? ''] ?? 'business-outline';
+type Listed = {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  ein: string | null;
+  category: OrgCategory;
+  website: string | null;
+  total_count: number;
+};
+
+type Scope = 'all' | 'siqa' | 'listed';
+const PAGE = 20;
+const SIDEBAR_WIDTH = 220;
+const MAX_WIDTH = 1180;
+const BANNER_TINTS = ['#1B6B4A', '#2E5D7A', '#7E6330', '#8A4B2E', '#4B4F86', '#3E6B5E'];
+
+function money(cents: number | null | undefined) {
+  const d = (cents ?? 0) / 100;
+  if (d >= 1000000) return '$' + (d / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  return '$' + Math.round(d).toLocaleString();
 }
 
-function trustColor(score: number | null, C: AppColors) {
-  if (!score) return C.text3;
-  if (score >= 90) return C.emeraldLight;
-  if (score >= 75) return C.gold;
-  return C.text3;
+function initialsOf(name: string) {
+  const words = name.split(/\s+/).filter(w => w.length > 2 || /^[A-Z]{2,}$/.test(w));
+  const s = (words.length >= 2 ? words[0][0] + words[1][0] : name.slice(0, 2)).toUpperCase();
+  return s;
+}
+
+function tintFor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return BANNER_TINTS[h % BANNER_TINTS.length];
 }
 
 function OrgsScreenInner() {
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const { width: windowWidth } = useWindowDimensions();
-  const numColumns = isDesktopWeb ? (windowWidth > 1500 ? 3 : 2) : 1;
-  const styles = makeStyles(C);
+  const pad = isDesktopWeb ? 28 : 16;
+  const contentWidth = Math.min((isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth), MAX_WIDTH) - pad * 2;
+  const styles = makeStyles(C, isDesktopWeb);
 
   const [orgs, setOrgs] = useState<Org[]>([]);
-  const [filtered, setFiltered] = useState<Org[]>([]);
+  const [seeds, setSeeds] = useState<Seed[]>([]);
+  const [endorseCount, setEndorseCount] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+
   const [query, setQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [debounced, setDebounced] = useState('');
+  const [scope, setScope] = useState<Scope>('all');
+  const [category, setCategory] = useState<OrgCategory | 'all'>('all');
+  const [stateCode, setStateCode] = useState<string>('');
+  const [statePickerOpen, setStatePickerOpen] = useState(false);
+  const [onlyDonations, setOnlyDonations] = useState(false);
 
-  useEffect(() => {
-    loadOrgs();
-  }, []);
+  const [listed, setListed] = useState<Listed[]>([]);
+  const [listedTotal, setListedTotal] = useState(0);
+  const [listedLoading, setListedLoading] = useState(false);
+  const [stateCounts, setStateCounts] = useState<{ state: string; n: number }[]>([]);
+  const [allListedTotal, setAllListedTotal] = useState(0);
+  const reqId = useRef(0);
 
-  useEffect(() => {
-    applyFilters();
-  }, [query, activeFilter, orgs]);
-
+  // Top-bar search on desktop drives the same query.
   const { registerSearch, unregisterSearch } = useSearchContext();
   useFocusEffect(
     useCallback(() => {
       if (!isDesktopWeb) return;
-      // Plain useEffect cleanup only runs on unmount, not on losing
-      // focus — since tab screens stay mounted in the background when
-      // you switch tabs, that would leave this registration "stuck"
-      // active on, say, Marketplace after you'd navigated away from
-      // Orgs. useFocusEffect's cleanup fires on blur too, which is
-      // what this actually needs.
       registerSearch({ placeholder: 'Search organizations...', value: query, onChangeText: setQuery });
       return () => unregisterSearch();
-    }, [isDesktopWeb, query])
+    }, [isDesktopWeb, query]),
   );
 
-  async function loadOrgs() {
-    const { data } = await supabase
-      .from('organizations')
-      .select('id, org_name, org_type, city, state, mission, tagline, is_verified, trust_score, ein, logo_url, banner_url')
-      .eq('approval_status', 'approved')
-      .order('trust_score', { ascending: false });
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
-    if (data) {
-      setOrgs(data);
-      setFiltered(data);
-    }
+  useEffect(() => { loadSiqa(); loadStats(); }, []);
+
+  async function loadSiqa() {
+    const [orgRes, seedRes, endRes] = await Promise.all([
+      supabase
+        .from('organizations')
+        .select('id, org_name, org_type, city, state, tagline, mission, is_verified, ein_verified, logo_url, banner_url, stripe_onboarded, payment_method_url')
+        .eq('approval_status', 'approved')
+        .order('org_name'),
+      supabase
+        .from('fundraisers')
+        .select('id, title, goal_amount, raised_amount, donor_count, cause_category, org_id, organizations(org_name)')
+        .eq('status', 'active')
+        .order('raised_amount', { ascending: false })
+        .limit(50),
+      supabase.from('org_endorsements').select('org_id').limit(5000),
+    ]);
+    setOrgs((orgRes.data as Org[]) ?? []);
+    setSeeds((seedRes.data as any as Seed[]) ?? []);
+    const counts: Record<string, number> = {};
+    ((endRes.data as { org_id: string }[]) ?? []).forEach(r => { counts[r.org_id] = (counts[r.org_id] ?? 0) + 1; });
+    setEndorseCount(counts);
     setLoading(false);
   }
 
-  function applyFilters() {
-    let list = [...orgs];
-    if (activeFilter !== 'All') {
-      const type = activeFilter.split(' ').pop()!.toLowerCase();
-      list = list.filter(o => o.org_type?.toLowerCase() === type);
-    }
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      list = list.filter(o =>
-        o.org_name.toLowerCase().includes(q) ||
-        o.city?.toLowerCase().includes(q) ||
-        o.mission?.toLowerCase().includes(q)
-      );
-    }
-    setFiltered(list);
+  async function loadStats() {
+    const { data } = await supabase.rpc('directory_listed_stats');
+    const byState: Record<string, number> = {};
+    let total = 0;
+    ((data as { category: string; state: string | null; n: number }[]) ?? []).forEach(r => {
+      total += Number(r.n);
+      if (r.state) byState[r.state] = (byState[r.state] ?? 0) + Number(r.n);
+    });
+    setAllListedTotal(total);
+    setStateCounts(Object.entries(byState).map(([state, n]) => ({ state, n })).sort((a, b) => b.n - a.n));
   }
 
-  function renderOrg({ item }: { item: Org }) {
-    const initials = item.org_name.split(' ').filter(w => w.length > 2).slice(0, 2).map(w => w[0]).join('').toUpperCase() || item.org_name.substring(0, 2).toUpperCase();
-    const location = [item.city, item.state].filter(Boolean).join(', ') || 'USA';
-    const typeIcon = orgIcon(item.org_type);
+  const loadListed = useCallback(async (append: boolean) => {
+    const id = ++reqId.current;
+    setListedLoading(true);
+    const offset = append ? listed.length : 0;
+    const { data } = await supabase.rpc('directory_listed_orgs', {
+      p_query: debounced || null,
+      p_state: stateCode || null,
+      p_category: category === 'all' ? null : category,
+      p_limit: PAGE,
+      p_offset: offset,
+    });
+    if (id !== reqId.current) return; // a newer search started
+    const rows = (data as Listed[]) ?? [];
+    setListed(prev => (append ? [...prev, ...rows] : rows));
+    setListedTotal(rows.length ? Number(rows[0].total_count) : (append ? listedTotal : 0));
+    setListedLoading(false);
+  }, [debounced, stateCode, category, listed.length, listedTotal]);
 
-    return (
-      <TouchableOpacity style={styles.orgCard} activeOpacity={0.85} onPress={() => router.push({ pathname: '/org-profile', params: { id: item.id } })}>
-        {/* Cards were avatar + text only, no hero image at all — flat
-            next to how Seeds' cards already look. Orgs have had a real
-            banner_url since the profile-editing work, just never used
-            here. */}
-        <View style={styles.orgBanner}>
-          {item.banner_url ? (
-            <Image source={{ uri: item.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          ) : null}
-          {item.is_verified && (
-            <View style={styles.orgBannerVerified}>
-              <Text style={styles.orgBannerVerifiedText}>✓ Verified</Text>
-            </View>
-          )}
-        </View>
+  useEffect(() => { loadListed(false); }, [debounced, stateCode, category]);
 
-        <View style={styles.orgCardBody}>
-          <View style={styles.orgCardTop}>
-            <View style={styles.orgAvatar}>
-              {item.logo_url ? (
-                <Image source={{ uri: item.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              ) : (
-                <Text style={styles.orgAvatarText}>{initials}</Text>
-              )}
-            </View>
-            <View style={styles.orgInfo}>
-              <View style={styles.orgNameRow}>
-                <Text style={styles.orgName} numberOfLines={1}>{item.org_name}</Text>
-              </View>
-              <Text style={styles.orgMeta}>{location}{item.ein ? ' · EIN on file' : ''}</Text>
-            </View>
-            <View style={styles.orgTrust}>
-              <Text style={[styles.orgTrustVal, { color: trustColor(item.trust_score, C) }]}>
-                {item.trust_score ?? '—'}
-              </Text>
-              <Text style={styles.orgTrustLabel}>Trust</Text>
-            </View>
-          </View>
+  // ---- Derived ----
+  const seedCountByOrg = useMemo(() => {
+    const m: Record<string, number> = {};
+    seeds.forEach(s => { if (s.org_id) m[s.org_id] = (m[s.org_id] ?? 0) + 1; });
+    return m;
+  }, [seeds]);
 
-          {item.mission || item.tagline ? (
-            <Text style={styles.orgMission} numberOfLines={2}>
-              {item.tagline || item.mission}
-            </Text>
-          ) : null}
-
-          <View style={styles.orgFooter}>
-            <View style={styles.orgBadges}>
-              {item.org_type ? (
-                <View style={styles.orgTypeBadge}>
-                  <Text style={styles.orgTypeBadgeText}><Glyph name={typeIcon} style={styles.orgTypeBadgeText} />{' '}{item.org_type}</Text>
-                </View>
-              ) : null}
-              {item.ein ? (
-                <View style={styles.org990Badge}>
-                  <Text style={styles.org990BadgeText}><Glyph name="document-text-outline" style={styles.org990BadgeText} />{' '}990 on file</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text style={styles.orgViewLink}>View profile →</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+  const siqaFiltered = useMemo(() => {
+    const q = debounced.toLowerCase();
+    return orgs.filter(o =>
+      (!stateCode || o.state === stateCode) &&
+      (category === 'all' || categoryFromOrgType(o.org_type) === category) &&
+      (!onlyDonations || Boolean(o.stripe_onboarded || o.payment_method_url)) &&
+      (!q || [o.org_name, o.city, o.tagline, o.mission].some(v => v?.toLowerCase().includes(q))),
     );
+  }, [orgs, debounced, stateCode, category, onlyDonations]);
+
+  const showSiqa = scope !== 'listed';
+  const showListed = scope !== 'siqa' && !onlyDonations;
+  const showSeeds = showSiqa && !debounced && category === 'all' && !stateCode && seeds.length > 0;
+  const filtersActive = Boolean(debounced || stateCode || category !== 'all' || onlyDonations);
+
+  const cols = contentWidth >= 900 ? 3 : contentWidth >= 580 ? 2 : 1;
+  const GAP = 16;
+  const cardW = (contentWidth - GAP * (cols - 1)) / cols;
+  const seedCols = contentWidth >= 900 ? 3 : contentWidth >= 580 ? 2 : 1;
+  const seedW = (contentWidth - GAP * (seedCols - 1)) / seedCols;
+
+  function openOrg(o: Org, tab?: string) {
+    router.push({ pathname: '/org-profile', params: { id: o.id, ...(tab ? { tab } : {}) } } as any);
   }
+
+  function clearFilters() {
+    setQuery(''); setCategory('all'); setStateCode(''); setOnlyDonations(false);
+  }
+
+  // ---- Render ----
+  const Chip = ({ active, label, onPress, icon }: { active: boolean; label: string; onPress: () => void; icon?: any }) => (
+    <TouchableOpacity
+      style={[styles.chip, active && styles.chipActive]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+    >
+      {icon ? <Icon name={icon} size={15} color={active ? C.bg : C.text2} /> : null}
+      <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Organizations</Text>
-          <Text style={styles.subtitle}>Verified nonprofits & masjids</Text>
-        </View>
-        <TouchableOpacity
-          style={styles.registerBtn}
-          onPress={() => router.push('/org-register' as any)}
-        >
-          <Text style={styles.registerBtnText}>+ Register</Text>
-        </TouchableOpacity>
-      </View>
-
-      {!isDesktopWeb && (
-        <View style={styles.searchWrap}>
-          <Icon name="search-outline" size={16} color={C.text3} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search organizations..."
-            placeholderTextColor={C.text3}
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')}>
-              <Text style={styles.clearBtn}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
-
-      {/* A fixed-height row clipped the pills on phones whose browser
-          enlarges text (Android Chrome), cutting them in half under the
-          count line. The row now sizes to its pills and never shrinks. */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filtersRow}
-        contentContainerStyle={styles.filters}
-      >
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
-            onPress={() => setActiveFilter(f)}
-          >
-            <Text numberOfLines={1} style={[styles.filterText, activeFilter === f && styles.filterTextActive]}>
-              {f}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <View style={styles.countRow}>
-        <Text style={styles.countText}>
-          {filtered.length} organization{filtered.length !== 1 ? 's' : ''}
-        </Text>
-      </View>
-
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={C.gold} size="large" />
-        </View>
-      ) : (
-        <FlatList
-          key={numColumns}
-          data={filtered}
-          keyExtractor={item => item.id}
-          renderItem={renderOrg}
-          numColumns={numColumns}
-          columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.md } : undefined}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Glyph name="business-outline" style={styles.emptyEmoji} />
-              <Text style={styles.emptyTitle}>No organizations yet</Text>
-              <Text style={styles.emptySub}>Be the first to register your nonprofit on Siqa.</Text>
-              <TouchableOpacity style={styles.emptyBtn}>
-                <Text style={styles.emptyBtnText}>Register Organization</Text>
+      <ScrollView contentContainerStyle={{ paddingBottom: 72 }} keyboardShouldPersistTaps="handled">
+        <View style={[styles.page, { paddingHorizontal: pad }]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={styles.h1}>Organizations</Text>
+              <Text style={styles.lede}>
+                Nonprofits, masjids, schools and relief groups serving Muslim communities across the US.
+                {isDesktopWeb ? ' Give directly to the ones on Siqa, or find one near you.' : ''}
+              </Text>
+              <View style={styles.statsRow}>
+                <Text style={styles.stat}><Text style={styles.statVal}>{(orgs.length + allListedTotal).toLocaleString()}</Text> organizations</Text>
+                <Text style={styles.stat}><Text style={styles.statVal}>{orgs.length}</Text> on Siqa</Text>
+                {seeds.length > 0 && <Text style={styles.stat}><Text style={styles.statVal}>{seeds.length}</Text> active Seeds</Text>}
+              </View>
+            </View>
+            <View style={styles.headerBtns}>
+              {isDesktopWeb && (
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => setScope('listed')}>
+                  <Text style={styles.ghostBtnText}>Claim your organization</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/org-register' as any)} accessibilityLabel="Register an organization">
+                <Icon name="add" size={18} color="#fff" />
+                <Text style={styles.primaryBtnText}>{isDesktopWeb ? 'Register an organization' : 'Register'}</Text>
               </TouchableOpacity>
             </View>
-          }
-        />
-      )}
+          </View>
+
+          {/* Search + filters */}
+          <View style={styles.filterCard}>
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Icon name="search-outline" size={18} color={C.text3} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Name, city or EIN"
+                  placeholderTextColor={C.text3}
+                  value={query}
+                  onChangeText={setQuery}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  accessibilityLabel="Search organizations"
+                />
+                {query.length > 0 && (
+                  <TouchableOpacity onPress={() => setQuery('')} accessibilityLabel="Clear search" style={styles.clearBtn}>
+                    <Icon name="close-circle" size={18} color={C.text3} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[styles.stateBtn, stateCode ? styles.stateBtnActive : null]}
+                onPress={() => setStatePickerOpen(o => !o)}
+                accessibilityState={{ expanded: statePickerOpen }}
+              >
+                <Icon name="location-outline" size={18} color={stateCode ? C.emerald : C.text2} />
+                <Text style={[styles.stateBtnText, stateCode ? { color: C.emerald, fontWeight: '700' } : null]}>
+                  {stateCode || 'All states'}
+                </Text>
+                <Icon name={statePickerOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
+              </TouchableOpacity>
+            </View>
+
+            {statePickerOpen && (
+              <View style={styles.statePanel}>
+                <Chip active={!stateCode} label="All states" onPress={() => { setStateCode(''); setStatePickerOpen(false); }} />
+                {stateCounts.map(s => (
+                  <Chip
+                    key={s.state}
+                    active={stateCode === s.state}
+                    label={`${s.state} · ${s.n.toLocaleString()}`}
+                    onPress={() => { setStateCode(s.state); setStatePickerOpen(false); }}
+                  />
+                ))}
+              </View>
+            )}
+
+            <View style={styles.scopeRow}>
+              <View style={styles.segment} accessibilityRole="tablist">
+                {([
+                  ['all', isDesktopWeb ? `All · ${(orgs.length + allListedTotal).toLocaleString()}` : 'All'],
+                  ['siqa', isDesktopWeb ? `On Siqa · ${orgs.length}` : 'On Siqa'],
+                  ['listed', isDesktopWeb ? `Listed · ${allListedTotal.toLocaleString()}` : 'Listed'],
+                ] as [Scope, string][]).map(([k, label]) => (
+                  <TouchableOpacity
+                    key={k}
+                    style={[styles.segBtn, scope === k && styles.segBtnActive]}
+                    onPress={() => setScope(k)}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: scope === k }}
+                  >
+                    <Text style={[styles.segText, scope === k && styles.segTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[styles.toggle, onlyDonations && styles.toggleOn]}
+                onPress={() => setOnlyDonations(v => !v)}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: onlyDonations }}
+              >
+                <Icon name={onlyDonations ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={onlyDonations ? C.emerald : C.text3} />
+                <Text style={[styles.toggleText, onlyDonations && { color: C.emerald, fontWeight: '700' }]}>Takes donations on Siqa</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal={!isDesktopWeb} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              {ORG_FILTERS.map(f => (
+                <Chip key={f.key} active={category === f.key} label={f.label} onPress={() => setCategory(f.key)} />
+              ))}
+            </ScrollView>
+          </View>
+
+          {loading ? (
+            <View style={styles.centered}><ActivityIndicator color={C.gold} size="large" /></View>
+          ) : (
+            <>
+              {/* Seeds */}
+              {showSeeds && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHead}>
+                    <Text style={styles.h2}>Seeds happening now</Text>
+                    <TouchableOpacity onPress={() => router.push('/(tabs)/seeds' as any)}>
+                      <Text style={styles.link}>See all {seeds.length} Seeds</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[styles.grid, { gap: GAP }]}>
+                    {seeds.slice(0, seedCols === 1 ? 2 : 3).map(s => {
+                      const pct = s.goal_amount ? Math.min(100, Math.round(((s.raised_amount ?? 0) / s.goal_amount) * 100)) : 0;
+                      return (
+                        <TouchableOpacity key={s.id} style={[styles.seedCard, { width: seedW }]} onPress={() => router.push(`/seed/${s.id}` as any)}>
+                          <View style={styles.seedMeta}>
+                            {s.cause_category ? <Text style={styles.causePill}>{s.cause_category}</Text> : null}
+                            {s.organizations?.org_name ? <Text style={styles.small} numberOfLines={1}>by {s.organizations.org_name}</Text> : null}
+                          </View>
+                          <Text style={styles.seedTitle} numberOfLines={2}>{s.title}</Text>
+                          <View style={styles.track}><View style={[styles.fill, { width: `${pct}%` as any }]} /></View>
+                          <View style={styles.seedFoot}>
+                            <Text style={styles.small}><Text style={styles.strong}>{money(s.raised_amount)}</Text> of {money(s.goal_amount)}</Text>
+                            <Text style={styles.small}>{(s.donor_count ?? 0).toLocaleString()} donors</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* On Siqa */}
+              {showSiqa && (
+                <View style={styles.section}>
+                  <View style={styles.sectionHead}>
+                    <View style={{ flexShrink: 1, gap: 4 }}>
+                      <Text style={styles.h2}>On Siqa</Text>
+                      <Text style={styles.small}>Run by the organization itself. Reviewed by Siqa and able to take donations here.</Text>
+                    </View>
+                    <Text style={styles.small}>{siqaFiltered.length} organization{siqaFiltered.length === 1 ? '' : 's'}</Text>
+                  </View>
+                  {siqaFiltered.length === 0 ? (
+                    <Text style={styles.empty}>No organizations on Siqa match these filters.</Text>
+                  ) : (
+                    <View style={[styles.grid, { gap: GAP }]}>
+                      {siqaFiltered.map(o => {
+                        const tint = tintFor(o.id);
+                        const nSeeds = seedCountByOrg[o.id] ?? 0;
+                        const nEnd = endorseCount[o.id] ?? 0;
+                        const trust = [
+                          o.ein_verified ? 'EIN verified' : null,
+                          nSeeds ? `${nSeeds} active Seed${nSeeds === 1 ? '' : 's'}` : null,
+                          nEnd ? `Endorsed by ${nEnd} speaker${nEnd === 1 ? '' : 's'}` : null,
+                        ].filter(Boolean) as string[];
+                        const place = [o.city, o.state].filter(Boolean).join(', ');
+                        return (
+                          <View key={o.id} style={[styles.orgCard, { width: cardW }]}>
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => openOrg(o)} accessibilityLabel={`${o.org_name} profile`}>
+                              <View style={[styles.banner, { backgroundColor: tint }]}>
+                                {o.banner_url ? <Image source={{ uri: o.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+                                {o.is_verified ? (
+                                  <View style={styles.verified}>
+                                    <Icon name="checkmark" size={13} color="#14523A" />
+                                    <Text style={styles.verifiedText}>Verified</Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                              <View style={styles.orgBody}>
+                                <View style={styles.logo}>
+                                  {o.logo_url
+                                    ? <Image source={{ uri: o.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                                    : <Text style={[styles.logoText, { color: tint }]}>{initialsOf(o.org_name)}</Text>}
+                                </View>
+                                <Text style={styles.orgName} numberOfLines={2}>{o.org_name}</Text>
+                                <Text style={styles.small}>
+                                  {[place, categoryFromOrgType(o.org_type) !== 'other' ? ORG_CATEGORY_LABEL[categoryFromOrgType(o.org_type)] : null].filter(Boolean).join(' · ')}
+                                </Text>
+                                {o.tagline || o.mission ? <Text style={styles.tagline} numberOfLines={2}>{o.tagline || o.mission}</Text> : null}
+                                {trust.length > 0 && (
+                                  <View style={styles.trustRow}>
+                                    {trust.map(t => <Text key={t} style={styles.trustPill}>{t}</Text>)}
+                                  </View>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                            <View style={styles.orgActions}>
+                              <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={() => openOrg(o, 'seeds')}>
+                                <Text style={styles.primaryBtnText}>Donate</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity style={[styles.ghostBtn, { flex: 1 }]} onPress={() => openOrg(o)}>
+                                <Text style={styles.ghostBtnText}>View</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {/* Listed */}
+              {showListed && (
+                <>
+                  <View style={styles.claimBand}>
+                    <Icon name="shield-checkmark-outline" size={26} color={C.goldDim} />
+                    <View style={{ flex: 1, minWidth: 220, gap: 4 }}>
+                      <Text style={styles.claimTitle}>Is your organization listed below?</Text>
+                      <Text style={styles.claimBody}>
+                        Siqa listed these from public records (IRS filings, maps and websites). Claim yours to update your details,
+                        take donations and launch Seeds. We check every claim by hand.
+                      </Text>
+                    </View>
+                    {isDesktopWeb && <Text style={styles.claimHint}>Use “Claim” on your listing</Text>}
+                  </View>
+
+                  <View style={styles.section}>
+                    <View style={styles.sectionHead}>
+                      <View style={{ flexShrink: 1, gap: 4 }}>
+                        <Text style={styles.h2}>Listed organizations</Text>
+                        <Text style={styles.small}>From public records. Not yet claimed, so details may be out of date and they can't take donations on Siqa.</Text>
+                      </View>
+                      <Text style={styles.small}>{listedTotal.toLocaleString()} organization{listedTotal === 1 ? '' : 's'}</Text>
+                    </View>
+
+                    <View style={styles.listCard}>
+                      {listed.length === 0 && !listedLoading ? (
+                        <View style={styles.emptyBox}>
+                          <Text style={styles.empty}>No listed organizations match these filters.</Text>
+                          {filtersActive && (
+                            <TouchableOpacity style={styles.ghostBtn} onPress={clearFilters}>
+                              <Text style={styles.ghostBtnText}>Clear filters</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ) : listed.map(l => (
+                        <View key={l.id} style={styles.listRow}>
+                          <TouchableOpacity style={styles.listMain} onPress={() => router.push(`/org-listing/${l.id}` as any)}>
+                            <View style={styles.listIcon}>
+                              <Icon name={l.category === 'masjid' ? 'moon-outline' : l.category === 'education' ? 'school-outline' : 'business-outline'} size={19} color={C.text2} />
+                            </View>
+                            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                              <View style={styles.listNameRow}>
+                                <Text style={styles.listName} numberOfLines={2}>{l.name}</Text>
+                                <Text style={styles.unclaimed}>Unclaimed</Text>
+                              </View>
+                              <Text style={styles.small} numberOfLines={1}>
+                                {[[l.city, l.state].filter(Boolean).join(', '), ORG_CATEGORY_LABEL[l.category] ?? 'Nonprofit', l.ein && isDesktopWeb ? `EIN ${l.ein}` : null].filter(Boolean).join(' · ')}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.claimLink}
+                            onPress={() => router.push({ pathname: '/claim', params: { type: 'organization', id: l.id } } as any)}
+                            accessibilityLabel={`Claim ${l.name}`}
+                          >
+                            <Text style={styles.claimLinkText}>Claim</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      {(listed.length > 0 || listedLoading) && (
+                        <View style={styles.listFoot}>
+                          <Text style={styles.small}>Showing {listed.length.toLocaleString()} of {listedTotal.toLocaleString()}</Text>
+                          {listedLoading ? (
+                            <ActivityIndicator color={C.gold} />
+                          ) : listed.length < listedTotal ? (
+                            <TouchableOpacity style={styles.ghostBtn} onPress={() => loadListed(true)}>
+                              <Text style={styles.ghostBtnText}>Load more</Text>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </>
+              )}
+            </>
+          )}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-function makeStyles(C: AppColors) {
+function makeStyles(C: AppColors, desktop: boolean) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: C.bg },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-    header: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: Theme.spacing.xl,
-      paddingTop: HEADER_TOP_PADDING,
-      paddingBottom: Theme.spacing.md,
-      gap: Theme.spacing.md,
+    page: {
+      width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: 26,
+      paddingTop: desktop ? 32 : HEADER_TOP_PADDING,
     },
-    // Title side wraps instead of pushing + Register off the screen.
-    headerText: { flex: 1, minWidth: 0 },
-    title: { fontSize: Theme.fontSize.xxl, fontWeight: '600', color: C.text },
-    subtitle: { fontSize: Theme.fontSize.xs, color: C.text3, marginTop: 2 },
-    registerBtn: {
-      flexShrink: 0,
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: Theme.radius.full,
-      backgroundColor: C.emeraldBg,
-      borderWidth: 0.5,
-      borderColor: C.emerald,
+    centered: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+
+    header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: desktop ? 'flex-end' : 'flex-start', justifyContent: 'space-between', gap: 16 },
+    headerText: { flexGrow: 1, flexShrink: 1, flexBasis: desktop ? 480 : 200, gap: 8 },
+    h1: { fontSize: desktop ? 34 : 26, fontWeight: '700', color: C.text, letterSpacing: -0.5 },
+    lede: { fontSize: desktop ? 16 : 14, lineHeight: desktop ? 24 : 20, color: C.text2, maxWidth: 640 },
+    statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 2 },
+    stat: { fontSize: 14, color: C.text2 },
+    statVal: { fontWeight: '700', color: C.text },
+    headerBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+
+    primaryBtn: {
+      minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     },
-    registerBtnText: { fontSize: 12, color: C.emeraldLight, fontWeight: '600' },
-    searchWrap: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: C.surface,
-      borderRadius: Theme.radius.lg,
-      marginHorizontal: Theme.spacing.lg,
-      marginBottom: Theme.spacing.md,
-      paddingHorizontal: Theme.spacing.md,
-      borderWidth: 0.5,
-      borderColor: C.border2,
-      gap: Theme.spacing.sm,
+    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    ghostBtn: {
+      minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border,
+      backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center',
     },
-    searchIcon: { fontSize: 16 },
-    searchInput: { flex: 1, paddingVertical: Theme.spacing.md, color: C.text, fontSize: Theme.fontSize.base },
-    clearBtn: { color: C.text3, fontSize: 14, padding: 4 },
-    filtersRow: { flexGrow: 0, flexShrink: 0 },
-    filters: {
-      paddingHorizontal: Theme.spacing.lg,
-      paddingBottom: Theme.spacing.md,
-      gap: Theme.spacing.sm,
-      alignItems: 'center',
+    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+
+    filterCard: {
+      gap: 14, padding: desktop ? 18 : 14, borderRadius: 18, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface,
     },
-    filterPill: {
-      paddingHorizontal: Theme.spacing.md,
-      paddingVertical: 7,
-      minHeight: 32,
-      flexShrink: 0,
-      borderRadius: Theme.radius.full,
-      backgroundColor: C.surface,
-      borderWidth: 0.5,
-      borderColor: C.border2,
-      alignItems: 'center',
-      justifyContent: 'center',
+    searchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    searchBox: {
+      flexGrow: 3, flexShrink: 1, flexBasis: 260, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14,
     },
-    filterPillActive: { backgroundColor: C.gold, borderColor: C.gold },
-    filterText: { fontSize: Theme.fontSize.sm, color: C.text2, fontWeight: '500' },
-    filterTextActive: { color: C.black, fontWeight: '700' },
-    countRow: {
-      paddingHorizontal: Theme.spacing.xl,
-      paddingBottom: Theme.spacing.sm,
+    searchInput: {
+      flex: 1, minWidth: 0, fontSize: 15, color: C.text, paddingVertical: 10,
+      ...(Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {}),
     },
-    countText: { fontSize: Theme.fontSize.sm, color: C.text3 },
-    list: {
-      paddingHorizontal: Theme.spacing.lg,
-      paddingBottom: 100,
-      maxWidth: 1400,
-      width: '100%',
-      alignSelf: 'center',
+    clearBtn: { padding: 6 },
+    stateBtn: {
+      flexGrow: 1, flexBasis: 150, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14,
     },
-    orgCard: {
-      flex: 1,
-      backgroundColor: C.surface,
-      borderRadius: Theme.radius.xl,
-      borderWidth: 0.5,
-      borderColor: C.border2,
-      marginBottom: Theme.spacing.md,
-      overflow: 'hidden',
+    stateBtnActive: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    stateBtnText: { flex: 1, fontSize: 15, color: C.text },
+    statePanel: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 2 },
+    scopeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    segment: {
+      flexDirection: 'row', padding: 4, gap: 2, borderRadius: 999, backgroundColor: C.surface2,
+      ...(desktop ? {} : { alignSelf: 'stretch', flexGrow: 1 }),
     },
-    orgBanner: {
-      height: 88, backgroundColor: C.bg3, position: 'relative',
+    segBtn: { minHeight: 36, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center', ...(desktop ? {} : { flex: 1 }) },
+    segBtnActive: { backgroundColor: C.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
+    segText: { fontSize: 14, color: C.text2, fontWeight: '500' },
+    segTextActive: { color: C.text, fontWeight: '700' },
+    toggle: {
+      minHeight: 38, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', gap: 6,
     },
-    orgBannerVerified: {
-      position: 'absolute', top: 10, right: 10,
-      backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999,
-      paddingHorizontal: 10, paddingVertical: 4,
+    toggleOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    toggleText: { fontSize: 13, color: C.text2, fontWeight: '500' },
+    chipRow: { flexDirection: 'row', flexWrap: desktop ? 'wrap' : 'nowrap', gap: 8 },
+    chip: {
+      minHeight: 38, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
+      backgroundColor: C.surface, flexDirection: 'row', alignItems: 'center', gap: 6,
     },
-    orgBannerVerifiedText: { color: C.gold, fontSize: 10, fontWeight: '700' },
-    orgCardBody: { padding: Theme.spacing.lg },
-    orgCardTop: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md, marginBottom: Theme.spacing.md },
-    orgAvatar: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      backgroundColor: C.emerald,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      flexShrink: 0,
+    chipActive: { backgroundColor: C.text, borderColor: C.text },
+    chipText: { fontSize: 13, color: C.text, fontWeight: '500' },
+    chipTextActive: { color: C.bg, fontWeight: '700' },
+
+    section: { gap: 14 },
+    sectionHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
+    h2: { fontSize: desktop ? 20 : 18, fontWeight: '700', color: C.text },
+    link: { fontSize: 14, fontWeight: '600', color: C.emerald },
+    small: { fontSize: 13, color: C.text2, lineHeight: 18 },
+    strong: { fontWeight: '700', color: C.text },
+    empty: { fontSize: 14, color: C.text2 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap' },
+
+    seedCard: {
+      gap: 10, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface,
     },
-    orgAvatarText: { fontSize: 15, fontWeight: '700', color: C.gold },
-    orgInfo: { flex: 1, minWidth: 0 },
-    orgNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    orgName: { fontSize: 14, fontWeight: '600', color: C.text, flex: 1 },
-    orgVerified: { fontSize: 12, color: C.gold },
-    orgMeta: { fontSize: 11, color: C.text3, marginTop: 2 },
-    orgTrust: { alignItems: 'center', flexShrink: 0 },
-    orgTrustVal: { fontSize: 16, fontWeight: '700' },
-    orgTrustLabel: { fontSize: 9, color: C.text3, textTransform: 'uppercase', letterSpacing: 0.5 },
-    orgMission: { fontSize: 12, color: C.text2, lineHeight: 18, marginBottom: Theme.spacing.md },
-    orgFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    orgBadges: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-    orgTypeBadge: {
-      backgroundColor: C.emeraldBg,
-      borderRadius: 100,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
+    seedMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    causePill: {
+      fontSize: 12, fontWeight: '700', color: C.goldDim, backgroundColor: C.goldBg,
+      paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, overflow: 'hidden',
     },
-    orgTypeBadgeText: { fontSize: 10, color: C.emeraldLight },
-    org990Badge: {
-      backgroundColor: C.goldBg,
-      borderRadius: 100,
-      paddingHorizontal: 8,
-      paddingVertical: 3,
+    seedTitle: { fontSize: 16, fontWeight: '700', color: C.text, lineHeight: 21 },
+    track: { height: 8, borderRadius: 999, backgroundColor: C.surface2, overflow: 'hidden' },
+    fill: { height: 8, borderRadius: 999, backgroundColor: C.emerald },
+    seedFoot: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+
+    orgCard: { borderRadius: 18, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface, overflow: 'hidden' },
+    banner: { height: desktop ? 96 : 80, overflow: 'hidden' },
+    verified: {
+      position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: '#FFFFFF', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
     },
-    org990BadgeText: { fontSize: 10, color: C.gold },
-    orgViewLink: { fontSize: 11, color: C.text3 },
-    empty: { alignItems: 'center', paddingTop: 60, gap: Theme.spacing.md },
-    emptyEmoji: { fontSize: 40 },
-    emptyTitle: { fontSize: Theme.fontSize.lg, fontWeight: '600', color: C.text2 },
-    emptySub: { fontSize: Theme.fontSize.md, color: C.text3, textAlign: 'center', paddingHorizontal: Theme.spacing.xl },
-    emptyBtn: {
-      backgroundColor: C.emerald,
-      borderRadius: Theme.radius.md,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
+    verifiedText: { fontSize: 12, fontWeight: '700', color: '#14523A' },
+    orgBody: { paddingHorizontal: 18, paddingBottom: 4, gap: 6 },
+    logo: {
+      width: 56, height: 56, borderRadius: 14, marginTop: -28, marginBottom: 4, backgroundColor: C.surface,
+      borderWidth: 1, borderColor: C.border2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
-    emptyBtnText: { color: '#fff', fontSize: Theme.fontSize.base, fontWeight: '700' },
+    logoText: { fontSize: 17, fontWeight: '800' },
+    orgName: { fontSize: 17, fontWeight: '700', color: C.text },
+    tagline: { fontSize: 14, lineHeight: 20, color: C.text, opacity: 0.85, marginTop: 2 },
+    trustRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+    trustPill: {
+      fontSize: 12, fontWeight: '600', color: C.text2, backgroundColor: C.surface2,
+      paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, overflow: 'hidden',
+    },
+    orgActions: { flexDirection: 'row', gap: 8, padding: 18, paddingTop: 12 },
+
+    claimBand: {
+      flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16, padding: desktop ? 20 : 16,
+      borderRadius: 18, backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldSoft,
+    },
+    claimTitle: { fontSize: 16, fontWeight: '700', color: C.text },
+    claimBody: { fontSize: 14, lineHeight: 20, color: C.text2 },
+    claimHint: { fontSize: 13, color: C.goldDim, fontWeight: '600' },
+
+    listCard: { borderRadius: 18, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface, overflow: 'hidden' },
+    listRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: desktop ? 12 : 4,
+      borderBottomWidth: 1, borderBottomColor: C.border2,
+    },
+    listMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingLeft: desktop ? 18 : 14 },
+    listIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center' },
+    listNameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+    listName: { fontSize: 15, fontWeight: '700', color: C.text, flexShrink: 1 },
+    unclaimed: {
+      fontSize: 11, fontWeight: '700', color: C.text2, borderWidth: 1, borderColor: C.border,
+      paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, overflow: 'hidden',
+    },
+    claimLink: { minHeight: 44, minWidth: 56, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+    claimLinkText: { fontSize: 14, fontWeight: '700', color: C.emerald },
+    listFoot: {
+      flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+      padding: 14, backgroundColor: C.bg2,
+    },
+    emptyBox: { padding: 24, alignItems: 'center', gap: 12 },
   });
 }
 
-// Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
+// Not part of the Marketplace site: go to the Shop.
 export default function OrgsScreen() {
   if (IS_MARKETPLACE_SITE) return <Redirect href={'/marketplace' as any} />;
   return <OrgsScreenInner />;

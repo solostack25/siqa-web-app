@@ -62,7 +62,8 @@ const METHODS: { key: Method; label: string; help: string; icon: SiqaIconName }[
 
 export default function ClaimScreen() {
   const { type, id } = useLocalSearchParams<{ type?: string; id?: string }>();
-  const entityType: ClaimEntityType = type === 'business' ? 'business' : 'speaker';
+  const entityType: ClaimEntityType = type === 'business' ? 'business' : type === 'organization' ? 'organization' : 'speaker';
+  const noun = entityType === 'speaker' ? 'profile' : entityType === 'organization' ? 'organization' : 'business';
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C, isDesktopWeb);
@@ -96,6 +97,11 @@ export default function ClaimScreen() {
       const { data } = await supabase.from('speakers').select('display_name, is_claimed').eq('id', id).maybeSingle();
       setEntityName((data as any)?.display_name ?? null);
       setAlreadyClaimed(Boolean((data as any)?.is_claimed));
+    } else if (id && entityType === 'organization') {
+      const { data } = await supabase.rpc('directory_listed_org', { p_id: id });
+      const row = Array.isArray(data) ? data[0] : data;
+      setEntityName(row?.name ?? null);
+      setAlreadyClaimed(Boolean(row?.claimed_org_id));
     }
 
     if (uid && id) {
@@ -115,7 +121,7 @@ export default function ClaimScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const name = entityName || (entityType === 'speaker' ? 'this speaker' : 'this business');
+  const name = entityName || (entityType === 'speaker' ? 'this speaker' : `this ${noun}`);
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const canSubmit = fullName.trim().length > 1 && emailOk && agree && !submitting &&
     (relationship === 'self' || title.trim().length > 1);
@@ -147,6 +153,7 @@ export default function ClaimScreen() {
   function back() {
     if (router.canGoBack()) router.back();
     else if (id && entityType === 'speaker') router.replace(`/speaker/${id}` as any);
+    else if (id && entityType === 'organization') router.replace(`/org-listing/${id}` as any);
     else router.replace('/(tabs)' as any);
   }
 
@@ -193,6 +200,11 @@ export default function ClaimScreen() {
                 <Text style={styles.ghostBtnText}>View profile</Text>
               </TouchableOpacity>
             )}
+            {entityType === 'organization' && (
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/(tabs)/dashboard' as any)}>
+                <Text style={styles.primaryBtnText}>Set up your organization</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>,
       );
@@ -226,7 +238,7 @@ export default function ClaimScreen() {
     return shell(
       <View style={styles.card}>
         <StatusIcon C={C} name="lock-closed-outline" color={C.text2} />
-        <Text style={styles.h1}>This profile has already been claimed</Text>
+        <Text style={styles.h1}>This {noun} has already been claimed</Text>
         <Text style={styles.body}>
           If you believe that's a mistake, email {CLAIMS_EMAIL} with a link to the profile and how we can reach you.
         </Text>
@@ -240,7 +252,7 @@ export default function ClaimScreen() {
         <StatusIcon C={C} name="person-circle-outline" color={C.text2} />
         <Text style={styles.h1}>Sign in to claim {name}</Text>
         <Text style={styles.body}>
-          Claims are tied to a Siqa account. Once approved, that account manages the {entityType === 'speaker' ? 'profile, videos and Speaker Studio' : 'listing'}.
+          Claims are tied to a Siqa account. Once approved, that account manages the {entityType === 'speaker' ? 'profile, videos and Speaker Studio' : entityType === 'organization' ? 'organization, its donations and Seeds' : 'listing'}.
         </Text>
         <View style={styles.row}>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/(auth)/sign-in' as any)}>
@@ -258,10 +270,10 @@ export default function ClaimScreen() {
   return shell(
     <>
       <View style={{ gap: 6 }}>
-        <Text style={styles.eyebrow}>CLAIM {entityType === 'speaker' ? 'PROFILE' : 'BUSINESS'}</Text>
+        <Text style={styles.eyebrow}>CLAIM {noun.toUpperCase()}</Text>
         <Text style={styles.h1}>{name}</Text>
         <Text style={styles.body}>
-          Claiming lets you run this {entityType === 'speaker' ? 'profile: post videos, see analytics, and get a verified badge' : 'listing: update details and respond to customers'}.
+          Claiming lets you run this {entityType === 'speaker' ? 'profile: post videos, see analytics, and get a verified badge' : entityType === 'organization' ? 'organization: update its page, take donations and launch Seeds' : 'listing: update details and respond to customers'}.
           We review every claim by hand to stop impersonation.
         </Text>
       </View>
@@ -281,9 +293,9 @@ export default function ClaimScreen() {
         <Text style={styles.label}>Who are you?</Text>
         <View style={styles.row}>
           <Choice active={relationship === 'self'} onPress={() => setRelationship('self')} styles={styles}
-            label={entityType === 'speaker' ? `I am ${name}` : 'I own this business'} />
+            label={entityType === 'speaker' ? `I am ${name}` : entityType === 'organization' ? 'I lead this organization' : 'I own this business'} />
           <Choice active={relationship === 'representative'} onPress={() => setRelationship('representative')} styles={styles}
-            label={entityType === 'speaker' ? 'I represent them' : 'I manage it for the owner'} />
+            label={entityType === 'speaker' ? 'I represent them' : entityType === 'organization' ? 'I work or volunteer there' : 'I manage it for the owner'} />
         </View>
 
         <Field styles={styles} C={C} label="Your full name" value={fullName} onChange={setFullName} autoComplete="name" />
@@ -295,7 +307,7 @@ export default function ClaimScreen() {
           keyboardType="email-address" autoComplete="email"
           error={email.length > 3 && !emailOk ? 'Enter a valid email' : undefined} />
         <Field styles={styles} C={C} label="Phone (optional)" value={phone} onChange={setPhone} keyboardType="phone-pad" autoComplete="tel" />
-        <Field styles={styles} C={C} label={entityType === 'speaker' ? 'Official website or social account' : 'Business website or social account'}
+        <Field styles={styles} C={C} label={entityType === 'speaker' ? 'Official website or social account' : entityType === 'organization' ? 'Organization website or social account' : 'Business website or social account'}
           placeholder="https://" value={link} onChange={setLink} keyboardType="url" />
 
         <Text style={[styles.label, { marginTop: 6 }]}>How should we verify you?</Text>
@@ -323,7 +335,7 @@ export default function ClaimScreen() {
         <TouchableOpacity style={styles.agreeRow} onPress={() => setAgree(a => !a)} accessibilityRole="checkbox" accessibilityState={{ checked: agree }}>
           <Icon name={agree ? 'checkbox' : 'square-outline'} size={22} color={agree ? C.emerald : C.text3} />
           <Text style={[styles.small, { flex: 1, fontSize: 13 }]}>
-            I confirm I am {entityType === 'speaker' ? name : 'the owner'}{relationship === 'representative' ? ' or authorized to act on their behalf' : ''}. Submitting a false claim will get this account removed.
+            I confirm I am {entityType === 'speaker' ? name : entityType === 'organization' ? `authorized to act for ${name}` : 'the owner'}{relationship === 'representative' && entityType !== 'organization' ? ' or authorized to act on their behalf' : ''}. Submitting a false claim will get this account removed.
           </Text>
         </TouchableOpacity>
 

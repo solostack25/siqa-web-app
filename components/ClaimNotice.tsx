@@ -4,7 +4,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { Icon } from './Icon';
 
-export type ClaimEntityType = 'speaker' | 'business';
+export type ClaimEntityType = 'speaker' | 'business' | 'organization';
 
 /**
  * Shown on any profile Siqa put together from public information
@@ -30,11 +30,16 @@ export function ClaimNotice({
 
   const body = entityType === 'speaker'
     ? `Siqa put this page together from ${name}'s publicly available lectures so they're easy to find in one place. ${name} hasn't claimed this profile, doesn't run it, and hasn't endorsed Siqa.`
-    : `Siqa listed ${name} using publicly available information. The business hasn't claimed this listing yet, so hours, contact details and offers may be out of date.`;
+    : entityType === 'organization'
+      ? `Siqa listed ${name} from public records (IRS filings, maps and websites). The organization hasn't claimed this listing, so details may be out of date and it can't take donations on Siqa yet.`
+      : `Siqa listed ${name} using publicly available information. The business hasn't claimed this listing yet, so hours, contact details and offers may be out of date.`;
 
   const ask = entityType === 'speaker'
     ? `Are you ${name}, or authorized to represent them?`
-    : `Own or manage ${name}?`;
+    : entityType === 'organization'
+      ? `Do you run ${name}?`
+      : `Own or manage ${name}?`;
+  const noun = entityType === 'speaker' ? 'profile' : entityType === 'organization' ? 'organization' : 'business';
 
   return (
     <View style={[s.card, compact && s.cardCompact]} accessibilityRole="summary">
@@ -51,7 +56,7 @@ export function ClaimNotice({
           accessibilityRole="button"
         >
           <Icon name="shield-checkmark-outline" size={16} color={C.bg} />
-          <Text style={s.btnText}>Claim this {entityType === 'speaker' ? 'profile' : 'business'}</Text>
+          <Text style={s.btnText}>Claim this {noun}</Text>
         </TouchableOpacity>
       </View>
     </View>
