@@ -235,7 +235,7 @@ export default function WatchScreen() {
             <View style={styles.creatorRow}>
               <TouchableOpacity
                 style={styles.creatorInfo}
-                onPress={() => router.push(`/channel/${video.speaker_id}`)}
+                onPress={() => router.push(`/speaker/${video.speaker_id}` as any)}
               >
                 <View style={styles.avatarPlaceholder} />
                 <View>
