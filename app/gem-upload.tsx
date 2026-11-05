@@ -687,6 +687,7 @@ function GemUploadScreenContent() {
         title: cleanCaption,
         description: cleanCaption,
         video_url: videoUrl,
+        platform: 'bunny',
         thumbnail_url: thumbnailUrl,
         category: plantSeed ? 'fundraiser-demo' : 'lecture',
         topics: selectedTopics,

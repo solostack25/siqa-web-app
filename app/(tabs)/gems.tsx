@@ -1357,7 +1357,8 @@ function GemsScreenInner() {
       )
       .eq("is_published", true)
       .eq("format", "short")
-      .eq("platform", "youtube")
+      // Both YouTube shorts and Gems uploaded in the app (Bunny MP4s).
+      // This used to be YouTube-only, so uploaded Gems never showed here.
       .not("video_url", "is", null)
       .range(0, BATCH_SIZE - 1);
 
@@ -1409,7 +1410,8 @@ function GemsScreenInner() {
       )
       .eq("is_published", true)
       .eq("format", "short")
-      .eq("platform", "youtube")
+      // Both YouTube shorts and Gems uploaded in the app (Bunny MP4s).
+      // This used to be YouTube-only, so uploaded Gems never showed here.
       .not("video_url", "is", null)
       .range(offset, offset + BATCH_SIZE - 1);
 
