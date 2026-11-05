@@ -11,13 +11,14 @@ import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import { confirmDialog, notifyDialog } from '../../lib/dialogs';
+import { geocodePlace } from '../../lib/location';
 import {
   BUSINESS_CATEGORIES, tintFor, initialsOf, type BusinessCategory, type BusinessListing, type BusinessService,
 } from '../../lib/businessCategories';
 
 type Form = {
   name: string; category: BusinessCategory | ''; tagline: string; description: string;
-  city: string; state: string; service_area: string; address: string;
+  city: string; state: string; zip: string; service_area: string; address: string;
   is_online: boolean; is_home_based: boolean; women_owned: boolean; sisters_only: boolean;
   phone: string; whatsapp: string; website: string; booking_url: string;
   price_text: string; hours_text: string; languages: string;
@@ -25,7 +26,7 @@ type Form = {
 };
 
 const EMPTY: Form = {
-  name: '', category: '', tagline: '', description: '', city: '', state: '', service_area: '', address: '',
+  name: '', category: '', tagline: '', description: '', city: '', state: '', zip: '', service_area: '', address: '',
   is_online: false, is_home_based: false, women_owned: false, sisters_only: false,
   phone: '', whatsapp: '', website: '', booking_url: '', price_text: '', hours_text: '', languages: '',
   services: [], logo_url: null, cover_url: null, publish: true,
@@ -59,7 +60,7 @@ export default function LocalEditScreen() {
       if (!l || l.owner_id !== me) { setNotAllowed(true); setLoading(false); return; }
       setF({
         name: l.name, category: l.category, tagline: l.tagline ?? '', description: l.description ?? '',
-        city: l.city ?? '', state: l.state ?? '', service_area: l.service_area ?? '', address: l.address ?? '',
+        city: l.city ?? '', state: l.state ?? '', zip: (l as any).zip ?? '', service_area: l.service_area ?? '', address: l.address ?? '',
         is_online: l.is_online, is_home_based: l.is_home_based, women_owned: l.women_owned, sisters_only: l.sisters_only,
         phone: l.phone ?? '', whatsapp: l.whatsapp ?? '', website: l.website ?? '', booking_url: l.booking_url ?? '',
         price_text: l.price_text ?? '', hours_text: l.hours_text ?? '', languages: (l.languages ?? []).join(', '),
@@ -99,15 +100,20 @@ export default function LocalEditScreen() {
   }
 
   const nameOk = f.name.trim().length >= 2;
-  const placeOk = f.is_online || f.city.trim().length > 0 || f.service_area.trim().length > 0;
+  const placeOk = f.is_online || f.city.trim().length > 0 || f.service_area.trim().length > 0 || /^\d{5}$/.test(f.zip.trim());
   const canSave = nameOk && f.category !== '' && placeOk && !saving && !uploading;
 
   async function save() {
     if (!uid || !canSave) return;
     setSaving(true); setError(null);
+    // Put the listing on the map so it shows up in "near me" searches.
+    const zip = f.zip.trim().slice(0, 5);
+    const placeText = [f.address.trim(), f.city.trim(), f.state.trim(), zip].filter(Boolean).join(', ');
+    const geo = placeText && (f.city.trim() || zip) ? await geocodePlace(placeText).catch(() => null) ?? (zip ? await geocodePlace(zip).catch(() => null) : null) : null;
     const payload = {
       name: f.name.trim(), category: f.category, tagline: f.tagline.trim() || null, description: f.description.trim() || null,
-      city: f.city.trim() || null, state: f.state.trim().toUpperCase().slice(0, 2) || null,
+      city: f.city.trim() || geo?.city || null, state: f.state.trim().toUpperCase().slice(0, 2) || geo?.state || null,
+      zip: zip || geo?.zip || null, lat: geo?.lat ?? null, lon: geo?.lon ?? null,
       service_area: f.service_area.trim() || null, address: f.address.trim() || null,
       is_online: f.is_online, is_home_based: f.is_home_based, women_owned: f.women_owned, sisters_only: f.sisters_only,
       phone: f.phone.trim() || null, whatsapp: f.whatsapp.trim() || null, website: f.website.trim() || null,
@@ -233,11 +239,13 @@ export default function LocalEditScreen() {
         <Toggle label="Online or remote" hint="Classes, consultations or work done over video or phone" value={f.is_online} onChange={v => set('is_online', v)} styles={styles} C={C} />
         <View style={styles.twoCol}>
           <View style={{ flex: 2, minWidth: 180 }}><Field label="City" placeholder="Houston" value={f.city} onChange={t => set('city', t)} styles={styles} C={C} /></View>
-          <View style={{ flex: 1, minWidth: 100 }}><Field label="State" placeholder="TX" max={2} value={f.state} onChange={t => set('state', t)} styles={styles} C={C} /></View>
+          <View style={{ flex: 1, minWidth: 90 }}><Field label="State" placeholder="TX" max={2} value={f.state} onChange={t => set('state', t)} styles={styles} C={C} /></View>
+          <View style={{ flex: 1, minWidth: 110 }}><Field label="ZIP" placeholder="77494" max={5} keyboardType="number-pad" value={f.zip} onChange={t => set('zip', t.replace(/\D/g, ''))} styles={styles} C={C} /></View>
         </View>
         <Field label="Service area (optional)" placeholder="e.g. Katy, Sugar Land and Richmond" value={f.service_area} onChange={t => set('service_area', t)} styles={styles} C={C} />
         <Field label="Street address (optional)" placeholder="Only if customers come to you" hint="Leave blank if you work from home." value={f.address} onChange={t => set('address', t)} styles={styles} C={C} />
-        {!placeOk && <Text style={styles.error}>Add a city or service area, or turn on Online.</Text>}
+        {!placeOk && <Text style={styles.error}>Add a city, ZIP or service area, or turn on Online.</Text>}
+        <Text style={styles.small}>Your city and ZIP are used to show your listing to people nearby.</Text>
       </View>
 
       {/* Services */}

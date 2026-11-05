@@ -102,7 +102,7 @@ export default function LocalListingScreen() {
     const tint = tintFor(l.id);
     const facts = [
       l.hours_text ? { label: 'Hours', value: l.hours_text } : null,
-      { label: 'Where', value: [l.is_online ? 'Online' : null, l.service_area, l.address, [l.city, l.state].filter(Boolean).join(', ')].filter(Boolean).join('\n') || 'Not listed' },
+      { label: 'Where', value: [l.is_online ? 'Online' : null, l.service_area, l.address, [[l.city, l.state].filter(Boolean).join(', '), l.zip].filter(Boolean).join(' ')].filter(Boolean).join('\n') || 'Not listed' },
       l.languages?.length ? { label: 'Languages', value: l.languages.join(', ') } : null,
       l.halal_status ? { label: 'Halal', value: l.halal_status } : null,
     ].filter(Boolean) as { label: string; value: string }[];

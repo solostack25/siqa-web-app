@@ -13,7 +13,6 @@ export function ShopSwitcher({ active, stretch = false }: { active: 'products' |
   function go(to: 'products' | 'local') {
     if (to === active) return;
     if (to === 'local') router.push('/local' as any);
-    else if (router.canGoBack()) router.back();
     else router.replace('/(tabs)/marketplace' as any);
   }
 
