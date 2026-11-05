@@ -13,10 +13,13 @@ type BunnyUploadArgs = {
   label?: string;
 };
 
-const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || 'siqa-videos';
-const BUNNY_STORAGE_KEY = process.env.EXPO_PUBLIC_BUNNY_STORAGE_KEY || '';
-const BUNNY_STORAGE_REGION = process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || 'ny';
-const BUNNY_CDN_URL = process.env.EXPO_PUBLIC_BUNNY_CDN_URL || 'https://siqa-videos.b-cdn.net';
+import { supabase } from './supabase';
+
+// Uploads go through the `bunny-upload` Supabase function, which holds the
+// Bunny Storage key. The key used to be shipped in this bundle
+// (EXPO_PUBLIC_BUNNY_STORAGE_KEY) — never put it back here.
+const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
+const UPLOAD_ENDPOINT = `${SUPABASE_URL}/functions/v1/bunny-upload`;
 
 function cleanFileName(name: string) {
   return name
@@ -61,6 +64,11 @@ export function makeBunnySeedThumbnailPath(userId: string, originalName: string,
   return `seeds/${userId}/thumbnails/${Date.now()}-${safeBase}.${ext}`;
 }
 
+/**
+ * Uploads a file and returns its public CDN URL. `fileName` is a suggested
+ * path — the server keeps its top folder and name but places it under the
+ * signed-in user with a random id, so always use the returned URL.
+ */
 export async function uploadFileToBunny({
   uri,
   fileName,
@@ -68,21 +76,19 @@ export async function uploadFileToBunny({
   onProgress,
   progressStart = 10,
   progressEnd = 88,
-  label = 'Uploading to Bunny.net...',
-}: BunnyUploadArgs) {
-  if (!BUNNY_STORAGE_KEY) {
-    throw new Error('Missing Bunny Storage key. Add EXPO_PUBLIC_BUNNY_STORAGE_KEY to your .env file.');
-  }
+  label = 'Uploading...',
+}: BunnyUploadArgs): Promise<string> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Sign in again to upload.');
 
   onProgress?.({ pct: Math.max(1, progressStart - 5), label: 'Preparing file...' });
 
   const blob = await fetch(uri).then((res) => res.blob());
-  const storageHost = `https://${BUNNY_STORAGE_REGION}.storage.bunnycdn.com`;
-  const uploadUrl = `${storageHost}/${BUNNY_STORAGE_ZONE}/${fileName}`;
+  const type = mimeType || blob.type || (fileName.match(/\.(mov|mp4|m4v|webm)$/i) ? 'video/mp4' : 'image/jpeg');
 
   onProgress?.({ pct: progressStart, label });
 
-  await new Promise<void>((resolve, reject) => {
+  const result = await new Promise<{ url: string }>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
     xhr.upload.onprogress = (event) => {
@@ -93,18 +99,20 @@ export async function uploadFileToBunny({
     };
 
     xhr.onload = () => {
-      if (xhr.status === 200 || xhr.status === 201) resolve();
-      else reject(new Error(`Bunny upload failed: HTTP ${xhr.status}`));
+      let body: any = null;
+      try { body = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300 && body?.url) resolve(body);
+      else reject(new Error(body?.error || `Upload failed (HTTP ${xhr.status})`));
     };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
 
-    xhr.onerror = () => reject(new Error('Network error during Bunny upload'));
-    xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('AccessKey', BUNNY_STORAGE_KEY);
-    xhr.setRequestHeader('Content-Type', mimeType || 'application/octet-stream');
+    xhr.open('POST', `${UPLOAD_ENDPOINT}?path=${encodeURIComponent(fileName)}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+    xhr.setRequestHeader('Content-Type', type);
     xhr.send(blob);
   });
 
-  return `${BUNNY_CDN_URL.replace(/\/$/, '')}/${fileName}`;
+  return result.url;
 }
 
 export async function uploadVideoToBunny(args: BunnyUploadArgs) {
