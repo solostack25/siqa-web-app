@@ -22,6 +22,7 @@ import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import { Icon } from '../../components/Icon';
 import { shareSpeaker } from '../../lib/share';
 import ImageCropModal from '../../components/ImageCropModal';
+import { ClaimNotice, UnclaimedBadge } from '../../components/ClaimNotice';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
   return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
@@ -45,6 +46,7 @@ type Speaker = {
   is_available: boolean;
   profile_id: string | null;
   is_verified: boolean;
+  is_claimed: boolean;
   avatar_url: string | null;
   banner_url: string | null;
   website: string | null;
@@ -157,7 +159,7 @@ export default function SpeakerProfileScreen() {
       .select(`
         id, display_name, denomination, state, country, topics, languages,
         bio, total_raised, follower_count, events_count, is_available,
-        profile_id, is_verified, avatar_url, banner_url,
+        profile_id, is_verified, is_claimed, avatar_url, banner_url,
         website, youtube_url, instagram_url, booking_email
       `)
       .eq('id', speakerId)
@@ -193,7 +195,10 @@ export default function SpeakerProfileScreen() {
     setLoading(false);
   }
 
-  const isOwner = Boolean(userId) && speaker?.profile_id === userId;
+  // Profiles Siqa curated from public lectures aren't run by the speaker
+  // until they claim them. Treat a missing column as claimed.
+  const unclaimed = speaker ? speaker.is_claimed === false : false;
+  const isOwner = Boolean(userId) && speaker?.profile_id === userId && !unclaimed;
 
   async function toggleFollow() {
     if (!speaker?.profile_id || followBusy) return;
@@ -401,7 +406,7 @@ export default function SpeakerProfileScreen() {
     { val: formatCount(speaker.follower_count), label: 'followers' },
     { val: formatCount(videos.length), label: videos.length === 1 ? 'video' : 'videos' },
     { val: formatCount(totalViews), label: 'views' },
-    ...(speaker.total_raised ? [{ val: formatRaised(speaker.total_raised), label: 'raised' }] : []),
+    ...(speaker.total_raised && !unclaimed ? [{ val: formatRaised(speaker.total_raised), label: 'raised' }] : []),
   ];
 
   const tabs: { key: Tab; label: string }[] = [
@@ -617,7 +622,7 @@ export default function SpeakerProfileScreen() {
         <View style={styles.aboutGrid}>
           {location ? <AboutRow styles={styles} label="Based in" value={location} /> : null}
           {speaker.languages?.length ? <AboutRow styles={styles} label="Languages" value={speaker.languages.join(', ')} /> : null}
-          <AboutRow styles={styles} label="Speaking requests" value={speaker.is_available ? 'Open to bookings' : 'Not taking bookings right now'} />
+          {!unclaimed && <AboutRow styles={styles} label="Speaking requests" value={speaker.is_available ? 'Open to bookings' : 'Not taking bookings right now'} />}
         </View>
         {speaker.topics?.length ? (
           <View style={{ gap: 8 }}>
@@ -629,9 +634,9 @@ export default function SpeakerProfileScreen() {
             </View>
           </View>
         ) : null}
-        {(links.length > 0 || (speaker.is_available && speaker.booking_email)) && (
+        {(links.length > 0 || (!unclaimed && speaker.is_available && speaker.booking_email)) && (
           <View style={styles.pillRow}>
-            {speaker.is_available && speaker.booking_email && (
+            {!unclaimed && speaker.is_available && speaker.booking_email && (
               <TouchableOpacity
                 style={styles.primaryBtn}
                 onPress={() => Linking.openURL(`mailto:${speaker.booking_email}?subject=${encodeURIComponent('Speaking request via Siqa')}`)}
@@ -694,7 +699,8 @@ export default function SpeakerProfileScreen() {
               <View style={styles.identityText}>
                 <View style={styles.nameRow}>
                   <Text style={[styles.name, isDesktopWeb && styles.nameDesktop]}>{speaker.display_name}</Text>
-                  {speaker.is_verified && (
+                  {unclaimed && <UnclaimedBadge />}
+                  {speaker.is_verified && !unclaimed && (
                     <View style={styles.verifiedBadge}>
                       <Icon name="checkmark-circle" size={14} color={C.emerald} />
                       <Text style={styles.verifiedText}>Verified speaker</Text>
@@ -715,7 +721,13 @@ export default function SpeakerProfileScreen() {
             {!isDesktopWeb && <View style={{ paddingHorizontal: pad, marginTop: 12 }}>{actionButtons}</View>}
 
             {/* Verification strip — Siqa's promise: no impersonation. */}
-            {speaker.is_verified && (
+            {unclaimed && (
+              <View style={{ marginHorizontal: pad, marginTop: 20 }}>
+                <ClaimNotice entityType="speaker" entityId={speaker.id} name={speaker.display_name} compact={!isDesktopWeb} />
+              </View>
+            )}
+
+            {speaker.is_verified && !unclaimed && (
               <View style={[styles.verifyStrip, { marginHorizontal: pad }]}>
                 <Icon name="shield-checkmark-outline" size={20} color={C.emerald} />
                 <Text style={styles.verifyText}>
@@ -803,14 +815,16 @@ function makeStyles(C: AppColors, desktop: boolean) {
 
     identity: {
       flexDirection: desktop ? 'row' : 'column', alignItems: desktop ? 'flex-end' : 'flex-start',
-      gap: desktop ? 20 : 10, marginTop: desktop ? -56 : -44,
+      gap: desktop ? 20 : 10, marginTop: desktop ? 12 : 0,
     },
     identityText: { flex: desktop ? 1 : undefined, minWidth: 0, gap: 4, paddingBottom: desktop ? 4 : 0 },
     avatar: {
       width: 88, height: 88, borderRadius: 44, backgroundColor: C.surface2,
       borderWidth: 4, borderColor: C.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      // Only the avatar overlaps the banner; the name and stats sit below it.
+      marginTop: -44,
     },
-    avatarDesktop: { width: 128, height: 128, borderRadius: 64, marginLeft: 0 },
+    avatarDesktop: { width: 128, height: 128, borderRadius: 64, marginLeft: 0, marginTop: -76 },
     avatarText: { fontSize: 32, color: C.emerald, fontWeight: '700' },
     avatarTextDesktop: { fontSize: 44 },
     editAvatarBadge: {

@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
   Image,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
@@ -16,6 +15,30 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialogs';
+
+type ProfileClaimRow = {
+  id: string;
+  entity_type: 'speaker' | 'business';
+  entity_id: string;
+  entity_name: string | null;
+  relationship: 'self' | 'representative';
+  full_name: string;
+  title: string | null;
+  contact_email: string;
+  contact_phone: string | null;
+  official_link: string | null;
+  verification_method: string | null;
+  verification_code: string;
+  notes: string | null;
+  created_at: string;
+};
+
+const METHOD_LABEL: Record<string, string> = {
+  official_email: 'Email from official address',
+  social_post: 'Post on official social account',
+  other: 'Other',
+};
 
 type QueueVideo = {
   id: string;
@@ -93,6 +116,7 @@ export default function AdminScreen() {
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [applications, setApplications] = useState<SpeakerApplication[]>([]);
   const [pendingSellers, setPendingSellers] = useState<MarketplaceSellerRow[]>([]);
+  const [claims, setClaims] = useState<ProfileClaimRow[]>([]);
   const [adminId, setAdminId] = useState<string | null>(null);
 
   useFocusEffect(
@@ -123,7 +147,7 @@ export default function AdminScreen() {
 
       setAdminId(user.id);
 
-      const [videosRes, speakersRes, appsRes, orgsRes, sellersRes] = await Promise.all([
+      const [videosRes, speakersRes, appsRes, orgsRes, sellersRes, claimsRes] = await Promise.all([
         supabase
           .from('videos')
           .select('id, title, thumbnail_url, video_url, is_published, status, created_at, speakers(display_name)')
@@ -133,6 +157,8 @@ export default function AdminScreen() {
         supabase
           .from('speakers')
           .select('id, display_name, is_verified, created_at')
+          // Unclaimed (Siqa-curated) profiles get verified by approving a claim, not here.
+          .eq('is_claimed', true)
           .or('is_verified.eq.false,is_verified.is.null')
           .order('created_at', { ascending: false })
           .limit(30),
@@ -154,6 +180,12 @@ export default function AdminScreen() {
           .eq('approval_status', 'pending')
           .order('created_at', { ascending: false })
           .limit(30),
+        supabase
+          .from('profile_claims')
+          .select('id, entity_type, entity_id, entity_name, relationship, full_name, title, contact_email, contact_phone, official_link, verification_method, verification_code, notes, created_at')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(50),
       ]);
 
       if (videosRes.data) setVideos(videosRes.data as any);
@@ -161,6 +193,7 @@ export default function AdminScreen() {
       if (orgsRes.data) setOrgs(orgsRes.data as any);
       if (appsRes.data) setApplications(appsRes.data as any);
       if (sellersRes.data) setPendingSellers(sellersRes.data as any);
+      if (claimsRes.data) setClaims(claimsRes.data as any);
 
       const reportsRes = await supabase
         .from('content_reports')
@@ -176,6 +209,32 @@ export default function AdminScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  }
+
+  async function approveClaim(c: ProfileClaimRow) {
+    const who = c.relationship === 'self' ? c.full_name : `${c.full_name} (${c.title || 'representative'})`;
+    const ok = await confirmDialog(
+      'Approve this claim?',
+      `${who} will take over ${c.entity_name || `this ${c.entity_type}`}. Only approve once you've confirmed code ${c.verification_code} via ${METHOD_LABEL[c.verification_method || 'other'].toLowerCase()}.`,
+      'Approve',
+    );
+    if (!ok) return;
+    setBusyId(c.id);
+    const { error } = await supabase.rpc('approve_profile_claim', { p_claim_id: c.id });
+    setBusyId(null);
+    if (error) return Alert.alert('Could not approve claim', error.message);
+    // Approving one claim auto-declines any others for the same profile.
+    setClaims(prev => prev.filter(x => !(x.entity_type === c.entity_type && x.entity_id === c.entity_id)));
+  }
+
+  async function rejectClaim(c: ProfileClaimRow) {
+    const reason = await promptDialog('Reject this claim?', 'Optional: tell them why (they will see this).');
+    if (reason === null) return;
+    setBusyId(c.id);
+    const { error } = await supabase.rpc('reject_profile_claim', { p_claim_id: c.id, p_reason: reason || null });
+    setBusyId(null);
+    if (error) return Alert.alert('Could not reject claim', error.message);
+    setClaims(prev => prev.filter(x => x.id !== c.id));
   }
 
   async function approveVideo(videoId: string) {
@@ -402,6 +461,40 @@ export default function AdminScreen() {
           <Text style={styles.headerTitle}>Moderation</Text>
         </View>
       </View>
+
+      <QueueSection title="Profile Claims" count={claims.length} C={C}>
+        {claims.length === 0 ? <Empty text="No claims waiting for review." C={C} /> : claims.map((c) => (
+          <View key={c.id} style={styles.queueCard}>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle}>{c.entity_name || `Unnamed ${c.entity_type}`}</Text>
+              <Text style={styles.cardMeta}>
+                {c.entity_type === 'speaker' ? 'Speaker' : 'Business'} · claimed by {c.full_name}
+                {c.relationship === 'representative' ? ` (${c.title || 'representative'})` : ' (self)'}
+              </Text>
+              <Text style={styles.cardMeta} selectable>{c.contact_email}{c.contact_phone ? ` · ${c.contact_phone}` : ''}</Text>
+              {c.official_link ? <Text style={[styles.cardMeta, { color: C.gold }]} selectable>{c.official_link}</Text> : null}
+              <Text style={styles.cardMeta}>
+                Verify: {METHOD_LABEL[c.verification_method || 'other']} · code <Text style={{ fontWeight: '800', color: C.text }} selectable>{c.verification_code}</Text>
+              </Text>
+              {c.notes ? <Text style={styles.cardMeta} numberOfLines={3}>“{c.notes}”</Text> : null}
+              <Text style={styles.cardMeta}>{new Date(c.created_at).toLocaleString()}</Text>
+            </View>
+            <View style={styles.actionsRow}>
+              {c.entity_type === 'speaker' && (
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push(`/speaker/${c.entity_id}` as any)}>
+                  <Text style={styles.ghostBtnText}>View profile</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.ghostBtn} onPress={() => rejectClaim(c)} disabled={busyId === c.id}>
+                <Text style={styles.ghostBtnText}>Reject</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primarySmallBtn} onPress={() => approveClaim(c)} disabled={busyId === c.id}>
+                <Text style={styles.primarySmallText}>{busyId === c.id ? 'Saving...' : 'Approve'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </QueueSection>
 
       <QueueSection title="Pending Gems" count={videos.length} C={C}>
         {videos.length === 0 ? <Empty text="No Gems waiting for review." C={C} /> : videos.map((v) => (
