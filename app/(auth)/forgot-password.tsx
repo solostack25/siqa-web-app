@@ -30,7 +30,14 @@ export default function ForgotPasswordScreen() {
     setError('');
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
-      { redirectTo: 'siqa://reset-password' }
+      {
+        // Web: come back to this same site (www.siqa.us or shop.siqa.us).
+        // The phone app link (siqa://) can't open in a browser.
+        redirectTo:
+          Platform.OS === 'web' && typeof window !== 'undefined'
+            ? `${window.location.origin}/reset-password`
+            : 'siqa://reset-password',
+      }
     );
     setLoading(false);
     if (resetError) {

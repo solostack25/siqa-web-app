@@ -22,6 +22,41 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
+  // Web only: is there a valid reset session from the email link?
+  const [linkState, setLinkState] = useState<'checking' | 'ok' | 'invalid'>(
+    Platform.OS === 'web' ? 'checking' : 'ok',
+  );
+  const [linkError, setLinkError] = useState('');
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    // Expired/used links come back as #error=...&error_description=...
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const query = new URLSearchParams(window.location.search);
+    const errDesc = hash.get('error_description') || query.get('error_description');
+    if (errDesc) {
+      const msg = errDesc.replace(/\+/g, ' ').trim();
+      setLinkError(/[.!?]$/.test(msg) ? msg : `${msg}.`);
+      setLinkState('invalid');
+      return;
+    }
+    let cancelled = false;
+    // The client reads the tokens from the link on startup; give it a
+    // moment, then check we actually have a session to update.
+    const check = async () => {
+      for (let i = 0; i < 10 && !cancelled; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) { if (!cancelled) setLinkState('ok'); return; }
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      if (!cancelled) setLinkState('invalid');
+    };
+    check();
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN')) setLinkState('ok');
+    });
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+  }, []);
 
   async function handleUpdate() {
     if (!password || !confirm) { setError('Please fill in both fields'); return; }
@@ -34,6 +69,32 @@ export default function ResetPasswordScreen() {
     if (updateError) { setError(updateError.message); return; }
     setDone(true);
     setTimeout(() => router.replace('/(tabs)/dashboard'), 2000);
+  }
+
+  if (linkState === 'checking') {
+    return (
+      <View style={styles.centeredWrap}>
+        <ActivityIndicator color={Colors.gold} />
+      </View>
+    );
+  }
+
+  if (linkState === 'invalid') {
+    return (
+      <View style={styles.centeredWrap}>
+        <Glyph name="time-outline" style={styles.doneEmoji} color={Colors.gold} />
+        <Text style={styles.doneTitle}>This reset link has expired</Text>
+        <Text style={[styles.doneSub, { textAlign: 'center', maxWidth: 380, paddingHorizontal: 24 }]}>
+          {linkError || 'Reset links work once and expire after a while.'} Request a new one and use the latest email.
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, backgroundColor: Colors.gold }}
+          onPress={() => router.replace('/(auth)/forgot-password' as any)}
+        >
+          <Text style={{ color: '#000', fontWeight: '700' }}>Send a new link</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   if (done) {
