@@ -71,8 +71,8 @@ export function LocationPicker({
           accessibilityState={{ expanded: open }}
           accessibilityLabel={`Location: ${summary}. Change location`}
         >
-          <Icon name={current.mode === 'auto' ? 'navigate' : 'location-outline'} size={17} color={current.mode !== 'anywhere' ? C.emerald : C.text2} />
-          <Text style={[s.triggerText, current.mode !== 'anywhere' && { color: C.emerald, fontWeight: '700' }]} numberOfLines={1}>{summary}</Text>
+          <Icon name={current.mode === 'auto' ? 'navigate' : 'location-outline'} size={17} color={current.mode !== 'anywhere' ? C.gold : C.text2} />
+          <Text style={[s.triggerText, current.mode !== 'anywhere' && { color: C.gold, fontWeight: '700' }]} numberOfLines={1}>{summary}</Text>
           <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
         </TouchableOpacity>
       )}
@@ -81,7 +81,7 @@ export function LocationPicker({
         <View style={[s.panel, inline && s.panelInline]}>
           {deviceLocationSupported() && (
             <TouchableOpacity style={s.deviceBtn} onPress={useDevice} disabled={busy !== null}>
-              {busy === 'device' ? <ActivityIndicator color={C.emerald} /> : <Icon name="navigate-outline" size={18} color={C.emerald} />}
+              {busy === 'device' ? <ActivityIndicator color={C.gold} /> : <Icon name="navigate-outline" size={18} color={C.gold} />}
               <Text style={s.deviceText}>{current.mode === 'auto' ? 'Update my current location' : 'Use my current location'}</Text>
             </TouchableOpacity>
           )}
@@ -141,21 +141,21 @@ function makeStyles(C: AppColors) {
       minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
       flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14,
     },
-    triggerOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    triggerOn: { borderColor: C.gold, backgroundColor: C.goldBg },
     triggerText: { flex: 1, fontSize: 15, color: C.text },
     panel: { gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface },
     panelInline: { padding: 0, borderWidth: 0, backgroundColor: 'transparent' },
     deviceBtn: {
-      minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: C.emerald, flexDirection: 'row',
+      minHeight: 46, borderRadius: 12, borderWidth: 1, borderColor: C.gold, flexDirection: 'row',
       alignItems: 'center', gap: 8, paddingHorizontal: 14, alignSelf: 'flex-start',
     },
-    deviceText: { fontSize: 14, fontWeight: '700', color: C.emerald },
+    deviceText: { fontSize: 14, fontWeight: '700', color: C.gold },
     inputRow: { flexDirection: 'row', gap: 8 },
     input: {
       flex: 1, minWidth: 0, minHeight: 46, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 12,
-      fontSize: 15, color: C.text, backgroundColor: C.bg, ...(Platform.OS === 'web' ? { outlineColor: C.emerald } as any : {}),
+      fontSize: 15, color: C.text, backgroundColor: C.bg, ...(Platform.OS === 'web' ? { outlineColor: C.gold } as any : {}),
     },
-    goBtn: { minHeight: 46, minWidth: 64, paddingHorizontal: 16, borderRadius: 12, backgroundColor: C.emerald, alignItems: 'center', justifyContent: 'center' },
+    goBtn: { minHeight: 46, minWidth: 64, paddingHorizontal: 16, borderRadius: 12, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
     goText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     label: { fontSize: 13, fontWeight: '700', color: C.text },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -164,7 +164,7 @@ function makeStyles(C: AppColors) {
     chipText: { fontSize: 13, color: C.text },
     chipTextOn: { color: C.bg, fontWeight: '700' },
     linkBtn: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center' },
-    link: { fontSize: 14, fontWeight: '600', color: C.emerald },
+    link: { fontSize: 14, fontWeight: '600', color: C.gold },
     error: { fontSize: 13, color: C.danger, lineHeight: 18 },
     small: { fontSize: 12, color: C.text3 },
   });

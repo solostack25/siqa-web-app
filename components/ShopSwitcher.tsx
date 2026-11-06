@@ -12,8 +12,8 @@ export function ShopSwitcher({ active, stretch = false }: { active: 'products' |
 
   function go(to: 'products' | 'local') {
     if (to === active) return;
-    if (to === 'local') router.push('/local' as any);
-    else router.replace('/(tabs)/marketplace' as any);
+    // Both live under the Shop tab, so switch in place (no back stack).
+    router.navigate((to === 'local' ? '/local' : '/(tabs)/marketplace') as any);
   }
 
   return (

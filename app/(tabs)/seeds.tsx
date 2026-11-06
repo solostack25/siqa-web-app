@@ -20,6 +20,7 @@ import { useTheme, type AppColors } from "../../lib/theme";
 import { Theme, HEADER_TOP_PADDING } from "../../constants/theme";
 import { Glyph, type GlyphName } from "../../components/Glyph";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
+import { MobileBrandBar } from "../../components/MobileBrandBar";
 
 type Fundraiser = {
   id: string;
@@ -390,7 +391,8 @@ function SeedsScreenInner() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <MobileBrandBar />
+      <View style={[styles.header, !isDesktopWeb && { paddingTop: 8 }]}>
         <View>
           <Text style={styles.headerTitle}>Seeds</Text>
           <Text style={styles.headerSub}>Plant your seeds</Text>

@@ -23,6 +23,7 @@ import { addToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
 import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
+import { MobileBrandBar } from '../../components/MobileBrandBar';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
@@ -292,7 +293,8 @@ export default function MarketplaceScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={{ paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING }}>
+      <MobileBrandBar />
+      <View style={{ paddingHorizontal: Theme.spacing.xl, paddingTop: isDesktopWeb ? HEADER_TOP_PADDING : 8 }}>
         <ShopSwitcher active="products" stretch={!isDesktopWeb} />
       </View>
       <View style={[styles.header, { paddingTop: 12 }]}>

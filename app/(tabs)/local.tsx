@@ -7,7 +7,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { HEADER_TOP_PADDING } from '../../constants/theme';
-import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
+import { useIsDesktopWeb } from '../../components/DesktopShell';
+import { MobileBrandBar } from '../../components/MobileBrandBar';
 import { Icon } from '../../components/Icon';
 import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { LocationPicker } from '../../components/LocationPicker';
@@ -238,9 +239,9 @@ export default function LocalDirectoryScreen() {
   };
 
   return (
-    <DesktopShell>
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
+    <View style={{ flex: 1, backgroundColor: C.bg }}>
         <ScrollView contentContainerStyle={{ paddingBottom: 72 }} keyboardShouldPersistTaps="handled">
+          <MobileBrandBar />
           <View style={[styles.page, { paddingHorizontal: pad }]}>
             <ShopSwitcher active="local" stretch={!isDesktopWeb} />
 
@@ -331,8 +332,8 @@ export default function LocalDirectoryScreen() {
                   accessibilityRole="switch"
                   accessibilityState={{ checked: flags[f.key] }}
                 >
-                  {flags[f.key] ? <Icon name="checkmark" size={14} color={C.emerald} /> : null}
-                  <Text style={[styles.flagText, flags[f.key] && { color: C.emerald, fontWeight: '700' }]}>{f.label}</Text>
+                  {flags[f.key] ? <Icon name="checkmark" size={14} color={C.gold} /> : null}
+                  <Text style={[styles.flagText, flags[f.key] && { color: C.gold, fontWeight: '700' }]}>{f.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -415,13 +416,12 @@ export default function LocalDirectoryScreen() {
           </View>
         </ScrollView>
       </View>
-    </DesktopShell>
   );
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
   return StyleSheet.create({
-    page: { width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: 22, paddingTop: desktop ? 28 : HEADER_TOP_PADDING },
+    page: { width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: 22, paddingTop: desktop ? 28 : 8 },
     center: { paddingVertical: 60, alignItems: 'center' },
     header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 },
     headerText: { flexGrow: 1, flexShrink: 1, flexBasis: desktop ? 520 : 240, gap: 8 },
@@ -429,7 +429,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     lede: { fontSize: desktop ? 16 : 14, lineHeight: desktop ? 24 : 20, color: C.text2, maxWidth: 640 },
     headerBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     primaryBtn: {
-      minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald,
+      minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     },
     primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
@@ -453,7 +453,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       flexGrow: 1, flexBasis: 150, minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
       flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14,
     },
-    stateBtnOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    stateBtnOn: { borderColor: C.gold, backgroundColor: C.goldBg },
     stateText: { flex: 1, fontSize: 15, color: C.text },
     statePanel: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: -8 },
     chip: {
@@ -482,7 +482,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       minHeight: 38, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
       backgroundColor: C.surface, flexDirection: 'row', alignItems: 'center', gap: 6,
     },
-    flagOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    flagOn: { borderColor: C.gold, backgroundColor: C.goldBg },
     flagText: { fontSize: 13, color: C.text, fontWeight: '500' },
 
     section: { gap: 14 },
