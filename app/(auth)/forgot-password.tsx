@@ -8,6 +8,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { canonicalOrigin } from '../../lib/site';
 import { useState } from 'react';
 import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -35,7 +36,7 @@ export default function ForgotPasswordScreen() {
         // The phone app link (siqa://) can't open in a browser.
         redirectTo:
           Platform.OS === 'web' && typeof window !== 'undefined'
-            ? `${window.location.origin}/reset-password`
+            ? `${canonicalOrigin()}/reset-password`
             : 'siqa://reset-password',
       }
     );
