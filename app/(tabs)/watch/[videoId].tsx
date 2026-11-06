@@ -24,6 +24,7 @@ import { CastButton } from '../../../components/CastButton';
 import { YouTubeEmbed } from '../../../components/YouTubeEmbed';
 import { WatchComments } from '../../../components/comments/Comments';
 import { Icon } from '../../../components/Icon';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brandStyles } from '../../../lib/ds';
 import { Button, Chip } from '../../../components/ui';
 
@@ -170,6 +171,11 @@ function WatchScreen() {
     await shareVideo(video.id, video.title, video.speakers?.display_name);
   }
 
+  // Phones: the player is pinned to the very top of the screen, so push it
+  // below the status bar / Dynamic Island or the back button sits under the
+  // clock and can't be tapped. The black strip above matches the player.
+  const insets = useSafeAreaInsets();
+
   function goBack() {
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)/gems' as any);
@@ -262,7 +268,7 @@ function WatchScreen() {
       {/* Player is intentionally OUTSIDE the ScrollView below — this is
           what keeps it fixed/playing while everything else scrolls under
           it, rather than scrolling away with the page. */}
-      <View style={styles.playerWrapFixed}>
+      <View style={[styles.playerWrapFixed, !isWide && { paddingTop: insets.top }]}>
         <View style={styles.playerInner} nativeID="siqa-player">
           {video.platform === 'youtube' && video.platform_video_id ? (
             <YouTubeEmbed videoId={video.platform_video_id} autoplay />
