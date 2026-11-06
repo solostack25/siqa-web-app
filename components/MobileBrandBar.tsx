@@ -7,6 +7,7 @@ import { SITE_HOME } from '../lib/site';
 import { useIsDesktopWeb } from './DesktopShell';
 import { Icon } from './Icon';
 import { HEADER_TOP_PADDING } from '../constants/theme';
+import { brandStyles } from '../lib/ds';
 
 /**
  * The Siqa wordmark row at the top of each tab page on phones, matching the
@@ -47,7 +48,7 @@ export function MobileBrandBar() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     bar: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       paddingHorizontal: 20, paddingTop: HEADER_TOP_PADDING, paddingBottom: 4,
@@ -57,5 +58,5 @@ function makeStyles(C: AppColors) {
     authBtn: { borderWidth: 1, borderColor: C.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
     authText: { fontSize: 13, color: C.text, fontWeight: '500' },
     iconBtn: { padding: 4 },
-  });
+  }));
 }

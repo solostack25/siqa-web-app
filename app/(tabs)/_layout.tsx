@@ -7,6 +7,7 @@ import { DesktopSidebar } from '../../components/DesktopSidebar';
 import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
+import { brandStyles } from '../../lib/ds';
 
 type TabIconProps = {
   focused: boolean;
@@ -143,7 +144,7 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -162,4 +163,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

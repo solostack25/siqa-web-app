@@ -23,6 +23,8 @@ import { CastButton } from '../../components/CastButton';
 import { YouTubeEmbed } from '../../components/YouTubeEmbed';
 import { CommentsSection } from '../../components/CommentsSection';
 import { Icon } from '../../components/Icon';
+import { brandStyles } from '../../lib/ds';
+import { Button, Chip } from '../../components/ui';
 
 type VideoDetail = {
   id: string;
@@ -296,18 +298,9 @@ export default function WatchScreen() {
 
         {/* Actions */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mPills}>
-          <TouchableOpacity style={[styles.mPill, liked && styles.mPillOn]} onPress={toggleLike} accessibilityLabel={liked ? 'Unlike' : 'Like'}>
-            <Icon name={liked ? 'thumbs-up' : 'thumbs-up-outline'} size={17} color={liked ? C.goldDim : C.text} />
-            <Text style={[styles.mPillText, liked && { color: C.goldDim }]}>{likeCount > 0 ? likeCount.toLocaleString() : 'Like'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.mPill, saved && styles.mPillOn]} onPress={toggleSave}>
-            <Icon name={saved ? 'bookmark' : 'bookmark-outline'} size={17} color={saved ? C.goldDim : C.text} />
-            <Text style={[styles.mPillText, saved && { color: C.goldDim }]}>{saved ? 'Saved' : 'Save'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.mPill} onPress={handleShare}>
-            <Icon name="share-outline" size={17} color={C.text} />
-            <Text style={styles.mPillText}>Share</Text>
-          </TouchableOpacity>
+          <Chip icon={liked ? 'thumbs-up' : 'thumbs-up-outline'} label={likeCount > 0 ? likeCount.toLocaleString() : 'Like'} selected={liked} onPress={toggleLike} />
+          <Chip icon={saved ? 'bookmark' : 'bookmark-outline'} label={saved ? 'Saved' : 'Save'} selected={saved} onPress={toggleSave} />
+          <Chip icon="share-outline" label="Share" onPress={handleShare} />
         </ScrollView>
 
         <View style={styles.mBand} />
@@ -331,9 +324,7 @@ export default function WatchScreen() {
                 </View>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.mFollow, following && styles.followingBtn]} onPress={toggleFollow}>
-              <Text style={[styles.followBtnText, following && styles.followingBtnText]}>{following ? 'Following' : 'Follow'}</Text>
-            </TouchableOpacity>
+            <Button size="md" variant={following ? 'secondary' : 'gold'} label={following ? 'Following' : 'Follow'} icon={following ? 'checkmark' : undefined} onPress={toggleFollow} />
           </View>
           {video.speakers && (video.speakers as any).is_claimed === false && (
             <Text style={styles.mClaim}>
@@ -498,7 +489,7 @@ export default function WatchScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
   screen: { flex: 1, backgroundColor: C.bg },
   // Fixed player wrapper — never scrolls. Capped width on wide screens so
   // it doesn't stretch to an absurd size on an ultrawide monitor; centered.
@@ -511,7 +502,7 @@ function makeStyles(C: AppColors) {
   mSection: { paddingHorizontal: 16, paddingVertical: 14 },
   mTitle: { color: C.text, fontSize: 19, lineHeight: 25, fontWeight: '700', letterSpacing: -0.2 },
   mMeta: { color: C.text2, fontSize: 13, lineHeight: 18, marginTop: 6 },
-  mPills: { gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  mPills: { gap: 8, paddingHorizontal: 16, paddingTop: 2, paddingBottom: 16 },
   mPill: {
     height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: C.bg2,
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -591,5 +582,5 @@ function makeStyles(C: AppColors) {
   relatedThumb: { width: '100%', height: '100%' },
   relatedTitle: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
   relatedMeta: { color: C.text2, fontSize: Theme.fontSize.xs, marginTop: 2 },
-});
+}));
 }

@@ -16,6 +16,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { SearchIcon, ClearIcon } from '../components/Siqa';
+import { brandStyles } from '../lib/ds';
 
 const CATEGORIES = [
   'All',
@@ -249,7 +250,7 @@ export default function BrowseScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
   container: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: 'row',
@@ -317,5 +318,5 @@ function makeStyles(C: AppColors) {
   emptyState: { alignItems: 'center', paddingTop: Theme.spacing.xxxl * 2 },
   emptyTitle: { color: C.text, fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.semibold },
   emptySubtitle: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.xs },
-});
+}));
 }

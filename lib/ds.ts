@@ -16,7 +16,8 @@ import { useTheme } from './theme';
 // ── Fonts ──────────────────────────────────────────────────────────────
 // Custom fonts on phones need one family name per weight (fontWeight alone
 // won't pick the bold file), so text styles set fontFamily from the weight.
-export const FONT_FILES = {
+// Phones only; the web uses the self-hosted variable font in public/index.html.
+export const FONT_FILES: Record<string, number> = Platform.OS === 'web' ? {} : {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
   PlusJakartaSans_600SemiBold,
@@ -36,7 +37,8 @@ const FAMILY: Record<Weight, string> = {
 /** fontFamily (+ fontWeight on web, where it's harmless) for a weight. */
 export function font(weight: Weight = 400): TextStyle {
   return Platform.OS === 'web'
-    ? { fontFamily: `${FAMILY[weight]}, "Plus Jakarta Sans", system-ui, -apple-system, sans-serif`, fontWeight: String(weight) as any }
+    // Web: the self-hosted variable font from public/index.html, so no extra download.
+    ? { fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif', fontWeight: String(weight) as any }
     : { fontFamily: FAMILY[weight] };
 }
 
@@ -159,4 +161,37 @@ export function useDS(): DS {
     isDark,
     shadow: (name) => ({ boxShadow: SHADOWS[mode][name] } as ViewStyle),
   };
+}
+
+// ── Migrating older screens ────────────────────────────────────────────
+const TEXT_KEYS = ['fontSize', 'fontWeight', 'color', 'lineHeight', 'letterSpacing', 'textAlign'];
+
+function nearestWeight(w: unknown): Weight {
+  const n = w === 'bold' ? 700 : w === 'normal' || w == null ? 400 : parseInt(String(w), 10) || 400;
+  if (n <= 400) return 400;
+  if (n >= 800) return 800;
+  return (Math.round(n / 100) * 100) as Weight;
+}
+
+/**
+ * Puts an existing screen's text on the brand font: every style that styles
+ * text (has a font size, weight, color…) gets the Plus Jakarta file for its
+ * weight. Wrap a screen's style object before StyleSheet.create:
+ *   StyleSheet.create(brandStyles({ ... }))
+ * Styles that already set a fontFamily (icons, Arabic) are left alone.
+ */
+export function brandStyles<T extends Record<string, any>>(styles: T): T {
+  const out: Record<string, any> = {};
+  for (const key of Object.keys(styles)) {
+    const s = styles[key];
+    if (s && typeof s === 'object' && !s.fontFamily && TEXT_KEYS.some((k) => k in s)) {
+      const w = nearestWeight(s.fontWeight);
+      const next = { ...s, ...font(w) };
+      if (Platform.OS !== 'web') delete next.fontWeight;
+      out[key] = next;
+    } else {
+      out[key] = s;
+    }
+  }
+  return out as T;
 }

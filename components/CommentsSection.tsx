@@ -12,6 +12,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
+import { brandStyles } from '../lib/ds';
 
 type Comment = {
   id: string;
@@ -139,7 +140,7 @@ export function CommentsSection({ videoId }: { videoId: string }) {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
   wrap: { marginTop: Theme.spacing.xl },
   label: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, marginBottom: Theme.spacing.md },
   composeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Theme.spacing.sm, marginBottom: Theme.spacing.lg },
@@ -170,5 +171,5 @@ function makeStyles(C: AppColors) {
   commentAuthor: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.semibold },
   commentTime: { color: C.text3, fontSize: Theme.fontSize.xs },
   commentBody: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: 2, lineHeight: 20 },
-});
+}));
 }

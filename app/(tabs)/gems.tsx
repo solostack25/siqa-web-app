@@ -20,6 +20,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   Alert,
+  Image,
   useWindowDimensions,
 } from "react-native";
 import { Video, ResizeMode } from "expo-av";
@@ -34,12 +35,16 @@ import { useTheme, type AppColors } from "../../lib/theme";
 import { Audio } from "expo-av";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { Glyph } from '../../components/Glyph';
+import { brandStyles } from '../../lib/ds';
+import { Button } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
 const GEM_HEIGHT = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
 const REACTIONS = ["❤️", "🔥", "🤲", "😂", "💯", "👍"];
 const AUTH_SENTINELS = {
+  follow: "__AUTH_FOLLOW__",
   reaction: "__AUTH_REQUIRED__",
   report: "__AUTH_REPORT__",
   save: "__AUTH_SAVE__",
@@ -72,6 +77,10 @@ type VideoItem = {
     display_name: string;
     denomination: string | null;
     state: string | null;
+    profile_id?: string | null;
+    avatar_url?: string | null;
+    is_verified?: boolean | null;
+    is_claimed?: boolean | null;
   } | null;
   // Future CTA fields: these can be added to the videos table later.
   // Until they exist, Gems will not force a fundraising CTA on every clip.
@@ -742,29 +751,24 @@ function SignupNudge({
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.nudgePrimary}
-            onPress={() => {
-              onClose();
-              router.push("/(auth)/sign-up" as any);
-            }}
-          >
-            <Text style={styles.nudgePrimaryText}>Create account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.nudgeSecondary}
-            onPress={() => {
-              onClose();
-              router.push("/(auth)/login" as any);
-            }}
-          >
-            <Text style={styles.nudgeSecondaryText}>
-              I already have an account
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onClose} style={styles.nudgeSkip}>
-            <Text style={styles.nudgeSkipText}>Keep watching for now</Text>
-          </TouchableOpacity>
+          <View style={{ gap: 10 }}>
+            <Button
+              label="Create account"
+              onPress={() => {
+                onClose();
+                router.push("/(auth)/sign-up" as any);
+              }}
+            />
+            <Button
+              label="I already have an account"
+              variant="secondary"
+              onPress={() => {
+                onClose();
+                router.push("/(auth)/login" as any);
+              }}
+            />
+            <Button label="Keep watching for now" variant="ghost" size="md" onPress={onClose} />
+          </View>
         </View>
       </View>
     </Modal>
@@ -778,7 +782,7 @@ function AuthRequiredPrompt({
   onClose,
 }: {
   visible: boolean;
-  intent: "comment" | "reaction" | "report" | "save";
+  intent: "comment" | "reaction" | "report" | "save" | "follow";
   onClose: () => void;
 }) {
   const { colors: C } = useTheme();
@@ -787,6 +791,7 @@ function AuthRequiredPrompt({
     intent === "reaction" ? "react to Gems" :
     intent === "report" ? "report content" :
     intent === "save" ? "save Gems" :
+    intent === "follow" ? "follow speakers" :
     "join the conversation";
 
   function goTo(path: string) {
@@ -804,15 +809,11 @@ function AuthRequiredPrompt({
           <Text style={styles.authPromptSub}>
             Create or sign in to your Siqa account to {actionText}, follow verified speakers, and save beneficial reminders.
           </Text>
-          <TouchableOpacity style={styles.authPromptPrimary} onPress={() => goTo("/(auth)/login")}>
-            <Text style={styles.authPromptPrimaryText}>Log in</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.authPromptSecondary} onPress={() => goTo("/(auth)/sign-up")}>
-            <Text style={styles.authPromptSecondaryText}>Create account</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.authPromptSkip} onPress={onClose}>
-            <Text style={styles.authPromptSkipText}>Not now</Text>
-          </TouchableOpacity>
+          <View style={{ gap: 10, alignSelf: "stretch" }}>
+            <Button label="Log in" onPress={() => goTo("/(auth)/login")} />
+            <Button label="Create account" variant="secondary" onPress={() => goTo("/(auth)/sign-up")} />
+            <Button label="Not now" variant="ghost" size="md" onPress={onClose} />
+          </View>
         </View>
       </View>
     </Modal>
@@ -841,6 +842,8 @@ function GemClip({
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingVideo, setSavingVideo] = useState(false);
+  const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [likeCount, setLikeCount] = useState(item.like_count || 0);
   const [commentCount, setCommentCount] = useState(item.comment_count || 0);
   const [paused, setPaused] = useState(false);
@@ -863,7 +866,42 @@ function GemClip({
   useEffect(() => {
     checkLiked();
     checkSaved();
+    checkFollowing();
   }, [item.id]);
+
+  async function checkFollowing() {
+    const profileId = speaker?.profile_id;
+    if (!profileId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from("follows")
+      .select("follower_id")
+      .eq("follower_id", user.id)
+      .eq("following_id", profileId)
+      .maybeSingle();
+    setFollowing(Boolean(data));
+  }
+
+  // Was a dead button (no handler). Same follows table the watch page uses;
+  // follower_count is kept up to date by a trigger on follows.
+  async function handleFollow() {
+    const profileId = speaker?.profile_id;
+    if (!profileId || followBusy) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      onCommentOpen(AUTH_SENTINELS.follow, true);
+      return;
+    }
+    const was = following;
+    setFollowing(!was);
+    setFollowBusy(true);
+    const result = was
+      ? await supabase.from("follows").delete().eq("follower_id", user.id).eq("following_id", profileId)
+      : await supabase.from("follows").insert({ follower_id: user.id, following_id: profileId });
+    setFollowBusy(false);
+    if (result.error) setFollowing(was);
+  }
 
   useEffect(() => {
     if (!isActive) return;
@@ -1154,7 +1192,11 @@ function GemClip({
               speaker?.id && router.push(`/speaker/${speaker.id}` as any)
             }
           >
-            <Text style={styles.avatarText}>{initial}</Text>
+            {speaker?.avatar_url ? (
+              <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} />
+            ) : (
+              <Text style={styles.avatarText}>{initial}</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.speakerMeta}
@@ -1164,7 +1206,9 @@ function GemClip({
           >
             <View style={styles.speakerNameRow}>
               <Text style={styles.speakerName}>{speaker?.display_name}</Text>
-              <Text style={styles.verifiedBadge}>✓</Text>
+              {speaker?.is_verified && speaker?.is_claimed !== false ? (
+                <Icon name="checkmark-circle" size={16} color={C.gold} />
+              ) : null}
             </View>
             <Text style={styles.speakerSub}>
               {[speaker?.denomination, speaker?.state]
@@ -1172,9 +1216,16 @@ function GemClip({
                 .join(" · ")}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.followBtn}>
-            <Text style={styles.followBtnText}>Follow</Text>
-          </TouchableOpacity>
+          {speaker?.profile_id ? (
+            <Button
+              size="sm"
+              variant={following ? "light" : "gold"}
+              label={following ? "Following" : "Follow"}
+              onPress={handleFollow}
+              disabled={followBusy}
+              style={following ? { backgroundColor: "rgba(0,0,0,0.45)" } : undefined}
+            />
+          ) : null}
         </View>
 
         {item.title ? (
@@ -1194,8 +1245,12 @@ function GemClip({
         )}
 
         {plantSeedEnabled && (
-          <TouchableOpacity
-            style={styles.plantSeedCta}
+          <Button
+            size="sm"
+            variant="gold"
+            icon="leaf"
+            label="Plant a Seed"
+            style={{ alignSelf: "flex-start", marginTop: 4 }}
             onPress={() => {
               const fundraiserId = (item as any).fundraiser_id;
               if (fundraiserId) {
@@ -1206,9 +1261,7 @@ function GemClip({
                 router.push("/(tabs)/seeds" as any);
               }
             }}
-          >
-            <Text style={styles.plantSeedCtaText}>Plant a Seed</Text>
-          </TouchableOpacity>
+          />
         )}
       </Animated.View>
 
@@ -1243,7 +1296,7 @@ function GemClip({
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.action} onPress={handleShare}>
-          <Text style={styles.actionIcon}>↗</Text>
+          <Glyph name="arrow-redo-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>Share</Text>
         </TouchableOpacity>
 
@@ -1300,7 +1353,7 @@ function GemsScreenInner() {
   const [hasNudged, setHasNudged] = useState(false);
   const [screenFocused, setScreenFocused] = useState(false);
   const [authPromptVisible, setAuthPromptVisible] = useState(false);
-  const [authPromptIntent, setAuthPromptIntent] = useState<"comment" | "reaction" | "report" | "save">("comment");
+  const [authPromptIntent, setAuthPromptIntent] = useState<"comment" | "reaction" | "report" | "save" | "follow">("comment");
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [allLoaded, setAllLoaded] = useState(false);
@@ -1357,7 +1410,7 @@ function GemsScreenInner() {
         `
         id, title, video_url, thumbnail_url, platform, platform_video_id,
         like_count, comment_count, view_count, topics, comments_enabled,
-        speakers(id, display_name, denomination, state)
+        speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
       `,
       )
       .eq("is_published", true)
@@ -1379,7 +1432,7 @@ function GemsScreenInner() {
             `
             id, title, video_url, thumbnail_url, platform, platform_video_id,
             like_count, comment_count, view_count, topics, comments_enabled,
-            speakers(id, display_name, denomination, state)
+            speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
           `,
           )
           .eq("id", targetVideoId)
@@ -1410,7 +1463,7 @@ function GemsScreenInner() {
         `
         id, title, video_url, thumbnail_url, platform, platform_video_id,
         like_count, comment_count, view_count, topics, comments_enabled,
-        speakers(id, display_name, denomination, state)
+        speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
       `,
       )
       .eq("is_published", true)
@@ -1433,13 +1486,17 @@ function GemsScreenInner() {
     setLoadingMore(false);
   }
 
-  function requireAuth(intent: "comment" | "reaction" | "report" | "save" = "comment") {
+  function requireAuth(intent: "comment" | "reaction" | "report" | "save" | "follow" = "comment") {
     setCommentsOpen(false);
     setAuthPromptIntent(intent);
     setAuthPromptVisible(true);
   }
 
   function openComments(videoId: string, enabled: boolean) {
+    if (videoId === AUTH_SENTINELS.follow) {
+      requireAuth("follow");
+      return;
+    }
     if (videoId === AUTH_SENTINELS.reaction) {
       requireAuth("reaction");
       return;
@@ -1571,7 +1628,7 @@ function GemsScreenInner() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.black },
     centered: {
       flex: 1,
@@ -1700,6 +1757,7 @@ function makeStyles(C: AppColors) {
       justifyContent: "center",
       borderWidth: 2,
       borderColor: "rgba(255,255,255,0.3)",
+      overflow: "hidden",
     },
     avatarText: { color: C.black, fontSize: 16, fontWeight: "700" },
     speakerMeta: { flex: 1 },
@@ -2118,7 +2176,7 @@ function makeStyles(C: AppColors) {
     },
     sendBtnActive: { backgroundColor: C.gold },
     sendBtnText: { color: C.black, fontSize: 16, fontWeight: "700" },
-  });
+  }));
 }
 // Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
 export default function GemsScreen() {
