@@ -1,0 +1,85 @@
+# Push app changes to phones without a new App Store build (EAS Update).
+#
+# Runs on every merge to master that touches app code, and can be run by hand
+# (Actions tab → "App update" → Run workflow).
+#
+# How it stays safe: app.json uses runtimeVersion policy "fingerprint", so an
+# update only reaches installed builds with the exact same native code. If a
+# change added native code (a new package with native parts, a permission,
+# app.json plugin changes), phones simply won't receive that update, and this
+# workflow warns that a full "App build" is needed.
+#
+# Needs the EXPO_TOKEN secret (same one the App build workflow uses).
+# Public env vars (EXPO_PUBLIC_*) come from the EAS "production" environment.
+
+name: App update
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'app/**'
+      - 'components/**'
+      - 'lib/**'
+      - 'contexts/**'
+      - 'constants/**'
+      - 'hooks/**'
+      - 'assets/**'
+      - 'app.json'
+      - 'package.json'
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Short note shown on expo.dev for this update
+        required: false
+
+concurrency:
+  group: app-update
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check Expo token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::No EXPO_TOKEN secret, so no over-the-air update was sent. Add it under Settings → Secrets and variables → Actions."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install
+        if: env.SKIP != '1'
+        run: npm ci --legacy-peer-deps
+
+      - name: Does this need a full App Store build?
+        if: env.SKIP != '1'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          CURRENT=$(npx expo-updates fingerprint:generate --platform ios 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).hash)}catch{console.log("")}})')
+          LAST=$(npx --yes eas-cli@latest build:list --platform ios --profile production --status finished --limit 1 --json --non-interactive 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s)[0]?.runtimeVersion||"")}catch{console.log("")}})')
+          echo "Native fingerprint now: ${CURRENT:-unknown}  |  latest iOS build: ${LAST:-unknown}"
+          if [ -n "$CURRENT" ] && [ -n "$LAST" ] && [ "$CURRENT" != "$LAST" ]; then
+            echo "::warning::Native code changed since the last iPhone build. Phones won't get this update until you run Actions → App build."
+          fi
+
+      - name: Publish update
+        if: env.SKIP != '1'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MSG_INPUT: ${{ github.event.inputs.message }}
+        run: |
+          MSG="$MSG_INPUT"
+          if [ -z "$MSG" ]; then MSG=$(git log -1 --pretty=%s); fi
+          npx --yes eas-cli@latest update --channel production --environment production --platform all --message "$MSG" --non-interactive

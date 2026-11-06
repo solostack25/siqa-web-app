@@ -10,6 +10,7 @@ import { SearchProvider } from '../contexts/SearchContext';
 import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
 import { ToastHost } from '../components/Toast';
 import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
+import { useOtaUpdates } from '../lib/useOtaUpdates';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -146,6 +147,7 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  useOtaUpdates();
   return (
     <ThemeProvider>
       <SearchProvider>

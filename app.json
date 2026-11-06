@@ -19,7 +19,8 @@
         "NSCameraUsageDescription": "Siqa uses your camera to record videos and take product and profile photos.",
         "NSMicrophoneUsageDescription": "Siqa uses your microphone to record audio for the videos you post.",
         "NSPhotoLibraryUsageDescription": "Siqa uses your photo library to upload videos, thumbnails, product photos and profile photos.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Siqa uses your location to show local businesses, organizations and events near you."
       }
     },
     "android": {
@@ -27,7 +28,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0F1C"
       },
-      "package": "com.solostack.siqa"
+      "package": "com.solostack.siqa",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -48,6 +52,12 @@
           "merchantIdentifier": "merchant.com.siqa.app",
           "enableGooglePay": true
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Siqa uses your location to show local businesses, organizations and events near you."
+        }
       ]
     ],
     "experiments": {
@@ -58,6 +68,14 @@
       "eas": {
         "projectId": "f183978e-cbe5-4b59-9029-6f71e5a3596a"
       }
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f183978e-cbe5-4b59-9029-6f71e5a3596a",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }

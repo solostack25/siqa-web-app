@@ -79,9 +79,21 @@ async function markAsked() {
   try { await AsyncStorage.setItem(ASKED_KEY, '1'); } catch {}
 }
 
+// Native (iOS/Android) uses expo-location; web uses the browser API.
+const ExpoLocation: typeof import('expo-location') | null =
+  Platform.OS === 'web' ? null : require('expo-location');
+
 /** 'granted' | 'prompt' | 'denied' | 'unsupported' */
 export async function locationPermission(): Promise<'granted' | 'prompt' | 'denied' | 'unsupported'> {
-  if (Platform.OS !== 'web' || typeof navigator === 'undefined' || !navigator.geolocation) return 'unsupported';
+  if (ExpoLocation) {
+    try {
+      const p = await ExpoLocation.getForegroundPermissionsAsync();
+      if (p.status === 'granted') return 'granted';
+      if (p.status === 'denied' && !p.canAskAgain) return 'denied';
+      return 'prompt';
+    } catch { return 'unsupported'; }
+  }
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return 'unsupported';
   try {
     const p: any = await (navigator as any).permissions?.query({ name: 'geolocation' });
     if (p?.state === 'granted' || p?.state === 'denied' || p?.state === 'prompt') return p.state;
@@ -90,13 +102,27 @@ export async function locationPermission(): Promise<'granted' | 'prompt' | 'deni
 }
 
 export function deviceLocationSupported() {
+  if (ExpoLocation) return true;
   return Platform.OS === 'web' && typeof navigator !== 'undefined' && Boolean(navigator.geolocation);
 }
 
 /** Current device coordinates, or null if unavailable / refused. */
-export function getDeviceCoords(timeoutMs = 10000): Promise<{ lat: number; lon: number } | null> {
-  if (!deviceLocationSupported()) return Promise.resolve(null);
+export async function getDeviceCoords(timeoutMs = 10000): Promise<{ lat: number; lon: number } | null> {
+  if (!deviceLocationSupported()) return null;
   markAsked();
+  if (ExpoLocation) {
+    try {
+      const perm = await ExpoLocation.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') return null;
+      const last = await ExpoLocation.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000 });
+      if (last) return { lat: last.coords.latitude, lon: last.coords.longitude };
+      const pos = await Promise.race([
+        ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced }),
+        new Promise<null>(r => setTimeout(() => r(null), timeoutMs)),
+      ]);
+      return pos ? { lat: pos.coords.latitude, lon: pos.coords.longitude } : null;
+    } catch { return null; }
+  }
   return new Promise(resolve => {
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
