@@ -693,7 +693,10 @@ function OrgProfileScreen() {
       ) : services.map(s => (
         <View key={s.id} style={styles.serviceRow}>
           <View style={styles.serviceIconBox}>
-            {s.icon ? <Text style={{ fontSize: 18 }}>{s.icon}</Text> : <Icon name="sparkles-outline" size={18} color={C.emerald} />}
+            {/* icon is either an app icon name (e.g. "medkit-outline") or an emoji. */}
+            {s.icon && /^[a-z0-9-]+$/.test(s.icon)
+              ? <Icon name={s.icon as any} size={18} color={C.emerald} />
+              : s.icon ? <Text style={{ fontSize: 18 }}>{s.icon}</Text> : <Icon name="sparkles-outline" size={18} color={C.emerald} />}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>{s.name}</Text>
