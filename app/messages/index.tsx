@@ -15,6 +15,7 @@ import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
+import { brandStyles, font } from '../../lib/ds';
 
 type ThreadRow = {
   id: string;
@@ -136,7 +137,7 @@ export default function MessagesInboxScreen() {
           <View style={styles.centered}>
             <Text style={styles.emptyText}>Sign in to view your messages.</Text>
             <TouchableOpacity onPress={() => router.push('/(auth)/sign-in' as any)} style={{ marginTop: 10 }}>
-              <Text style={{ color: C.gold, fontWeight: '700' }}>Sign In</Text>
+              <Text style={{ color: C.gold, ...font(700) }}>Sign In</Text>
             </TouchableOpacity>
           </View>
         ) : threads.length === 0 ? (
@@ -186,7 +187,7 @@ export default function MessagesInboxScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 8, paddingHorizontal: 40 },
     emptyEmoji: { fontSize: 40, marginBottom: 4 },
@@ -216,5 +217,5 @@ function makeStyles(C: AppColors) {
     rowSub: { fontSize: 11, color: C.gold, marginTop: 1, fontWeight: '600' },
     rowPreview: { fontSize: 12, color: C.text3, marginTop: 2 },
     rowTime: { fontSize: 11, color: C.text3 },
-  });
+  }));
 }

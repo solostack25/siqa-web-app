@@ -20,6 +20,7 @@ import {
   BUSINESS_CATEGORIES, categoryLabel, initialsOf, placeLine, tintFor,
   type BusinessCategory, type BusinessListing,
 } from '../../lib/businessCategories';
+import { brandStyles, font } from '../../lib/ds';
 
 /**
  * Shop › Local & services. Contact-only directory: no cart or checkout.
@@ -339,7 +340,7 @@ export default function LocalDirectoryScreen() {
                   accessibilityState={{ checked: flags[f.key] }}
                 >
                   {flags[f.key] ? <Icon name="checkmark" size={14} color={C.gold} /> : null}
-                  <Text style={[styles.flagText, flags[f.key] && { color: C.gold, fontWeight: '700' }]}>{f.label}</Text>
+                  <Text style={[styles.flagText, flags[f.key] && { color: C.gold, ...font(700) }]}>{f.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -426,7 +427,7 @@ export default function LocalDirectoryScreen() {
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     page: { width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: 22, paddingTop: desktop ? 28 : 8 },
     center: { paddingVertical: 60, alignItems: 'center' },
     header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 },
@@ -539,5 +540,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     ctaBody: { fontSize: 14, lineHeight: 21, color: '#D6D6D2' },
     ctaBtn: { minHeight: 48, paddingHorizontal: 22, borderRadius: 999, backgroundColor: '#A8843F', alignItems: 'center', justifyContent: 'center' },
     ctaBtnText: { color: '#141414', fontSize: 15, fontWeight: '700' },
-  });
+  }));
 }

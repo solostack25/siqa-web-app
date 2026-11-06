@@ -5,6 +5,7 @@ import { Icon } from './Icon';
 import {
   ANYWHERE, RADIUS_OPTIONS, deviceLocationSupported, locateDevice, locateText, saveLocation, type SavedLocation,
 } from '../lib/location';
+import { brandStyles, font } from '../lib/ds';
 
 /**
  * "Near Katy, TX · 25 mi ▾" button with a panel to use the current location,
@@ -72,7 +73,7 @@ export function LocationPicker({
           accessibilityLabel={`Location: ${summary}. Change location`}
         >
           <Icon name={current.mode === 'auto' ? 'navigate' : 'location-outline'} size={17} color={current.mode !== 'anywhere' ? C.gold : C.text2} />
-          <Text style={[s.triggerText, current.mode !== 'anywhere' && { color: C.gold, fontWeight: '700' }]} numberOfLines={1}>{summary}</Text>
+          <Text style={[s.triggerText, current.mode !== 'anywhere' && { color: C.gold, ...font(700) }]} numberOfLines={1}>{summary}</Text>
           <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
         </TouchableOpacity>
       )}
@@ -136,7 +137,7 @@ export function LocationPicker({
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     trigger: {
       minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
       flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14,
@@ -167,5 +168,5 @@ function makeStyles(C: AppColors) {
     link: { fontSize: 14, fontWeight: '600', color: C.gold },
     error: { fontSize: 13, color: C.danger, lineHeight: 18 },
     small: { fontSize: 12, color: C.text3 },
-  });
+  }));
 }

@@ -15,6 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
+import { brandStyles } from '../../lib/ds';
+import { Button } from '../../components/ui';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -59,9 +61,7 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.sentEmail}>{email}</Text>.
             {'\n\n'}Tap the link in the email to set a new password.
           </Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/(auth)/sign-in')}>
-            <Text style={styles.backBtnText}>Back to Sign In</Text>
-          </TouchableOpacity>
+          <Button label="Back to Sign In" variant="secondary" onPress={() => router.replace('/(auth)/sign-in')} style={{ marginTop: 8, alignSelf: 'stretch' }} />
         </View>
       </KeyboardAvoidingView>
     );
@@ -104,25 +104,14 @@ export default function ForgotPasswordScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleReset}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color={Colors.black} />
-            ) : (
-              <Text style={styles.submitText}>Send Reset Link</Text>
-            )}
-          </TouchableOpacity>
+          <Button label={'Send Reset Link'} onPress={handleReset} loading={loading} style={{ marginTop: 8 }} />
         </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   container: { flex: 1, backgroundColor: Colors.bg },
   // Capped so the form is a centered column on desktop instead of stretching
   // edge to edge; phones are narrower than the cap, so nothing changes there.
@@ -147,4 +136,4 @@ const styles = StyleSheet.create({
   sentEmail: { color: Colors.gold, fontWeight: '600' },
   backBtn: { backgroundColor: Colors.gold, paddingHorizontal: 32, paddingVertical: 14, borderRadius: Theme.radius.md, marginTop: 8 },
   backBtnText: { color: Colors.black, fontSize: Theme.fontSize.base, fontWeight: '700' },
-});
+}));

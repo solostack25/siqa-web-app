@@ -24,6 +24,7 @@ import {
   ORG_CATEGORY_LABEL, ORG_FILTERS, categoryFromOrgType, type OrgCategory,
 } from '../../lib/orgCategories';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
+import { brandStyles, font } from '../../lib/ds';
 
 /**
  * Organizations directory.
@@ -304,7 +305,7 @@ function OrgsScreenInner() {
                 accessibilityState={{ expanded: statePickerOpen }}
               >
                 <Icon name="location-outline" size={18} color={stateCode ? C.gold : C.text2} />
-                <Text style={[styles.stateBtnText, stateCode ? { color: C.gold, fontWeight: '700' } : null]}>
+                <Text style={[styles.stateBtnText, stateCode ? { color: C.gold, ...font(700) } : null]}>
                   {stateCode || 'All states'}
                 </Text>
                 <Icon name={statePickerOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
@@ -350,7 +351,7 @@ function OrgsScreenInner() {
                 accessibilityState={{ checked: onlyDonations }}
               >
                 <Icon name={onlyDonations ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={onlyDonations ? C.gold : C.text3} />
-                <Text style={[styles.toggleText, onlyDonations && { color: C.gold, fontWeight: '700' }]}>Takes donations on Siqa</Text>
+                <Text style={[styles.toggleText, onlyDonations && { color: C.gold, ...font(700) }]}>Takes donations on Siqa</Text>
               </TouchableOpacity>
             </View>
 
@@ -550,7 +551,7 @@ function OrgsScreenInner() {
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     page: {
       width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: 26,
@@ -694,7 +695,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       padding: 14, backgroundColor: C.bg2,
     },
     emptyBox: { padding: 24, alignItems: 'center', gap: 12 },
-  });
+  }));
 }
 
 // Not part of the Marketplace site: go to the Shop.

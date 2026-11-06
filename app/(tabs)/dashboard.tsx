@@ -27,6 +27,7 @@ import ImageCropModal from '../../components/ImageCropModal';
 import { EndorsementInbox } from '../../components/SeedSocial';
 import { ProfileMobileView } from '../../components/ProfileMobileView';
 import { confirmDialog, notifyDialog } from '../../lib/dialogs';
+import { brandStyles } from '../../lib/ds';
 
 type Profile = {
   id: string;
@@ -822,7 +823,7 @@ function DashboardScreenInner() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
     scroll: { paddingBottom: 20 },
@@ -1244,7 +1245,7 @@ function makeStyles(C: AppColors) {
 
     dtGemsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Theme.spacing.md },
     dtGemCard: { width: 220 },
-  });
+  }));
 }
 // Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
 export default function DashboardScreen() {

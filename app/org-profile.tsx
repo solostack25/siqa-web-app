@@ -39,6 +39,8 @@ import {
   type PublicReview,
   type SeedEndorsement,
 } from '../components/SeedSocial';
+import { brandStyles, font } from '../lib/ds';
+import { Button } from '../components/ui';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -938,21 +940,13 @@ export default function OrgProfileScreen() {
                     </Text>
                   </View>
                   <View style={[styles.actions, !wide && { width: '100%' }]}>
-                    <TouchableOpacity onPress={toggleFollow} style={[styles.actionBtn, following ? styles.actionBtnOn : styles.actionBtnOutline, !wide && { flex: 1 }]} accessibilityRole="button" accessibilityState={{ selected: following }}>
-                      <Text style={[styles.actionText, { color: following ? C.emerald : C.emerald }]}>{following ? 'Following' : 'Follow'}</Text>
-                    </TouchableOpacity>
+                    {/* One gold button per row: with a Seed to give to, Donate is the gold one. */}
+                    <Button size="md" variant={following || fundraisers[0] ? 'secondary' : 'gold'} icon={following ? 'checkmark' : 'add'} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} grow={!wide} />
                     {org.website ? (
-                      <TouchableOpacity onPress={() => Linking.openURL(org.website!)} style={[styles.actionBtn, styles.actionBtnGhost, !wide && { flex: 1 }]}>
-                        <Text style={[styles.actionText, { color: C.text }]}>Website</Text>
-                      </TouchableOpacity>
+                      <Button size="md" variant="secondary" label="Website" iconRight="open-outline" onPress={() => Linking.openURL(org.website!)} grow={!wide} />
                     ) : null}
                     {fundraisers[0] ? (
-                      <TouchableOpacity
-                        onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fundraisers[0].id } } as any)}
-                        style={[styles.actionBtn, styles.actionBtnGold, !wide && { flex: 1 }]}
-                      >
-                        <Text style={[styles.actionText, { color: C.black }]}>Donate</Text>
-                      </TouchableOpacity>
+                      <Button size="md" variant="gold" icon="leaf-outline" label="Donate" onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fundraisers[0].id } } as any)} grow={!wide} />
                     ) : null}
                   </View>
                 </View>
@@ -1069,25 +1063,25 @@ function SeedRow({ fr, endorsed, horizontal }: { fr: Fundraiser; endorsed: numbe
         {cover ? <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
         {fr.cause_category ? (
           <View style={{ alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{fr.cause_category}</Text>
+            <Text style={{ color: '#fff', fontSize: 11, ...font(700) }}>{fr.cause_category}</Text>
           </View>
         ) : null}
       </View>
       <View style={{ flex: 1, gap: 8, padding: horizontal ? 2 : 14, minWidth: 0 }}>
-        <Text style={{ color: C.text, fontSize: 16, fontWeight: '700', lineHeight: 21 }} numberOfLines={2}>{fr.title}</Text>
+        <Text style={{ color: C.text, fontSize: 16, ...font(700), lineHeight: 21 }} numberOfLines={2}>{fr.title}</Text>
         <ProgressBar pct={pct} />
         <Text style={{ color: C.text2, fontSize: 13 }}>
-          <Text style={{ color: C.text, fontWeight: '700' }}>{money(fr.raised_amount)}</Text> raised of {money(fr.goal_amount)}
+          <Text style={{ color: C.text, ...font(700) }}>{money(fr.raised_amount)}</Text> raised of {money(fr.goal_amount)}
           {left !== null ? ` · ${left} day${left === 1 ? '' : 's'} left` : ''}
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
           {endorsed > 0 && (
             <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
               <Icon name="star" size={13} color={C.gold} />
-              <Text style={{ color: C.goldDim, fontSize: 13, fontWeight: '600' }}>Endorsed by {endorsed} speaker{endorsed === 1 ? '' : 's'}</Text>
+              <Text style={{ color: C.goldDim, fontSize: 13, ...font(600) }}>Endorsed by {endorsed} speaker{endorsed === 1 ? '' : 's'}</Text>
             </View>
           )}
-          {fr.zakat_eligible ? <Text style={{ color: C.emerald, fontSize: 13, fontWeight: '600' }}>Zakat eligible</Text> : null}
+          {fr.zakat_eligible ? <Text style={{ color: C.emerald, fontSize: 13, ...font(600) }}>Zakat eligible</Text> : null}
         </View>
       </View>
     </TouchableOpacity>
@@ -1103,14 +1097,14 @@ function OrgEndorsementRow({ e, mine, onRemove }: { e: OrgEndorsement; mine: boo
       </TouchableOpacity>
       <View style={{ flex: 1, gap: 3 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={{ color: C.text, fontSize: 15, fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>{e.speakers?.display_name || 'A Siqa speaker'}</Text>
+          <Text style={{ color: C.text, fontSize: 15, ...font(700), flexShrink: 1 }} numberOfLines={1}>{e.speakers?.display_name || 'A Siqa speaker'}</Text>
           <Icon name="checkmark-circle" size={14} color={C.emerald} />
         </View>
         <Text style={{ color: C.text2, fontSize: 12 }}>Endorses this organization</Text>
         {e.message ? <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>“{e.message}”</Text> : null}
         {mine && (
           <TouchableOpacity onPress={onRemove} style={{ alignSelf: 'flex-start', paddingVertical: 6 }}>
-            <Text style={{ color: C.danger, fontSize: 13, fontWeight: '600' }}>Remove</Text>
+            <Text style={{ color: C.danger, fontSize: 13, ...font(600) }}>Remove</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1140,7 +1134,7 @@ function TrustItem({ done, label }: { done: boolean; label: string }) {
 
 function makeStyles(C: AppColors, cols: number) {
   const wide = cols > 1;
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg2 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 8 },
 
@@ -1225,5 +1219,5 @@ function makeStyles(C: AppColors, cols: number) {
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end', alignItems: 'center' },
     altPaySheet: { width: '100%', maxWidth: 560, backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 10 },
     sheetTitle: { color: C.text, fontSize: 19, fontWeight: '800' },
-  });
+  }));
 }

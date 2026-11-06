@@ -7,6 +7,7 @@ import { HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { categoryLabel, isFeatured } from '../../lib/businessCategories';
+import { brandStyles } from '../../lib/ds';
 
 type MyListing = { id: string; name: string; category: string; status: string; featured_until: string | null };
 type Inquiry = { id: string; listing_id: string; sender_name: string | null; reply_to: string | null; message: string; read_at: string | null; created_at: string };
@@ -163,7 +164,7 @@ export default function LocalInboxScreen() {
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     page: { width: '100%', maxWidth: 820, alignSelf: 'center', gap: 16, paddingHorizontal: desktop ? 24 : 16, paddingTop: desktop ? 24 : HEADER_TOP_PADDING },
     center: { paddingVertical: 60, alignItems: 'center' },
     back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', minHeight: 40 },
@@ -191,5 +192,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
-  });
+  }));
 }

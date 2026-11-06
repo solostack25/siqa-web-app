@@ -23,6 +23,8 @@ import { Icon } from '../../components/Icon';
 import { shareSpeaker } from '../../lib/share';
 import ImageCropModal from '../../components/ImageCropModal';
 import { ClaimNotice, UnclaimedBadge } from '../../components/ClaimNotice';
+import { brandStyles, font } from '../../lib/ds';
+import { Button } from '../../components/ui';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
   return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
@@ -416,16 +418,14 @@ export default function SpeakerProfileScreen() {
   ];
 
   const followButton = speaker.profile_id && !isOwner ? (
-    <TouchableOpacity
-      style={[styles.followBtn, following && styles.followBtnActive]}
+    <Button
+      size="md"
+      variant={following ? 'secondary' : 'gold'}
+      icon={following ? 'checkmark' : undefined}
+      label={following ? 'Following' : 'Follow'}
       onPress={toggleFollow}
       disabled={followBusy}
-      accessibilityRole="button"
-    >
-      <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
-        {following ? 'Following' : 'Follow'}
-      </Text>
-    </TouchableOpacity>
+    />
   ) : null;
 
   const actionButtons = (
@@ -731,7 +731,7 @@ export default function SpeakerProfileScreen() {
               <View style={[styles.verifyStrip, { marginHorizontal: pad }]}>
                 <Icon name="shield-checkmark-outline" size={20} color={C.emerald} />
                 <Text style={styles.verifyText}>
-                  <Text style={{ fontWeight: '700', color: C.text }}>Identity confirmed by Siqa. </Text>
+                  <Text style={{ ...font(700), color: C.text }}>Identity confirmed by Siqa. </Text>
                   Videos here come from {speaker.display_name}'s own Siqa account or their official YouTube channel.
                 </Text>
               </View>
@@ -792,7 +792,7 @@ function AboutRow({ styles, label, value }: { styles: any; label: string; value:
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     errorText: { color: C.text3, fontSize: 14 },
     scroll: { paddingBottom: 20 },
@@ -949,5 +949,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     aboutValue: { fontSize: 15, color: C.text, fontWeight: '500' },
     topic: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: C.emeraldBg },
     topicText: { fontSize: 13, color: C.emerald, fontWeight: '600' },
-  });
+  }));
 }

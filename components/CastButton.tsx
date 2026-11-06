@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 import Svg, { Path } from 'react-native-svg';
 import { castVideo, detectCastMethod, onCastStateChanged, stopCasting, type CastMedia, type CastMethod, type CastState } from '../lib/cast';
 import { useTheme } from '../lib/theme';
+import { brandStyles } from '../lib/ds';
 
 /** The standard "cast" glyph (screen with signal waves); filled corner when connected. */
 export function CastIcon({ size = 20, color = '#fff', connected = false }: { size?: number; color?: string; connected?: boolean }) {
@@ -103,7 +104,7 @@ export function CastButton({ media, getVideoElement, variant = 'pill' }: Props) 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   overlay: {
     position: 'absolute', top: 12, right: 12, zIndex: 5,
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
@@ -117,4 +118,4 @@ const styles = StyleSheet.create({
   pillText: { fontSize: 13, fontWeight: '600' },
   stop: { fontSize: 12, fontWeight: '600' },
   error: { fontSize: 12, marginTop: 6, maxWidth: 260 },
-});
+}));

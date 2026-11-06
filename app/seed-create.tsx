@@ -37,6 +37,7 @@ import {
   useMeasuredWidth,
   type SpeakerLite,
 } from '../components/SeedSocial';
+import { brandStyles } from '../lib/ds';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -596,13 +597,13 @@ function SeedCreateScreenContent() {
       </Field>
       {!canSubmitActive ? (
         <View style={styles.goldNotice}>
-          <Text style={styles.body}><Text style={{ fontWeight: '800' }}>Before it goes live:</Text> Siqa verifies every organization. Until yours is verified, seeds are saved as drafts.</Text>
+          <Text style={styles.body}><Text style={{ ...font(800) }}>Before it goes live:</Text> Siqa verifies every organization. Until yours is verified, seeds are saved as drafts.</Text>
         </View>
       ) : null}
       {saving && (
         <View style={styles.box}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-            <Text style={[styles.body, { fontWeight: '800', color: C.goldDim }]}>{progressPct}%</Text>
+            <Text style={[styles.body, { ...font(800), color: C.goldDim }]}>{progressPct}%</Text>
             <Text style={[styles.muted, { flex: 1, textAlign: 'right' }]}>{progressLabel}</Text>
           </View>
           <ProgressBar pct={progressPct} height={6} />
@@ -617,15 +618,15 @@ function SeedCreateScreenContent() {
       <View style={styles.previewCard}>
         <View style={styles.previewImage}>
           {cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
-          <View style={styles.previewCat}><Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{form.category}</Text></View>
+          <View style={styles.previewCat}><Text style={{ color: '#fff', fontSize: 11, ...font(700) }}>{form.category}</Text></View>
         </View>
         <View style={{ padding: 14, gap: 8 }}>
           <Text style={styles.muted}>{selectedOrg?.org_name || 'Your organization'}</Text>
           <Text style={styles.previewTitle} numberOfLines={3}>{form.title.trim() || 'Your seed title'}</Text>
           <ProgressBar pct={0} />
-          <Text style={styles.muted}><Text style={{ color: C.text, fontWeight: '700' }}>$0</Text> raised of {goalCents ? money(goalCents) : '$—'}</Text>
+          <Text style={styles.muted}><Text style={{ color: C.text, ...font(700) }}>$0</Text> raised of {goalCents ? money(goalCents) : '$—'}</Text>
           {form.invited.length > 0 ? (
-            <Text style={{ color: C.goldDim, fontSize: 13, fontWeight: '600' }}>{form.invited.length} endorsement request{form.invited.length === 1 ? '' : 's'} pending</Text>
+            <Text style={{ color: C.goldDim, fontSize: 13, ...font(600) }}>{form.invited.length} endorsement request{form.invited.length === 1 ? '' : 's'} pending</Text>
           ) : null}
         </View>
       </View>
@@ -1018,7 +1019,7 @@ function StepHead({ title, sub }: { title: string; sub: string }) {
   const { colors: C } = useTheme();
   return (
     <View style={{ gap: 4 }}>
-      <Text style={{ color: C.text, fontSize: 24, fontWeight: '800' }}>{title}</Text>
+      <Text style={{ color: C.text, fontSize: 24, ...font(800) }}>{title}</Text>
       <Text style={{ color: C.text2, fontSize: 15, lineHeight: 22 }}>{sub}</Text>
     </View>
   );
@@ -1028,7 +1029,7 @@ function Field({ label, help, children, style }: { label: string; help?: string;
   const { colors: C } = useTheme();
   return (
     <View style={[{ gap: 6 }, style]}>
-      <Text style={{ color: C.text, fontSize: 14, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: C.text, fontSize: 14, ...font(700) }}>{label}</Text>
       {children}
       {help ? <Text style={{ color: C.text2, fontSize: 13, lineHeight: 18 }}>{help}</Text> : null}
     </View>
@@ -1040,7 +1041,7 @@ function ToggleRow({ title, sub, value, onChange, disabled }: { title: string; s
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, opacity: disabled ? 0.5 : 1 }}>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: C.text, fontSize: 15, fontWeight: '700' }}>{title}</Text>
+        <Text style={{ color: C.text, fontSize: 15, ...font(700) }}>{title}</Text>
         <Text style={{ color: C.text2, fontSize: 13, lineHeight: 18 }}>{sub}</Text>
       </View>
       <Switch
@@ -1057,7 +1058,7 @@ function ToggleRow({ title, sub, value, onChange, disabled }: { title: string; s
 }
 
 function makeStyles(C: AppColors, isDark: boolean, wide: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     screen: { flex: 1, backgroundColor: C.bg2 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 24 },
     header: {
@@ -1132,5 +1133,5 @@ function makeStyles(C: AppColors, isDark: boolean, wide: boolean) {
     muted: { color: C.text2, fontSize: 14, lineHeight: 20 },
     link: { color: C.emerald, fontSize: 14, fontWeight: '700' },
     danger: { color: C.danger, fontSize: 14, fontWeight: '600' },
-  });
+  }));
 }

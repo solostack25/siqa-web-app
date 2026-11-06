@@ -14,6 +14,8 @@ import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Glyph } from '../../components/Glyph';
 import { Theme } from '../../constants/theme';
+import { brandStyles, font } from '../../lib/ds';
+import { Button } from '../../components/ui';
 
 export default function ResetPasswordScreen() {
   const [password, setPassword] = useState('');
@@ -87,12 +89,7 @@ export default function ResetPasswordScreen() {
         <Text style={[styles.doneSub, { textAlign: 'center', maxWidth: 380, paddingHorizontal: 24 }]}>
           {linkError || 'Reset links work once and expire after a while.'} Request a new one and use the latest email.
         </Text>
-        <TouchableOpacity
-          style={{ marginTop: 20, paddingVertical: 12, paddingHorizontal: 22, borderRadius: 12, backgroundColor: Colors.gold }}
-          onPress={() => router.replace('/(auth)/forgot-password' as any)}
-        >
-          <Text style={{ color: '#000', fontWeight: '700' }}>Send a new link</Text>
-        </TouchableOpacity>
+        <Button label="Send a new link" size="md" onPress={() => router.replace('/(auth)/forgot-password' as any)} style={{ marginTop: 20 }} />
       </View>
     );
   }
@@ -152,21 +149,14 @@ export default function ResetPasswordScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleUpdate}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? <ActivityIndicator color={Colors.black} /> : <Text style={styles.submitText}>Update Password</Text>}
-          </TouchableOpacity>
+          <Button label={'Update Password'} onPress={handleUpdate} loading={loading} style={{ marginTop: 8 }} />
         </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   container: { flex: 1, backgroundColor: Colors.bg },
   // Capped so the form is a centered column on desktop instead of stretching
   // edge to edge; phones are narrower than the cap, so nothing changes there.
@@ -190,4 +180,4 @@ const styles = StyleSheet.create({
   doneEmoji: { fontSize: 64 },
   doneTitle: { fontSize: 24, fontWeight: '700', color: Colors.text },
   doneSub: { fontSize: 15, color: Colors.text2 },
-});
+}));

@@ -6,6 +6,7 @@ import { useTheme } from '../lib/theme';
 import { HomeIcon, DiscoverIcon, OrgsIcon, PlayIcon, SeedsIcon, SiqaWordmark } from './Siqa';
 import { Icon } from './Icon';
 import { IS_MARKETPLACE_SITE, SITE_HOME } from '../lib/site';
+import { brandStyles } from '../lib/ds';
 
 // Marketplace site sidebar: quick category links (same list as the Shop's filter chips).
 const SHOP_CATEGORIES = ['Home Decor', 'Books & Media', 'Clothing & Accessories', 'Art & Prints', 'Jewelry', 'Digital Downloads', 'Gifts', 'Other'];
@@ -253,7 +254,7 @@ export function DesktopSidebar() {
 }
 
 function makeStyles(C: any) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     sidebar: {
       width: 220,
       flexShrink: 0,
@@ -311,5 +312,5 @@ function makeStyles(C: any) {
       fontSize: 11, fontWeight: '700', color: C.text3, letterSpacing: 1,
       paddingHorizontal: 12, marginBottom: 8,
     },
-  });
+  }));
 }

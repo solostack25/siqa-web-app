@@ -16,6 +16,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import type { ClaimEntityType } from '../components/ClaimNotice';
+import { brandStyles } from '../lib/ds';
 
 /** Inbox that receives verification emails. Make sure it exists before launch. */
 const CLAIMS_EMAIL = 'claims@siqa.us';
@@ -422,7 +423,7 @@ function StatusIcon({ C, name, color }: { C: AppColors; name: SiqaIconName; colo
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     scroll: { paddingBottom: 48 },
     page: {
       width: '100%', maxWidth: 640, alignSelf: 'center', gap: 18,
@@ -488,5 +489,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     stepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.text, alignItems: 'center', justifyContent: 'center' },
     stepNumText: { color: C.bg, fontSize: 12, fontWeight: '800' },
     stepText: { fontSize: 13, color: C.text, fontWeight: '500', flexShrink: 1 },
-  });
+  }));
 }

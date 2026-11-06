@@ -36,6 +36,7 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { BottomSheet, Button, IconButton, ListRow, OptionRow, Switch as DSSwitch, TextField, Chip } from '../components/ui';
 import { font, radius, space, type as T, useDS } from '../lib/ds';
+import { brandStyles } from '../lib/ds';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -1418,7 +1419,7 @@ function makeStyles(C: AppColors, isDark: boolean, isDesktopWeb = false) {
   const desktopColumn = isDesktopWeb
     ? { maxWidth: 760, width: '100%' as const, alignSelf: 'center' as const }
     : {};
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     screen: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     header: {
@@ -1663,5 +1664,5 @@ function makeStyles(C: AppColors, isDark: boolean, isDesktopWeb = false) {
       shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
     },
     fpScrubHint: { color: C.text3, fontSize: 11, textAlign: 'center' },
-  });
+  }));
 }

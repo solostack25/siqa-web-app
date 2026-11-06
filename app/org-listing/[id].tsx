@@ -8,6 +8,7 @@ import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { ClaimNotice, UnclaimedBadge } from '../../components/ClaimNotice';
 import { ORG_CATEGORY_LABEL, type OrgCategory } from '../../lib/orgCategories';
+import { brandStyles } from '../../lib/ds';
 
 /**
  * Public-record page for an organization Siqa listed from the crawler but
@@ -134,7 +135,7 @@ function Fact({ styles, C, icon, label, value, link }: { styles: any; C: AppColo
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     page: {
       width: '100%', maxWidth: 760, alignSelf: 'center', gap: 18,
       paddingHorizontal: desktop ? 28 : 16, paddingTop: desktop ? 28 : HEADER_TOP_PADDING,
@@ -160,5 +161,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     factLabel: { fontSize: 12, color: C.text3, fontWeight: '600' },
     factValue: { fontSize: 15, color: C.text, marginTop: 2 },
     small: { fontSize: 12, color: C.text3, lineHeight: 17 },
-  });
+  }));
 }

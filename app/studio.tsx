@@ -19,6 +19,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
+import { brandStyles } from '../lib/ds';
 
 /**
  * Speaker Studio — the speaker's own dashboard: channel analytics plus a
@@ -906,7 +907,7 @@ export default function StudioScreen() {
 }
 
 function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: C.bg },
     gateTitle: { fontSize: 20, fontWeight: '700', color: C.text, textAlign: 'center' },
     gateSub: { fontSize: 14, color: C.text2, textAlign: 'center', maxWidth: 420, lineHeight: 20, marginBottom: 6 },
@@ -1052,5 +1053,5 @@ function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface,
     },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
-  });
+  }));
 }

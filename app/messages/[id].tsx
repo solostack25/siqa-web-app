@@ -19,6 +19,7 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { formatPrice } from '../../lib/money';
+import { brandStyles } from '../../lib/ds';
 
 type Thread = {
   id: string;
@@ -195,7 +196,7 @@ export default function ThreadScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
 
@@ -250,5 +251,5 @@ function makeStyles(C: AppColors) {
       width: 40, height: 40, borderRadius: 20, backgroundColor: C.gold,
       alignItems: 'center', justifyContent: 'center',
     },
-  });
+  }));
 }
