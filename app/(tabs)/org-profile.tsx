@@ -44,6 +44,7 @@ import { Button, IconButton } from '../../components/ui';
 import { OrgVideos } from '../../components/OrgVideos';
 import { OrgPosts } from '../../components/OrgPosts';
 import { focusedOnly } from '../../components/FocusedOnly';
+import { seedYouTubeId } from '../../components/SeedVideo';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -108,6 +109,7 @@ type Fundraiser = {
   org_id: string | null;
   cover_image_url: string | null;
   image_url: string | null;
+  video_url?: string | null;
   end_date: string | null;
   zakat_eligible: boolean | null;
 };
@@ -210,7 +212,7 @@ function OrgProfileScreen() {
     const [orgRes, docsRes, frRes, sessionRes, endorsementsRes, projectsRes, servicesRes, reviewsRes] = await Promise.all([
       supabase.from('organizations').select('*').eq('id', orgId).single(),
       supabase.from('org_990s').select('*').eq('org_id', orgId).order('tax_year', { ascending: false }),
-      supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status,cover_image_url,image_url,end_date,zakat_eligible').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(20),
+      supabase.from('fundraisers').select('id,org_id,title,cause_category,goal_amount,raised_amount,donor_count,status,cover_image_url,image_url,video_url,end_date,zakat_eligible').eq('org_id', orgId).in('status', ['active', 'published', 'approved', 'live']).order('created_at', { ascending: false }).limit(20),
       supabase.auth.getSession(),
       supabase.from('org_endorsements').select('id,message,created_at,speaker_id,speakers(id,display_name,avatar_url,state)').eq('org_id', orgId).order('created_at', { ascending: false }),
       supabase.from('org_projects').select('id,title,description,image_url,status').eq('org_id', orgId).order('created_at', { ascending: false }),
@@ -1089,7 +1091,9 @@ function OrgProfileScreen() {
 function SeedRow({ fr, endorsed, horizontal }: { fr: Fundraiser; endorsed: number; horizontal: boolean }) {
   const { colors: C } = useTheme();
   const pct = fr.goal_amount ? Math.min(100, Math.round((fr.raised_amount / fr.goal_amount) * 100)) : 0;
-  const cover = fr.cover_image_url || fr.image_url;
+  // No cover photo but a YouTube video → use the video's thumbnail.
+  const ytId = seedYouTubeId(fr.video_url);
+  const cover = fr.cover_image_url || fr.image_url || (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : null);
   const left = daysLeft(fr.end_date);
   return (
     <TouchableOpacity
