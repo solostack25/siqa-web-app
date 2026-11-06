@@ -13,6 +13,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { useCallback, useMemo, useState } from 'react';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { openDonation, donateLabel, DONATE_IN_BROWSER } from '../../lib/donateLink';
 import { shareLink, getSeedShareUrl } from '../../lib/share';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { DesktopShell } from '../../components/DesktopShell';
@@ -194,18 +195,15 @@ export default function SeedDetailScreen() {
   function goToDonate() {
     if (!seed) return;
     const org = seed.organizations;
-    router.push({
-      pathname: '/donate',
-      params: {
-        fundraiserId: seed.id,
-        orgId: seed.org_id ?? '',
-        title: seed.title,
-        orgStripeAccountId: org?.stripe_onboarded ? (seed.org_id ?? '') : '',
-        paymentMethodType: org?.payment_method_type ?? '',
-        paymentMethodUrl: org?.payment_method_url ?? '',
-        paymentMethodLabel: org?.payment_method_label ?? '',
-        via: viaSpeakerId,
-      },
+    openDonation({
+      fundraiserId: seed.id,
+      orgId: seed.org_id ?? '',
+      title: seed.title,
+      orgStripeAccountId: org?.stripe_onboarded ? (seed.org_id ?? '') : '',
+      paymentMethodType: org?.payment_method_type ?? '',
+      paymentMethodUrl: org?.payment_method_url ?? '',
+      paymentMethodLabel: org?.payment_method_label ?? '',
+      via: viaSpeakerId,
     });
   }
 
@@ -278,7 +276,12 @@ export default function SeedDetailScreen() {
         <Text style={styles.stat}><Text style={styles.statNum}>{endorsed.length}</Text> endorsements</Text>
       </View>
       {isLive ? (
-        <PrimaryButton label="Donate now" onPress={goToDonate} />
+        <>
+          <PrimaryButton label={donateLabel('Donate now')} onPress={goToDonate} />
+          {DONATE_IN_BROWSER && (
+            <Text style={[styles.muted, { textAlign: 'center', fontSize: 12 }]}>Opens in Safari to complete your donation securely.</Text>
+          )}
+        </>
       ) : (
         <View style={styles.notice}><Text style={styles.muted}>This Seed isn't accepting donations yet.</Text></View>
       )}
@@ -524,7 +527,7 @@ export default function SeedDetailScreen() {
               <Text style={styles.rowTitle}>{money(seed.raised_amount)} <Text style={styles.muted}>of {money(seed.goal_amount)}</Text></Text>
               <View style={{ marginTop: 6 }}><ProgressBar pct={pct} height={6} /></View>
             </View>
-            <PrimaryButton label="Donate" onPress={goToDonate} style={{ minWidth: 120 }} />
+            <PrimaryButton label={donateLabel()} onPress={goToDonate} style={{ minWidth: 120 }} />
           </View>
         )}
 

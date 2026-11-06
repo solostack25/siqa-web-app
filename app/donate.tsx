@@ -19,6 +19,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Glyph } from '../components/Glyph';
 import { Avatar } from '../components/SeedSocial';
+import { DONATE_IN_BROWSER, donateUrl } from '../lib/donateLink';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -36,16 +37,7 @@ const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
 
 export default function DonateScreen() {
-  const {
-    fundraiserId,
-    orgId,
-    title,
-    orgStripeAccountId,
-    paymentMethodType,
-    paymentMethodUrl,
-    paymentMethodLabel,
-    via,
-  } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     fundraiserId: string;
     orgId: string;
     title: string;
@@ -55,6 +47,52 @@ export default function DonateScreen() {
     paymentMethodLabel?: string;
     via?: string;
   }>();
+  const { fundraiserId, via } = params;
+
+  // A link from Safari (the iOS app sends donors to siqa.us) or a shared URL
+  // carries only fundraiserId — look up the title and the organization's
+  // payment setup ourselves when they weren't passed in.
+  const [loadedSeed, setLoadedSeed] = useState<{
+    title: string; orgId: string; orgStripeAccountId: string;
+    paymentMethodType: string; paymentMethodUrl: string; paymentMethodLabel: string;
+  } | null>(null);
+  const needsLookup = !!fundraiserId && !params.title;
+  useEffect(() => {
+    if (!needsLookup) return;
+    (async () => {
+      const { data } = await supabase
+        .from('fundraisers')
+        .select('title, org_id, organizations ( stripe_onboarded, payment_method_type, payment_method_url, payment_method_label )')
+        .eq('id', fundraiserId)
+        .maybeSingle();
+      if (!data) return;
+      const org: any = Array.isArray((data as any).organizations) ? (data as any).organizations[0] : (data as any).organizations;
+      setLoadedSeed({
+        title: (data as any).title ?? '',
+        orgId: (data as any).org_id ?? '',
+        orgStripeAccountId: org?.stripe_onboarded ? ((data as any).org_id ?? '') : '',
+        paymentMethodType: org?.payment_method_type ?? '',
+        paymentMethodUrl: org?.payment_method_url ?? '',
+        paymentMethodLabel: org?.payment_method_label ?? '',
+      });
+    })();
+  }, [needsLookup, fundraiserId]);
+  const src = loadedSeed ?? params;
+  const title = src.title ?? '';
+  const orgStripeAccountId = src.orgStripeAccountId;
+  const paymentMethodType = src.paymentMethodType;
+  const paymentMethodUrl = src.paymentMethodUrl;
+  const paymentMethodLabel = src.paymentMethodLabel;
+
+  // iOS: donations can't be taken inside the app (App Store 3.2.2(iv)).
+  // If anything routes here on iPhone, hand off to Safari and go back.
+  useEffect(() => {
+    if (!DONATE_IN_BROWSER || !fundraiserId) return;
+    Linking.openURL(donateUrl(fundraiserId, via)).finally(() => {
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
+    });
+  }, [fundraiserId, via]);
 
   // A verified speaker's endorsement, shown above the amount picker when the
   // organizer left "show endorsements on the donate screen" on.
@@ -89,7 +127,8 @@ export default function DonateScreen() {
   }
 
   const isAltPay = !!paymentMethodUrl && paymentMethodType !== 'stripe';
-  const isNoPayment = !orgStripeAccountId && !paymentMethodUrl;
+  const lookingUp = needsLookup && !loadedSeed;
+  const isNoPayment = !lookingUp && !orgStripeAccountId && !paymentMethodUrl;
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { colors: C, isDark } = useTheme();
