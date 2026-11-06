@@ -21,6 +21,8 @@ import { Theme, HEADER_TOP_PADDING } from "../../constants/theme";
 import { Glyph, type GlyphName } from "../../components/Glyph";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { MobileBrandBar } from "../../components/MobileBrandBar";
+import { brandStyles } from '../../lib/ds';
+import { Button } from '../../components/ui';
 
 type Fundraiser = {
   id: string;
@@ -337,24 +339,20 @@ function SeedsScreenInner() {
           )}
         </View>
 
-        <TouchableOpacity
-          style={styles.donateBtn}
+        <Button
+          variant="gold"
+          icon="leaf-outline"
+          label="Plant a Seed"
+          style={{ marginTop: 4 }}
           onPress={() =>
             router.push({
               pathname: "/seed/[id]",
               params: { id: item.id },
             } as any)
           }
-        >
-          <Text style={styles.donateBtnText}><Glyph name="leaf-outline" style={styles.donateBtnText} />{" "}Plant a Seed</Text>
-        </TouchableOpacity>
+        />
         {(userRole === 'admin' || (item.org_id && userOrgIds.includes(item.org_id))) && (
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={() => deleteSeed(item.id)}
-          >
-            <Text style={styles.deleteBtnText}>Delete Seed</Text>
-          </TouchableOpacity>
+          <Button variant="danger" size="md" label="Delete Seed" style={{ marginTop: 8 }} onPress={() => deleteSeed(item.id)} />
         )}
       </View>
     );
@@ -369,12 +367,7 @@ function SeedsScreenInner() {
           <Text style={styles.headerSub}>Plant your seeds</Text>
         </View>
         {canCreate && (
-          <TouchableOpacity
-            style={styles.createBtn}
-            onPress={() => router.push("/seed-create" as any)}
-          >
-            <Text style={styles.createBtnText}>＋ New Seed</Text>
-          </TouchableOpacity>
+          <Button size="sm" icon="add" label="New Seed" onPress={() => router.push("/seed-create" as any)} />
         )}
       </View>
 
@@ -436,7 +429,7 @@ function SeedsScreenInner() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: {
       flex: 1,
@@ -700,7 +693,7 @@ function makeStyles(C: AppColors) {
       lineHeight: 20,
       paddingHorizontal: Theme.spacing.xl,
     },
-  });
+  }));
 }
 // Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
 export default function SeedsScreen() {

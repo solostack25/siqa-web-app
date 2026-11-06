@@ -7,6 +7,7 @@ import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { showToast } from '../components/Toast';
 import { Chip, PrimaryButton, REVIEW_REASONS } from '../components/SeedSocial';
+import { brandStyles } from '../lib/ds';
 
 type Visibility = 'full' | 'name' | 'anonymous';
 
@@ -167,7 +168,7 @@ export default function DonateSuccessScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: Platform.OS === 'web' ? 32 : 72, paddingBottom: 40, gap: 20 },
     iconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: C.emeraldBg, alignItems: 'center', justifyContent: 'center' },
     content: { width: '100%', maxWidth: 520, alignItems: 'stretch', gap: 14 },
@@ -185,5 +186,5 @@ function makeStyles(C: AppColors) {
     hadith: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border2, padding: 18, alignItems: 'center', gap: 4 },
     hadithText: { color: C.text, fontSize: 15, fontStyle: 'italic', textAlign: 'center' },
     actions: { width: '100%', maxWidth: 520, gap: 10 },
-  });
+  }));
 }

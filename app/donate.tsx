@@ -20,6 +20,8 @@ import { DesktopShell } from '../components/DesktopShell';
 import { Glyph } from '../components/Glyph';
 import { Avatar } from '../components/SeedSocial';
 import { DONATE_IN_BROWSER, donateUrl } from '../lib/donateLink';
+import { brandStyles, font, radius, type, useDS, type DS } from '../lib/ds';
+import { Button, IconButton, Switch as DSSwitch } from '../components/ui';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -132,7 +134,8 @@ export default function DonateScreen() {
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { colors: C, isDark } = useTheme();
-  const styles = makeStyles(C);
+  const ds = useDS();
+  const styles = makeStyles(C, ds);
   const [selectedAmount, setSelectedAmount] = useState<number>(2500);
   // Donor chooses to add the fees on top so the organization gets the full gift.
   const [coverFees, setCoverFees] = useState(false);
@@ -289,15 +292,13 @@ if (fnError) throw new Error(fnError);
 
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
+          <IconButton icon="arrow-back" label="Back" onPress={() => router.back()} />
           <Text style={styles.headerTitle}>Donate</Text>
         </View>
 
         {/* Campaign */}
         <View style={styles.campaignCard}>
-          <Text style={styles.campaignLabel}>GIVING TO</Text>
+          <Text style={styles.campaignLabel}>Giving to</Text>
           <Text style={styles.campaignTitle}>{title}</Text>
         </View>
 
@@ -311,13 +312,15 @@ if (fnError) throw new Error(fnError);
         )}
 
         {/* Amount picker */}
-        <Text style={styles.sectionLabel}>SELECT AMOUNT</Text>
+        <Text style={styles.sectionLabel}>Choose an amount</Text>
         <View style={styles.amountGrid}>
           {AMOUNTS.map(amt => (
             <TouchableOpacity
               key={amt}
               style={[styles.amountBtn, selectedAmount === amt && styles.amountBtnActive]}
               onPress={() => setSelectedAmount(amt)}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selectedAmount === amt }}
             >
               <Text style={[styles.amountText, selectedAmount === amt && styles.amountTextActive]}>
                 {formatAmount(amt)}
@@ -335,14 +338,12 @@ if (fnError) throw new Error(fnError);
                 Add {money(quoteDonation(selectedAmount, true).charge - selectedAmount)} so the organization gets the full {formatAmount(selectedAmount)}.
               </Text>
             </View>
-            <Switch
+            <DSSwitch
+              label="Cover the fees"
               value={coverFees}
               onValueChange={setCoverFees}
               // A web card form already made for one amount can't change.
               disabled={loading || Boolean(webClientSecret)}
-              trackColor={{ false: C.surface3, true: C.gold }}
-              thumbColor="#fff"
-              {...({ activeThumbColor: '#fff' } as any)}
             />
           </View>
         )}
@@ -431,46 +432,26 @@ if (fnError) throw new Error(fnError);
 
       {/* Footer button */}
       <View style={styles.footer}>
+        <View style={styles.footerInner}>
         {isNoPayment ? (
-          <TouchableOpacity style={[styles.donateBtn, styles.donateBtnDisabled]} disabled>
-            <Text style={styles.donateBtnText}>Payment not configured</Text>
-          </TouchableOpacity>
+          <Button label="Payment not set up" disabled />
         ) : isAltPay ? (
-          <TouchableOpacity
-            style={styles.donateBtn}
+          <Button
+            variant="gold"
+            iconRight="open-outline"
+            label={paymentMethodLabel || `Donate via ${paymentMethodType?.charAt(0).toUpperCase()}${paymentMethodType?.slice(1)}`}
             onPress={() => Linking.openURL(paymentMethodUrl!)}
-          >
-            <Text style={styles.donateBtnText}>
-              {paymentMethodLabel || `Donate via ${paymentMethodType?.charAt(0).toUpperCase()}${paymentMethodType?.slice(1)}`} ↗
-            </Text>
-          </TouchableOpacity>
-        ) : Platform.OS === 'web' ? (
-          webClientSecret ? null : (
-            <TouchableOpacity
-              style={[styles.donateBtn, loading && styles.donateBtnDisabled]}
-              onPress={createWebPaymentIntent}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={C.black} />
-              ) : (
-                <Text style={styles.donateBtnText}>Donate {coverFees ? money(quote.charge) : formatAmount(selectedAmount)} →</Text>
-              )}
-            </TouchableOpacity>
-          )
-        ) : (
-          <TouchableOpacity
-            style={[styles.donateBtn, loading && styles.donateBtnDisabled]}
-            onPress={handleDonate}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={C.black} />
-            ) : (
-              <Text style={styles.donateBtnText}>Donate {coverFees ? money(quote.charge) : formatAmount(selectedAmount)} →</Text>
-            )}
-          </TouchableOpacity>
+          />
+        ) : Platform.OS === 'web' && webClientSecret ? null : (
+          <Button
+            variant="gold"
+            iconRight="arrow-forward"
+            label={`Donate ${coverFees ? money(quote.charge) : formatAmount(selectedAmount)}`}
+            onPress={Platform.OS === 'web' ? createWebPaymentIntent : handleDonate}
+            loading={loading}
+          />
         )}
+        </View>
       </View>
     </View>
     </DesktopShell>
@@ -479,278 +460,88 @@ if (fnError) throw new Error(fnError);
 
 function getPaymentSheetColors(isDark: boolean) {
   // Stripe PaymentSheet only accepts hex strings here, not rgba().
+  // Brand kit colors (Night is navy, not brown).
   return isDark ? {
     primary: '#D4AC73',
-    background: '#0E0C09',
-    componentBackground: '#1A1612',
-    componentBorder: '#2F281F',
-    componentDivider: '#241F18',
-    primaryText: '#F2EFE8',
-    secondaryText: '#A8A091',
-    componentText: '#F2EFE8',
-    placeholderText: '#6B6358',
-    icon: '#A8A091',
+    background: '#0A0F1C',
+    componentBackground: '#141C30',
+    componentBorder: '#222B40',
+    componentDivider: '#222B40',
+    primaryText: '#EDF1F7',
+    secondaryText: '#9FACC4',
+    componentText: '#EDF1F7',
+    placeholderText: '#7E89A3',
+    icon: '#9FACC4',
   } : {
     primary: '#A8843F',
-    background: '#F5F3EE',
+    background: '#FFFFFF',
     componentBackground: '#FFFFFF',
-    componentBorder: '#D8CBB9',
-    componentDivider: '#E5DED2',
-    primaryText: '#1A1712',
-    secondaryText: '#5C5240',
-    componentText: '#1A1712',
-    placeholderText: '#9C8E78',
-    icon: '#5C5240',
+    componentBorder: '#E4E4E1',
+    componentDivider: '#ECECE9',
+    primaryText: '#111111',
+    secondaryText: '#5E5E5E',
+    componentText: '#111111',
+    placeholderText: '#767676',
+    icon: '#5E5E5E',
   };
 }
 
-function makeStyles(C: AppColors) {
-  return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
+function makeStyles(C: AppColors, ds: DS) {
+  const c = ds.c;
+  const card = { backgroundColor: c.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: c.line, ...ds.shadow('card') };
+  return StyleSheet.create(brandStyles({
+  container: { flex: 1, backgroundColor: c.bg },
   // Capped so the form reads as a column on desktop instead of stretching
   // edge to edge; phones are narrower than the cap so nothing changes there.
-  scroll: {
-    paddingBottom: 120,
-    maxWidth: 640,
-    width: '100%',
-    alignSelf: 'center',
-  },
+  scroll: { paddingBottom: 130, maxWidth: 640, width: '100%', alignSelf: 'center' },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Theme.spacing.lg,
-    paddingTop: HEADER_TOP_PADDING,
-    paddingBottom: Theme.spacing.lg,
-    gap: Theme.spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingTop: HEADER_TOP_PADDING - 8, paddingBottom: 8,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: C.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backIcon: {
-    color: C.text,
-    fontSize: 18,
-  },
-  headerTitle: {
-    fontSize: Theme.fontSize.xl,
-    fontWeight: Theme.fontWeight.bold,
-    color: C.text,
-  },
-  campaignCard: {
-    marginHorizontal: Theme.spacing.lg,
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.lg,
-    padding: Theme.spacing.lg,
-    borderWidth: 0.5,
-    borderColor: C.border,
-    marginBottom: Theme.spacing.xl,
-  },
+  headerTitle: { ...type.title1, color: c.ink },
+  campaignCard: { ...card, marginHorizontal: 20, padding: 16, marginBottom: 20, gap: 4 },
+  campaignLabel: { ...type.micro, color: c.ink2 },
+  campaignTitle: { ...type.headline, color: c.ink },
   endorseQuote: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-    marginHorizontal: Theme.spacing.lg,
-    marginTop: -Theme.spacing.sm,
-    marginBottom: Theme.spacing.xl,
-    padding: Theme.spacing.md,
-    borderRadius: Theme.radius.lg,
-    backgroundColor: C.goldBg,
-    borderWidth: 1,
-    borderColor: C.goldSoft,
+    flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+    marginHorizontal: 20, marginTop: -8, marginBottom: 20, padding: 14,
+    borderRadius: radius.lg, backgroundColor: c.goldTint,
   },
-  endorseQuoteText: { flex: 1, color: C.text, fontSize: 14, lineHeight: 20 },
-  endorseQuoteName: { color: C.goldDim, fontWeight: '700' },
-  campaignLabel: {
-    fontSize: Theme.fontSize.xs,
-    color: C.text3,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  campaignTitle: {
-    fontSize: Theme.fontSize.base,
-    fontWeight: Theme.fontWeight.semibold,
-    color: C.text,
-    lineHeight: 20,
-  },
-  sectionLabel: {
-    fontSize: Theme.fontSize.xs,
-    color: C.text3,
-    letterSpacing: 1,
-    marginHorizontal: Theme.spacing.lg,
-    marginBottom: Theme.spacing.md,
-  },
-  amountGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Theme.spacing.sm,
-    paddingHorizontal: Theme.spacing.lg,
-    marginBottom: Theme.spacing.xl,
-  },
+  endorseQuoteText: { ...type.subhead, ...font(400), flex: 1, color: c.ink },
+  endorseQuoteName: { ...font(700), color: c.goldInk },
+  sectionLabel: { ...type.caption, ...font(600), color: c.ink2, marginHorizontal: 20, marginBottom: 10 },
+  amountGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, marginBottom: 20 },
   amountBtn: {
-    width: '30.5%',
-    paddingVertical: Theme.spacing.md,
-    borderRadius: Theme.radius.md,
-    backgroundColor: C.surface,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    alignItems: 'center',
+    flexGrow: 1, flexBasis: '30%', height: 56, borderRadius: radius.lg,
+    backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center',
+    ...ds.shadow('hairline'),
   },
-  amountBtnActive: {
-    backgroundColor: C.goldBg,
-    borderColor: C.gold,
-  },
-  amountText: {
-    fontSize: Theme.fontSize.lg,
-    fontWeight: Theme.fontWeight.semibold,
-    color: C.text2,
-  },
-  amountTextActive: {
-    color: C.gold,
-  },
-  breakdown: {
-    marginHorizontal: Theme.spacing.lg,
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.lg,
-    padding: Theme.spacing.lg,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    gap: Theme.spacing.sm,
-    marginBottom: Theme.spacing.lg,
-  },
-  breakdownRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  coverRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: Theme.spacing.lg,
-    marginHorizontal: Theme.spacing.lg,
-    marginBottom: Theme.spacing.md,
-    borderRadius: Theme.radius.lg,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    backgroundColor: C.surface,
-  },
-  coverTitle: { fontSize: 15, fontWeight: '700', color: C.text },
-  coverSub: { fontSize: 12, color: C.text3, marginTop: 3, lineHeight: 17 },
-  breakdownSub: {
-    fontSize: 11,
-    color: C.text3,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: 6,
-    marginBottom: 2,
-  },
-  breakdownLabel: {
-    fontSize: Theme.fontSize.sm,
-    color: C.text3,
-  },
-  breakdownVal: {
-    fontSize: Theme.fontSize.sm,
-    color: C.text2,
-    fontWeight: Theme.fontWeight.medium,
-  },
-  breakdownTotal: {
-    borderTopWidth: 0.5,
-    borderTopColor: C.border2,
-    paddingTop: Theme.spacing.sm,
-    marginTop: Theme.spacing.sm,
-  },
-  breakdownTotalLabel: {
-    fontSize: Theme.fontSize.base,
-    color: C.text,
-    fontWeight: Theme.fontWeight.semibold,
-  },
-  breakdownTotalVal: {
-    fontSize: Theme.fontSize.base,
-    color: C.gold,
-    fontWeight: Theme.fontWeight.bold,
-  },
-  payNotice: {
-    marginHorizontal: Theme.spacing.lg,
-    padding: Theme.spacing.md,
-    backgroundColor: C.surface,
-    borderRadius: Theme.radius.md,
-    borderWidth: 0.5,
-    borderColor: C.border2,
-    alignItems: 'center',
-  },
-  payNoticeText: {
-    fontSize: Theme.fontSize.sm,
-    color: C.text2,
-  },
+  amountBtnActive: { backgroundColor: c.primary, borderColor: c.primary, ...ds.shadow('primary') },
+  amountText: { ...type.title2, color: c.ink },
+  amountTextActive: { color: c.onPrimary },
+  coverRow: { ...card, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, marginHorizontal: 20, marginBottom: 12 },
+  coverTitle: { ...type.body, ...font(600), color: c.ink },
+  coverSub: { ...type.caption, ...font(400), color: c.ink2, marginTop: 2 },
+  breakdown: { ...card, marginHorizontal: 20, padding: 16, gap: 8, marginBottom: 16 },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  breakdownSub: { ...type.micro, color: c.ink2, marginTop: 4 },
+  breakdownLabel: { ...type.subhead, ...font(400), color: c.ink2, flexShrink: 1 },
+  breakdownVal: { ...type.subhead, color: c.ink },
+  breakdownTotal: { borderTopWidth: 1, borderTopColor: c.line, paddingTop: 10, marginTop: 4 },
+  breakdownTotalLabel: { ...type.body, ...font(600), color: c.ink },
+  breakdownTotalVal: { ...type.headline, ...font(700, 'display'), color: c.seed },
+  payNotice: { marginHorizontal: 20, padding: 12, alignItems: 'center' },
+  payNoticeText: { ...type.caption, ...font(400), color: c.ink2 },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: Theme.spacing.lg,
-    paddingBottom: 40,
-    backgroundColor: C.bg,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border2,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.line,
   },
-  donateBtn: {
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-    backgroundColor: C.gold,
-    borderRadius: Theme.radius.md,
-    padding: Theme.spacing.lg,
-    alignItems: 'center',
-  },
-  donateBtnDisabled: {
-    opacity: 0.6,
-  },
-  donateBtnText: {
-    color: C.black,
-    fontSize: Theme.fontSize.lg,
-    fontWeight: Theme.fontWeight.bold,
-  },
-  altPayNotice: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 14,
-    backgroundColor: C.emeraldBg,
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: C.emeraldLight,
-  },
-  altPayNoticeTitle: {
-    color: C.emeraldLight,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  altPayNoticeSub: {
-    color: C.text3,
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  noPayNotice: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    padding: 14,
-    backgroundColor: C.surface,
-    borderRadius: 14,
-    borderWidth: 0.5,
-    borderColor: C.border,
-  },
-  noPayNoticeText: {
-    color: C.text2,
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  });
+  footerInner: { width: '100%', maxWidth: 600, alignSelf: 'center' },
+  altPayNotice: { marginHorizontal: 20, marginBottom: 12, padding: 14, backgroundColor: c.seedTint, borderRadius: radius.lg, gap: 4 },
+  altPayNoticeTitle: { ...type.subhead, ...font(700), color: c.seed },
+  altPayNoticeSub: { ...type.caption, ...font(400), color: c.ink2 },
+  noPayNotice: { marginHorizontal: 20, marginBottom: 12, padding: 14, backgroundColor: c.surfaceSoft, borderRadius: radius.lg },
+  noPayNoticeText: { ...type.caption, ...font(500), color: c.ink2, textAlign: 'center' },
+  }));
 }

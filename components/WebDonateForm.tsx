@@ -6,6 +6,8 @@ import { Theme } from '../constants/theme';
 import type { AppColors } from '../lib/theme';
 
 import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
+import { brandStyles } from '../lib/ds';
+import { Button } from './ui';
 
 // loadStripe is pure JS (no native dependency), safe to call lazily even
 // though this file is only ever imported on the web platform.
@@ -60,10 +62,11 @@ function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel, c
             style: {
               base: {
                 fontSize: '16px',
-                color: isDark ? '#F2EFE8' : '#15120E',
-                '::placeholder': { color: isDark ? '#6B6358' : '#A8A091' },
+                fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+                color: isDark ? '#EDF1F7' : '#111111',
+                '::placeholder': { color: isDark ? '#7E89A3' : '#767676' },
               },
-              invalid: { color: '#D9755F' },
+              invalid: { color: isDark ? '#F08B74' : '#B4412C' },
             },
           }}
         />
@@ -72,16 +75,8 @@ function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel, c
       {cardError ? <Text style={styles.errorText}>{cardError}</Text> : null}
 
       <View style={styles.btnRow}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} disabled={submitting}>
-          <Text style={[styles.cancelText, { color: C.text2 }]}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.confirmBtn, { backgroundColor: C.gold }, submitting && { opacity: 0.6 }]}
-          onPress={handleConfirm}
-          disabled={submitting || !stripe}
-        >
-          {submitting ? <ActivityIndicator color={C.bg} /> : <Text style={styles.confirmText}>{confirmLabel}</Text>}
-        </TouchableOpacity>
+        <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={submitting} style={{ flex: 1 }} />
+        <Button label={confirmLabel} variant="gold" onPress={handleConfirm} loading={submitting} disabled={!stripe} style={{ flex: 1.6 }} />
       </View>
     </View>
   );
@@ -95,8 +90,8 @@ export default function WebDonateForm(props: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { marginTop: Theme.spacing.lg },
+const styles = StyleSheet.create(brandStyles({
+  wrap: { marginTop: Theme.spacing.lg, marginHorizontal: 20 },
   cardBox: {
     borderWidth: 1,
     borderRadius: Theme.radius.md,
@@ -114,4 +109,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   confirmText: { fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold, color: '#15120E' },
-});
+}));
