@@ -1,6 +1,7 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Linking, Platform,
 } from 'react-native';
+import { directionsUrl } from '../../lib/directions';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -113,8 +114,14 @@ export default function LocalListingScreen() {
     const phoneDigits = l.phone?.replace(/[^\d+]/g, '');
     const waDigits = l.whatsapp?.replace(/\D/g, '');
 
+    const directions = directionsUrl(l);
     const contactButtons = (
       <View style={styles.contactGrid}>
+        {directions ? (
+          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(directions)}>
+            <Icon name="navigate-outline" size={16} color={C.text} /><Text style={styles.contactText}>Directions</Text>
+          </TouchableOpacity>
+        ) : null}
         {phoneDigits ? (
           <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`tel:${phoneDigits}`)}>
             <Icon name="call-outline" size={16} color={C.text} /><Text style={styles.contactText}>Call</Text>

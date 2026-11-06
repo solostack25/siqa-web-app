@@ -9,6 +9,7 @@ import { useTheme, type AppColors } from '../../lib/theme';
 import { HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
+import { directionsUrl } from '../../lib/directions';
 import { Icon } from '../../components/Icon';
 import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { LocationPicker } from '../../components/LocationPicker';
@@ -33,7 +34,7 @@ const MAX_WIDTH = 1180;
 type Card = Pick<BusinessListing,
   'id' | 'owner_id' | 'name' | 'category' | 'tagline' | 'city' | 'state' | 'service_area' | 'is_online' | 'is_home_based' |
   'women_owned' | 'sisters_only' | 'halal_status' | 'phone' | 'price_text' | 'logo_url' | 'cover_url' | 'status' |
-  'is_claimed' | 'is_verified' | 'featured_until' | 'source'> & { distance_miles?: number | null; total_count?: number };
+  'is_claimed' | 'is_verified' | 'featured_until' | 'source' | 'address' | 'zip'> & { distance_miles?: number | null; total_count?: number };
 
 type Flag = 'women_owned' | 'sisters_only' | 'is_online' | 'is_home_based';
 const FLAGS: { key: Flag; label: string }[] = [
@@ -231,6 +232,11 @@ export default function LocalDirectoryScreen() {
           {l.phone ? (
             <TouchableOpacity style={styles.iconBtn} onPress={() => Linking.openURL(`tel:${l.phone!.replace(/[^\d+]/g, '')}`)} accessibilityLabel={`Call ${l.name}`}>
               <Icon name="call-outline" size={18} color={C.text} />
+            </TouchableOpacity>
+          ) : null}
+          {directionsUrl(l) ? (
+            <TouchableOpacity style={styles.iconBtn} onPress={() => Linking.openURL(directionsUrl(l)!)} accessibilityLabel={`Directions to ${l.name}`}>
+              <Icon name="navigate-outline" size={18} color={C.text} />
             </TouchableOpacity>
           ) : null}
         </View>
