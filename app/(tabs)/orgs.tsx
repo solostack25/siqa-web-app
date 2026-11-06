@@ -340,7 +340,7 @@ function OrgsScreenInner() {
                     accessibilityRole="tab"
                     accessibilityState={{ selected: scope === k }}
                   >
-                    <Text style={[styles.segText, scope === k && styles.segTextActive]}>{label}</Text>
+                    <Text numberOfLines={1} style={[styles.segText, scope === k && styles.segTextActive]}>{label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -596,7 +596,9 @@ function makeStyles(C: AppColors, desktop: boolean) {
     scopeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     segment: {
       flexDirection: 'row', padding: 4, gap: 2, borderRadius: 999, backgroundColor: C.surface2,
-      ...(desktop ? {} : { alignSelf: 'stretch', flexGrow: 1 }),
+      // Mobile: take the full row so the donations toggle wraps below. Without a
+      // basis, the flex:1 buttons collapse to ~0 and labels wrap per-letter on iOS.
+      ...(desktop ? {} : { width: '100%' }),
     },
     segBtn: { minHeight: 36, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center', ...(desktop ? {} : { flex: 1 }) },
     segBtnActive: { backgroundColor: C.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
