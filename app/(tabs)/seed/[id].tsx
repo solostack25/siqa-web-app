@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { SeedVideo } from '../../../components/SeedVideo';
+import { YouTubeEmbed } from '../../../components/YouTubeEmbed';
 import { useCallback, useMemo, useState } from 'react';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
@@ -113,6 +114,8 @@ function SeedDetailScreen() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [canManage, setCanManage] = useState(false);
+  const [youTube, setYouTube] = useState<{ id: string; thumb: string | null; title: string } | null>(null);
+  const [ytPlaying, setYtPlaying] = useState(false);
   const [mySpeaker, setMySpeaker] = useState<{ id: string; verified: boolean } | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>('all');
   const [reviewLimit, setReviewLimit] = useState(8);
@@ -130,7 +133,7 @@ function SeedDetailScreen() {
   );
 
   async function load(seedId: string) {
-    const [seedRes, donationRes, endorseRes, reviewRes, updateRes, sessionRes] = await Promise.all([
+    const [seedRes, donationRes, endorseRes, reviewRes, updateRes, sessionRes, orgVideoRes] = await Promise.all([
       supabase
         .from('fundraisers')
         .select(`
@@ -154,9 +157,23 @@ function SeedDetailScreen() {
       supabase.from('public_donation_reviews').select('*').eq('fundraiser_id', seedId).order('created_at', { ascending: false }).limit(60),
       supabase.from('fundraiser_updates').select('id, body, created_at').eq('fundraiser_id', seedId).order('created_at', { ascending: false }).limit(20),
       supabase.auth.getSession(),
+      // A YouTube video the org attached to this Seed (org_videos.fundraiser_id).
+      // Used as the hero when the Seed has no uploaded video of its own.
+      supabase
+        .from('org_videos')
+        .select('platform_video_id, thumbnail_url, title')
+        .eq('fundraiser_id', seedId)
+        .eq('platform', 'youtube')
+        .eq('is_published', true)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: false })
+        .limit(1),
     ]);
 
     const s = (seedRes.data || null) as SeedDetail | null;
+    const yt = (orgVideoRes.data || [])[0] as { platform_video_id: string; thumbnail_url: string | null; title: string } | undefined;
+    setYouTube(yt?.platform_video_id ? { id: yt.platform_video_id, thumb: yt.thumbnail_url, title: yt.title } : null);
+    setYtPlaying(false);
     setSeed(s);
     setDonations((donationRes.data || []) as Donation[]);
     setEndorsements((endorseRes.data || []) as any);
@@ -474,6 +491,29 @@ function SeedDetailScreen() {
                 <View style={styles.hero}>
                   {videoUrl ? (
                     <SeedVideo uri={videoUrl} poster={coverUrl} fit="contain" />
+                  ) : youTube ? (
+                    ytPlaying ? (
+                      <YouTubeEmbed videoId={youTube.id} autoplay />
+                    ) : (
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setYtPlaying(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Play video: ${youTube.title}`}
+                      >
+                        <Image
+                          source={{ uri: youTube.thumb || coverUrl || `https://i.ytimg.com/vi/${youTube.id}/hqdefault.jpg` }}
+                          style={StyleSheet.absoluteFill}
+                          resizeMode="cover"
+                        />
+                        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.18)', alignItems: 'center', justifyContent: 'center' }]}>
+                          <View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center', paddingLeft: 4 }}>
+                            <Icon name="play" size={30} color={C.black} />
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    )
                   ) : coverUrl ? (
                     <Image source={{ uri: coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                   ) : (
