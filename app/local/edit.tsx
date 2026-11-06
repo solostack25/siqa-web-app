@@ -16,7 +16,7 @@ import { geocodePlace } from '../../lib/location';
 import {
   BUSINESS_CATEGORIES, tintFor, initialsOf, type BusinessCategory, type BusinessListing, type BusinessService,
 } from '../../lib/businessCategories';
-import { brandStyles } from '../../lib/ds';
+import { brandStyles, buttonStyles, dsStatic } from '../../lib/ds';
 
 type Form = {
   name: string; category: BusinessCategory | ''; tagline: string; description: string;
@@ -318,7 +318,7 @@ export default function LocalEditScreen() {
         <Toggle label="Publish now" hint="Turn off to save a draft only you can see" value={f.publish} onChange={v => set('publish', v)} styles={styles} C={C} />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <TouchableOpacity style={[styles.primaryBtn, { minHeight: 50 }, !canSave && { opacity: 0.45 }]} onPress={save} disabled={!canSave}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>{id ? 'Save changes' : f.publish ? 'Publish listing' : 'Save draft'}</Text>}
+          {saving ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>{id ? 'Save changes' : f.publish ? 'Publish listing' : 'Save draft'}</Text>}
         </TouchableOpacity>
         {!nameOk || f.category === '' ? <Text style={styles.small}>Add a name and pick a category to continue.</Text> : null}
         {id ? (
@@ -407,9 +407,9 @@ function makeStyles(C: AppColors, desktop: boolean) {
     logoPick: { width: 72, height: 72, borderRadius: 18, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     logoText: { fontSize: 22, fontWeight: '800' },
     serviceEdit: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border2 },
-    primaryBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
-    primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
-    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+    primaryBtn: buttonStyles('primary', 'lg').box,
+    primaryBtnText: buttonStyles('primary', 'lg').text,
+    ghostBtn: buttonStyles('secondary', 'md').box,
+    ghostBtnText: buttonStyles('secondary', 'md').text,
   }));
 }

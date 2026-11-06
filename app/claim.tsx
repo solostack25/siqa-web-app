@@ -16,7 +16,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import type { ClaimEntityType } from '../components/ClaimNotice';
-import { brandStyles } from '../lib/ds';
+import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
 
 /** Inbox that receives verification emails. Make sure it exists before launch. */
 const CLAIMS_EMAIL = 'claims@siqa.us';
@@ -353,7 +353,7 @@ export default function ClaimScreen() {
         {error && <Text style={styles.error}>{error}</Text>}
 
         <TouchableOpacity style={[styles.primaryBtn, !canSubmit && { opacity: 0.45 }]} onPress={submit} disabled={!canSubmit}>
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Submit claim</Text>}
+          {submitting ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>Submit claim</Text>}
         </TouchableOpacity>
       </View>
     </>,
@@ -463,16 +463,10 @@ function makeStyles(C: AppColors, desktop: boolean) {
     methodActive: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
     methodTitle: { fontSize: 14, fontWeight: '700', color: C.text },
     agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, minHeight: 44, paddingTop: 4 },
-    primaryBtn: {
-      minHeight: 48, paddingHorizontal: 20, borderRadius: 999, backgroundColor: C.emerald,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    ghostBtn: {
-      minHeight: 48, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1, borderColor: C.border,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    ghostBtnText: { color: C.text, fontSize: 15, fontWeight: '600' },
+    primaryBtn: buttonStyles('primary', 'lg').box,
+    primaryBtnText: buttonStyles('primary', 'lg').text,
+    ghostBtn: buttonStyles('secondary', 'lg').box,
+    ghostBtnText: buttonStyles('secondary', 'lg').text,
     warn: {
       flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: Theme.radius.md,
       backgroundColor: 'rgba(217,117,95,0.10)',

@@ -16,7 +16,7 @@ import { shareLink, getAppBaseUrl } from '../../lib/share';
 import {
   categoryLabel, initialsOf, isFeatured, placeLine, tintFor, withProtocol, type BusinessListing,
 } from '../../lib/businessCategories';
-import { brandStyles, font } from '../../lib/ds';
+import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
 
 export default function LocalListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -356,7 +356,7 @@ export default function LocalListingScreen() {
                     />
                     {error ? <Text style={styles.error}>{error}</Text> : null}
                     <TouchableOpacity style={[styles.primaryBtn, { minHeight: 48 }]} onPress={send} disabled={sending}>
-                      {sending ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Send message</Text>}
+                      {sending ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>Send message</Text>}
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -454,14 +454,11 @@ function makeStyles(C: AppColors, desktop: boolean) {
       height: 46, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     },
-    contactBtn: {
-      flexGrow: 1, flexBasis: 120, minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: C.border,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    },
-    contactText: { fontSize: 14, fontWeight: '600', color: C.text },
-    primaryBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
-    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
-    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+    contactBtn: buttonStyles('secondary', 'sm').box,
+    contactText: buttonStyles('secondary', 'sm').text,
+    primaryBtn: buttonStyles('primary', 'md').box,
+    primaryBtnText: buttonStyles('primary', 'md').text,
+    ghostBtn: buttonStyles('secondary', 'md').box,
+    ghostBtnText: buttonStyles('secondary', 'md').text,
   }));
 }

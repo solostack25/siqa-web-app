@@ -16,7 +16,7 @@ import { Theme } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialogs';
-import { brandStyles, font } from '../lib/ds';
+import { brandStyles, font, buttonStyles, dsStatic } from '../lib/ds';
 
 type ProfileClaimRow = {
   id: string;
@@ -636,8 +636,8 @@ function makeStyles(C: AppColors) {
     lockIcon: { marginBottom: 12 },
     title: { fontSize: 22, fontWeight: Theme.fontWeight.bold, color: C.text, marginBottom: 8, textAlign: 'center' },
     sub: { fontSize: 14, color: C.text2, textAlign: 'center', lineHeight: 20, marginBottom: 22 },
-    primaryBtn: { backgroundColor: C.gold, paddingHorizontal: 22, paddingVertical: 13, borderRadius: 14 },
-    primaryBtnText: { color: C.black, fontSize: 14, fontWeight: Theme.fontWeight.bold },
+    primaryBtn: buttonStyles('primary', 'md').box,
+    primaryBtnText: buttonStyles('primary', 'md').text,
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
     back: { color: C.gold, fontSize: 16, fontWeight: Theme.fontWeight.bold },
     arabic: { color: C.gold, fontSize: 28, textAlign: 'right' },
@@ -660,10 +660,10 @@ function makeStyles(C: AppColors) {
     cardTitle: { color: C.text, fontSize: 14, fontWeight: Theme.fontWeight.semibold, marginBottom: 4 },
     cardMeta: { color: C.text3, fontSize: 12 },
     actionsRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-    ghostBtn: { flex: 1, borderColor: C.border, borderWidth: 0.5, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
-    ghostBtnText: { color: C.text2, fontWeight: Theme.fontWeight.semibold },
-    primarySmallBtn: { backgroundColor: C.gold, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-    primarySmallText: { color: C.black, fontWeight: Theme.fontWeight.bold, fontSize: 12 },
+    ghostBtn: buttonStyles('secondary', 'sm').box,
+    ghostBtnText: buttonStyles('secondary', 'sm').text,
+    primarySmallBtn: buttonStyles('primary', 'sm').box,
+    primarySmallText: buttonStyles('primary', 'sm').text,
     simpleRow: { backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2, borderRadius: 16, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
   }));
 }
