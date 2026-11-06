@@ -59,7 +59,10 @@ export async function shareLink(opts: { url: string; title: string; text?: strin
 
     if (nav?.share) {
       try {
-        await nav.share({ title, text, url });
+        // Android joins text and url with a single space, which runs the
+        // link into the sentence. Put the link on its own line there.
+        const android = /android/i.test(nav.userAgent || '');
+        await nav.share(android ? { title, text: `${text}\n\n${url}` } : { title, text, url });
         return { shared: true, copied: false };
       } catch (e: any) {
         // AbortError = user closed the sheet. Anything else (e.g. not
@@ -80,7 +83,7 @@ export async function shareLink(opts: { url: string; title: string; text?: strin
   try {
     // iOS uses `url` as a rich link; Android only reads `message`.
     const result = await Share.share(
-      Platform.OS === 'ios' ? { message: text, url } : { message: `${text}\n${url}` },
+      Platform.OS === 'ios' ? { message: text, url } : { message: `${text}\n\n${url}` },
       { subject: title },
     );
     return { shared: result.action === Share.sharedAction, copied: false };
@@ -116,22 +119,40 @@ async function copyToClipboard(value: string): Promise<boolean> {
   }
 }
 
+/**
+ * YouTube titles often end with the speaker's name ("… | Dr. Omar Suleiman").
+ * The share message already names the speaker, so drop that tail segment.
+ */
+export function cleanVideoTitle(title: string, speakerName?: string | null): string {
+  const t = (title || '').trim();
+  if (!speakerName) return t;
+  const last = speakerName.trim().split(/\s+/).pop()?.toLowerCase();
+  if (!last || last.length < 3) return t;
+  const parts = t.split(/\s+[|\u2013\u2014-]\s+/);
+  while (parts.length > 1 && parts[parts.length - 1].toLowerCase().includes(last)) parts.pop();
+  return parts.join(' | ');
+}
+
+// Messages read as two short lines, then the link on its own line:
+//   Voting in America: Haram or Wajib?
+//   Sh. Yasir Qadhi on Siqa
+//
+//   https://www.siqa.us/watch/…
 export function shareVideo(videoId: string, title: string, speakerName?: string | null) {
-  const by = speakerName ? ` by ${speakerName}` : '';
+  const clean = cleanVideoTitle(title, speakerName);
   return shareLink({
     url: getVideoShareUrl(videoId),
-    title,
-    text: `${title}${by} — watch on Siqa`,
+    title: clean,
+    text: speakerName ? `${clean}\n${speakerName} on Siqa` : `${clean}\nOn Siqa`,
   });
 }
 
 export function shareShort(videoId: string, title: string | null | undefined, speakerName?: string | null) {
-  const label = title?.trim() || 'A Gem';
-  const by = speakerName ? ` from ${speakerName}` : '';
+  const label = cleanVideoTitle(title?.trim() || 'A Gem', speakerName);
   return shareLink({
     url: getShortShareUrl(videoId),
     title: label,
-    text: `${label}${by} — watch on Siqa`,
+    text: speakerName ? `${label}\n${speakerName} on Siqa` : `${label}\nOn Siqa`,
   });
 }
 
@@ -140,7 +161,7 @@ export function shareProduct(productId: string, title: string, priceLabel?: stri
   return shareLink({
     url: getProductShareUrl(productId),
     title,
-    text: `${title}${price} — on Siqa Marketplace`,
+    text: `${title}${price}\nOn Siqa Marketplace`,
   });
 }
 
@@ -149,7 +170,7 @@ export function shareSeed(seedId: string, title?: string | null) {
   return shareLink({
     url: getSeedShareUrl(seedId),
     title: label,
-    text: `Support "${label}" on Siqa`,
+    text: `${label}\nGive to this Seed on Siqa`,
   });
 }
 
@@ -157,6 +178,6 @@ export function shareSpeaker(speakerId: string, name: string) {
   return shareLink({
     url: getSpeakerShareUrl(speakerId),
     title: `${name} on Siqa`,
-    text: `Watch ${name} on Siqa`,
+    text: `${name}\nTalks and videos on Siqa`,
   });
 }

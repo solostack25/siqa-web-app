@@ -119,6 +119,29 @@ async function sb(path) {
   return Array.isArray(rows) ? rows[0] || null : null;
 }
 
+// YouTube descriptions are full of hashtags, divider lines, links and
+// "Please LIKE, COMMENT & SHARE". Keep the first real sentence or two.
+function cleanVideoDescription(raw) {
+  if (!raw) return null;
+  const lines = String(raw)
+    .split(/\r?\n/)
+    .map((l) => l.replace(/https?:\/\/\S+/g, '').replace(/#[\p{L}\p{N}_]+/gu, '').replace(/[\u25ba\u25b6\u2192]/g, '').replace(/^[^\p{L}\p{N}"'\u201c]+/u, '').trim())
+    .filter((l) => l.length > 0)
+    .filter((l) => !/^[-_=*~.\s]{3,}$/.test(l))
+    .filter((l) => !/(please|don'?t forget|make sure|be sure)\b.*\b(like|subscribe|share|comment)/i.test(l) && !/\bsubscribe\b/i.test(l))
+    .filter((l) => !/^(credits?|note|produced by|follow us|support us|donate|instagram|twitter|facebook|tiktok|website)\b/i.test(l))
+    .filter((l) => /[a-z]{3,}/i.test(l));
+  if (!lines.length) return null;
+  let out = lines.join(' ').replace(/\s+/g, ' ').trim();
+  // Stop at a clean sentence boundary near 160 characters.
+  if (out.length > 160) {
+    const cut = out.slice(0, 160);
+    const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! '));
+    out = end > 60 ? cut.slice(0, end + 1) : cut.replace(/\s+\S*$/, '') + '…';
+  }
+  return out.length >= 20 ? out : null;
+}
+
 async function lookup(type, id, origin, isMarketplace) {
   const eq = `id=eq.${encodeURIComponent(id)}`;
 
@@ -133,7 +156,7 @@ async function lookup(type, id, origin, isMarketplace) {
         : null);
     return {
       title: v.title || (speaker ? `A Gem from ${speaker}` : 'A Gem on Siqa'),
-      description: v.description || (speaker ? `Watch ${speaker} on Siqa.` : null),
+      description: cleanVideoDescription(v.description) || (speaker ? `Watch ${speaker} on Siqa.` : 'Watch on Siqa.'),
       image: absolute(image, origin),
       ogType: 'video.other',
     };
