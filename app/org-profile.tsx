@@ -41,6 +41,7 @@ import {
 } from '../components/SeedSocial';
 import { brandStyles, font } from '../lib/ds';
 import { Button } from '../components/ui';
+import { OrgVideos } from '../components/OrgVideos';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -109,7 +110,7 @@ type Fundraiser = {
   zakat_eligible: boolean | null;
 };
 
-type Tab = 'overview' | 'seeds' | 'endorsements' | 'reviews' | 'about';
+type Tab = 'overview' | 'videos' | 'seeds' | 'endorsements' | 'reviews' | 'about';
 
 function orgIcon(type: string | null): GlyphName {
   const map: Record<string, GlyphName> = {
@@ -158,6 +159,7 @@ export default function OrgProfileScreen() {
   // matches a real account, same as the literal owner.
   const canEditOrg = isOwner || isAdmin;
   const [activeTab, setActiveTab] = useState<Tab>(initialTab || 'overview');
+  const [videoCount, setVideoCount] = useState(0);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -529,6 +531,7 @@ export default function OrgProfileScreen() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'videos', label: `Videos${videoCount ? ` (${videoCount})` : ''}` },
     { key: 'seeds', label: `Seeds${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
     { key: 'endorsements', label: `Endorsements${endorsingSpeakerIds.size ? ` (${endorsingSpeakerIds.size})` : ''}` },
     { key: 'reviews', label: `Donor reviews${reviews.length ? ` (${reviews.length})` : ''}` },
@@ -821,9 +824,22 @@ export default function OrgProfileScreen() {
     </Card>
   ) : null;
 
+  // Org videos live only on this page (public.org_videos), never in Gems.
+  const videosBlock = (limit?: number) => (
+    <OrgVideos
+      key={`videos-${org.id}-${limit ?? 'all'}`}
+      orgId={org.id}
+      canEdit={canEditOrg}
+      limit={limit}
+      onSeeAll={() => setActiveTab('videos')}
+      onCount={setVideoCount}
+    />
+  );
+
   // ── Layout per tab ───────────────────────────────────────────────────
 
   function renderTab() {
+    if (activeTab === 'videos') return <View style={styles.stack}>{videosBlock()}</View>;
     if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
     if (activeTab === 'endorsements') return <View style={styles.stack}>{endorsementsBlock()}</View>;
     if (activeTab === 'reviews') return <View style={styles.stack}>{reviewsBlock()}</View>;
@@ -844,7 +860,7 @@ export default function OrgProfileScreen() {
       return (
         <View style={styles.row}>
           <View style={[styles.stack, styles.colLeft]}>{aboutBlock}{trustBlock}{services.length ? servicesBlock : null}</View>
-          <View style={[styles.stack, styles.colMain]}>{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colMain]}>{videosBlock(3)}{seedsBlock(4)}{reviewsBlock(3)}</View>
           <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(4)}</View>
         </View>
       );
@@ -852,13 +868,14 @@ export default function OrgProfileScreen() {
     if (cols === 2) {
       return (
         <View style={styles.row}>
-          <View style={[styles.stack, styles.colMain]}>{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colMain]}>{videosBlock(2)}{seedsBlock(4)}{reviewsBlock(3)}</View>
           <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(3)}{aboutBlock}{trustBlock}</View>
         </View>
       );
     }
     return (
       <View style={styles.stack}>
+        {videosBlock(2)}
         {seedsBlock(3)}
         {endorsementsBlock(3)}
         {reviewsBlock(3)}
