@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { Avatar } from '../../components/SeedSocial';
+import { UnclaimedBadge } from '../../components/ClaimNotice';
 import { Video, ResizeMode } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { recordView, VIEW_DELAY_MS } from '../../lib/views';
@@ -92,7 +94,7 @@ export default function WatchScreen() {
         `id, title, description, video_url, thumbnail_url, category, topics,
          view_count, comment_count, published_at, created_at, speaker_id,
          platform, platform_video_id,
-         speakers(id, display_name, is_verified, follower_count, profile_id)`
+         speakers(id, display_name, is_verified, is_claimed, follower_count, profile_id, avatar_url)`
       )
       .eq('id', videoId)
       .single();
@@ -232,26 +234,29 @@ export default function WatchScreen() {
 
             <Text style={styles.title}>{video.title}</Text>
 
-            <View style={styles.creatorRow}>
+            <View style={[styles.creatorRow, !isWide && styles.creatorRowStacked]}>
               <TouchableOpacity
-                style={styles.creatorInfo}
+                style={[styles.creatorInfo, !isWide && { alignSelf: 'stretch' }]}
                 onPress={() => router.push(`/speaker/${video.speaker_id}` as any)}
               >
-                <View style={styles.avatarPlaceholder} />
-                <View>
-                  <Text style={styles.creatorName}>
-                    {video.speakers?.display_name ?? 'Siqa'}
-                    {video.speakers?.is_verified ? ' ✓' : ''}
-                  </Text>
+                <Avatar name={video.speakers?.display_name ?? 'Siqa'} url={(video.speakers as any)?.avatar_url ?? null} size={44} />
+                <View style={{ flexShrink: 1, minWidth: 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Text style={[styles.creatorName, { flexShrink: 1 }]} numberOfLines={1}>
+                      {video.speakers?.display_name ?? 'Siqa'}
+                      {video.speakers?.is_verified && (video.speakers as any)?.is_claimed ? ' ✓' : ''}
+                    </Text>
+                    {video.speakers && (video.speakers as any).is_claimed === false && <UnclaimedBadge />}
+                  </View>
                   <Text style={styles.creatorMeta}>
                     {(video.speakers?.follower_count ?? 0).toLocaleString()} followers
                   </Text>
                 </View>
               </TouchableOpacity>
 
-              <View style={styles.actionsRow}>
+              <View style={[styles.actionsRow, !isWide && { alignSelf: 'stretch' }]}>
                 <TouchableOpacity
-                  style={[styles.followBtn, following && styles.followingBtn]}
+                  style={[styles.followBtn, following && styles.followingBtn, !isWide && { flex: 1, alignItems: 'center' }]}
                   onPress={toggleFollow}
                 >
                   <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
@@ -259,7 +264,7 @@ export default function WatchScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
+                <TouchableOpacity style={[styles.shareBtn, !isWide && { flex: 1, justifyContent: 'center' }]} onPress={handleShare}>
                   <Text style={styles.shareBtnIcon}>↗</Text>
                   <Text style={styles.shareBtnText}>Share</Text>
                 </TouchableOpacity>
@@ -342,7 +347,8 @@ function makeStyles(C: AppColors) {
     justifyContent: 'space-between',
     marginTop: Theme.spacing.md,
   },
-  creatorInfo: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm },
+  creatorRowStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: Theme.spacing.md },
+  creatorInfo: { flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm, flexShrink: 1, minWidth: 0 },
   avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: C.goldSoft },
   creatorName: { color: C.text, fontSize: Theme.fontSize.base, fontWeight: Theme.fontWeight.semibold },
   creatorMeta: { color: C.text2, fontSize: Theme.fontSize.sm },
