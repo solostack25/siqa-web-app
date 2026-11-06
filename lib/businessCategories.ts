@@ -48,6 +48,10 @@ export type BusinessListing = {
   whatsapp: string | null;
   website: string | null;
   booking_url: string | null;
+  ubereats_url?: string | null;
+  doordash_url?: string | null;
+  grubhub_url?: string | null;
+  order_url?: string | null;
   price_text: string | null;
   hours_text: string | null;
   languages: string[];

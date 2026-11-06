@@ -2,6 +2,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Linking, Platform,
 } from 'react-native';
 import { directionsUrl } from '../../lib/directions';
+import { ORDER_CATEGORIES, ORDER_PLATFORMS, normalizeOrderUrl, orderUrlError, orderLinksOf, openOrderLink, type OrderPlatform } from '../../lib/orderLinks';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -27,6 +28,7 @@ export default function LocalListingScreen() {
   const [uid, setUid] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [orderEdit, setOrderEdit] = useState<Record<string, string> | null>(null);
   const [unread, setUnread] = useState(0);
 
   const [message, setMessage] = useState('');
@@ -80,14 +82,15 @@ export default function LocalListingScreen() {
     setMessage('');
   }
 
-  async function adminSet(patch: Partial<BusinessListing>, confirmText?: string) {
-    if (!l) return;
-    if (confirmText && !(await confirmDialog('Are you sure?', confirmText))) return;
+  async function adminSet(patch: Partial<BusinessListing>, confirmText?: string): Promise<boolean> {
+    if (!l) return false;
+    if (confirmText && !(await confirmDialog('Are you sure?', confirmText))) return false;
     setAdminBusy(true);
     const { error: err } = await supabase.from('business_listings').update(patch).eq('id', l.id);
     setAdminBusy(false);
-    if (err) return notifyDialog('Could not update listing', err.message);
+    if (err) { notifyDialog('Could not update listing', err.message); return false; }
     setL({ ...l, ...patch } as BusinessListing);
+    return true;
   }
 
   const content = (() => {
@@ -115,6 +118,7 @@ export default function LocalListingScreen() {
     const waDigits = l.whatsapp?.replace(/\D/g, '');
 
     const directions = directionsUrl(l);
+    const orderLinks = ORDER_CATEGORIES.has(l.category) ? orderLinksOf(l) : [];
     const contactButtons = (
       <View style={styles.contactGrid}>
         {directions ? (
@@ -185,7 +189,50 @@ export default function LocalListingScreen() {
                   : adminSet({ status: 'hidden' }, 'Hide this listing from the directory?')}>
                 <Text style={[styles.ghostBtnText, l.status !== 'hidden' && { color: C.danger }]}>{l.status === 'hidden' ? 'Unhide' : 'Hide'}</Text>
               </TouchableOpacity>
+              {ORDER_CATEGORIES.has(l.category) && !orderEdit && (
+                <TouchableOpacity style={styles.ghostBtn} onPress={() => setOrderEdit(Object.fromEntries(ORDER_PLATFORMS.map(p => [p.column, (l as any)[p.column] ?? ''])))}>
+                  <Text style={styles.ghostBtnText}>Order links</Text>
+                </TouchableOpacity>
+              )}
             </View>
+            {orderEdit && (
+              <View style={{ gap: 8, alignSelf: 'stretch' }}>
+                {ORDER_PLATFORMS.map(p => {
+                  const err = orderUrlError(p.key, orderEdit[p.column] ?? '');
+                  return (
+                    <View key={p.key} style={{ gap: 4 }}>
+                      <Text style={styles.label}>{p.label}</Text>
+                      <TextInput
+                        value={orderEdit[p.column] ?? ''}
+                        onChangeText={t => setOrderEdit(prev => ({ ...(prev ?? {}), [p.column]: t }))}
+                        placeholder={p.placeholder}
+                        placeholderTextColor={C.text3}
+                        autoCapitalize="none"
+                        keyboardType="url"
+                        style={styles.input}
+                        accessibilityLabel={`${p.label} link`}
+                      />
+                      {err ? <Text style={styles.error}>{err}</Text> : null}
+                    </View>
+                  );
+                })}
+                <View style={styles.row}>
+                  <TouchableOpacity style={styles.ghostBtn} onPress={() => setOrderEdit(null)}>
+                    <Text style={styles.ghostBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.primaryBtn}
+                    disabled={adminBusy || ORDER_PLATFORMS.some(p => orderUrlError(p.key, orderEdit[p.column] ?? ''))}
+                    onPress={async () => {
+                      const patch = Object.fromEntries(ORDER_PLATFORMS.map(p => [p.column, normalizeOrderUrl(orderEdit[p.column] ?? '') || null]));
+                      if (await adminSet(patch as any)) setOrderEdit(null);
+                    }}
+                  >
+                    <Text style={styles.primaryBtnText}>Save links</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -256,6 +303,25 @@ export default function LocalListingScreen() {
           </View>
 
           <View style={styles.sideCol}>
+            {orderLinks.length > 0 && (
+              <View style={styles.contactCard}>
+                <Text style={styles.contactTitle}>Order delivery</Text>
+                <View style={{ gap: 8 }}>
+                  {orderLinks.map(o => (
+                    <TouchableOpacity
+                      key={o.key}
+                      style={styles.orderBtn}
+                      onPress={() => openOrderLink(l.id, o.key as OrderPlatform, o.url)}
+                      accessibilityLabel={o.key === 'direct' ? `Order online from ${l.name}` : `Order from ${l.name} on ${o.label}`}
+                    >
+                      <Icon name={o.key === 'direct' ? 'bag-handle-outline' : 'bicycle-outline'} size={17} color={C.text} />
+                      <Text style={styles.contactText}>{o.key === 'direct' ? 'Order online' : `Order on ${o.label}`}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.small}>Opens the ordering app. Prices and delivery are set by that service.</Text>
+              </View>
+            )}
             <View style={styles.contactCard}>
               <Text style={styles.contactTitle}>Contact {l.name}</Text>
               {l.is_claimed && l.status === 'published' && !isOwner ? (
@@ -335,7 +401,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
     ownerBar: {
       flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-      padding: 14, borderRadius: 14, borderWidth: 1, borderColor: C.emeraldSoft, backgroundColor: C.emeraldBg,
+      padding: 14, borderRadius: 14, borderWidth: 1, borderColor: C.goldSoft, backgroundColor: C.goldBg,
     },
     ownerText: { fontSize: 14, color: C.text, fontWeight: '600', flexShrink: 1 },
     cover: { height: desktop ? 240 : 160, borderRadius: desktop ? 20 : 16, overflow: 'hidden' },
@@ -352,14 +418,14 @@ function makeStyles(C: AppColors, desktop: boolean) {
     nameRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
     h1: { fontSize: desktop ? 30 : 24, fontWeight: '700', color: C.text, letterSpacing: -0.4, flexShrink: 1 },
     h2: { fontSize: 18, fontWeight: '700', color: C.text },
-    verified: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.emeraldBg, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+    verified: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.goldBg, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
     verifiedText: { fontSize: 12, fontWeight: '700', color: '#14523A' },
     tag: { fontSize: 12, fontWeight: '600', color: C.text2, backgroundColor: C.surface2, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
     muted: { fontSize: 14, color: C.text2 },
     small: { fontSize: 12, lineHeight: 17, color: C.text2 },
     lede: { fontSize: 18, lineHeight: 26, color: C.text, fontWeight: '500' },
     body: { fontSize: 15, lineHeight: 23, color: C.text2 },
-    link: { fontSize: 14, fontWeight: '600', color: C.emerald },
+    link: { fontSize: 14, fontWeight: '600', color: C.goldDim },
     columns: { flexDirection: 'row', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' },
     mainCol: { flexGrow: 999, flexShrink: 1, flexBasis: 520, minWidth: 0, gap: 18 },
     sideCol: { flexGrow: 1, flexShrink: 1, flexBasis: 320 },
@@ -377,18 +443,22 @@ function makeStyles(C: AppColors, desktop: boolean) {
     label: { fontSize: 13, fontWeight: '700', color: C.text },
     input: {
       minHeight: 46, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 12,
-      fontSize: 15, color: C.text, backgroundColor: C.bg, ...(Platform.OS === 'web' ? { outlineColor: C.emerald } as any : {}),
+      fontSize: 15, color: C.text, backgroundColor: C.bg, ...(Platform.OS === 'web' ? { outlineColor: C.gold } as any : {}),
     },
     error: { fontSize: 13, color: C.danger },
-    sentBox: { gap: 8, padding: 14, borderRadius: 12, backgroundColor: C.emeraldBg },
+    sentBox: { gap: 8, padding: 14, borderRadius: 12, backgroundColor: C.goldBg },
     sentText: { fontSize: 14, lineHeight: 20, color: C.text },
     contactGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    orderBtn: {
+      height: 46, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    },
     contactBtn: {
       flexGrow: 1, flexBasis: 120, minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: C.border,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     },
     contactText: { fontSize: 14, fontWeight: '600', color: C.text },
-    primaryBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald, alignItems: 'center', justifyContent: 'center' },
+    primaryBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
     primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
