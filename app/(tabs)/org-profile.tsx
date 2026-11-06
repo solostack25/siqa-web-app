@@ -1254,7 +1254,7 @@ function makeStyles(C: AppColors, cols: number) {
     trustNum: { fontSize: 32, fontWeight: '800' },
     trustLabel: { color: C.text2, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6 },
 
-    serviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    serviceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
     serviceIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: C.emeraldBg, alignItems: 'center', justifyContent: 'center' },
     photoPick: { height: 140, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: C.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     segment: { flex: 1, minHeight: 44, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
