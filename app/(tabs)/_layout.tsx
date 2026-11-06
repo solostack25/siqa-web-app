@@ -123,6 +123,11 @@ export default function TabsLayout() {
       {/* Inside the tab group so the bottom menu stays visible on them. */}
       <Tabs.Screen name="browse" options={{ href: null, title: 'Browse' }} />
       <Tabs.Screen name="watch/[videoId]" options={{ href: null, title: 'Watch' }} />
+      <Tabs.Screen name="speaker/[id]" options={{ href: null, title: 'Speaker' }} />
+      <Tabs.Screen name="org-profile" options={{ href: null, title: 'Organization' }} />
+      <Tabs.Screen name="seed/[id]" options={{ href: null, title: 'Seed' }} />
+      <Tabs.Screen name="product/[id]" options={{ href: null, title: 'Product' }} />
+      <Tabs.Screen name="org-listing/[id]" options={{ href: null, title: 'Organization' }} />
       <Tabs.Screen
         name="orgs"
         options={{

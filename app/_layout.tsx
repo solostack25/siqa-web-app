@@ -123,9 +123,6 @@ function AppContent() {
       <Stack key={`${mode}-${isDark ? 'dark' : 'light'}`} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="speaker/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
-        <Stack.Screen name="seed/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
-        <Stack.Screen name="product/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="cart" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="messages/index" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="messages/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
@@ -137,7 +134,6 @@ function AppContent() {
         <Stack.Screen name="order-success" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate-success" options={{ headerShown: false, presentation: 'modal' }} />
-        <Stack.Screen name="org-profile" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="org-register" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="gem-upload" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
@@ -146,7 +142,6 @@ function AppContent() {
         <Stack.Screen name="local/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="local/edit" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="local/inbox" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
-        <Stack.Screen name="org-listing/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="claim" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="studio" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="apply-speaker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />

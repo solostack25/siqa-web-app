@@ -14,16 +14,16 @@ import {
 } from 'react-native';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../lib/supabase';
-import { useTheme, type AppColors } from '../lib/theme';
-import { DesktopShell } from '../components/DesktopShell';
-import { Glyph, type GlyphName } from '../components/Glyph';
-import { Icon } from '../components/Icon';
-import { showToast } from '../components/Toast';
-import { shareLink, getAppBaseUrl } from '../lib/share';
+import { supabase } from '../../lib/supabase';
+import { useTheme, type AppColors } from '../../lib/theme';
+import { DesktopShell } from '../../components/DesktopShell';
+import { Glyph, type GlyphName } from '../../components/Glyph';
+import { Icon } from '../../components/Icon';
+import { showToast } from '../../components/Toast';
+import { shareLink, getAppBaseUrl } from '../../lib/share';
 import * as ImagePicker from 'expo-image-picker';
-import { uploadFileToBunny } from '../lib/bunnyUpload';
-import ImageCropModal from '../components/ImageCropModal';
+import { uploadFileToBunny } from '../../lib/bunnyUpload';
+import ImageCropModal from '../../components/ImageCropModal';
 import {
   Avatar,
   Card,
@@ -38,10 +38,11 @@ import {
   useReviewVotes,
   type PublicReview,
   type SeedEndorsement,
-} from '../components/SeedSocial';
-import { brandStyles, font } from '../lib/ds';
-import { Button } from '../components/ui';
-import { OrgVideos } from '../components/OrgVideos';
+} from '../../components/SeedSocial';
+import { brandStyles, font } from '../../lib/ds';
+import { Button } from '../../components/ui';
+import { OrgVideos } from '../../components/OrgVideos';
+import { focusedOnly } from '../../components/FocusedOnly';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -138,7 +139,7 @@ function confirmAction(title: string, onYes: () => void) {
   ]);
 }
 
-export default function OrgProfileScreen() {
+function OrgProfileScreen() {
   const { colors: C } = useTheme();
   const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: Tab }>();
   const { width, onLayout } = useMeasuredWidth();
@@ -1238,3 +1239,5 @@ function makeStyles(C: AppColors, cols: number) {
     sheetTitle: { color: C.text, fontSize: 19, fontWeight: '800' },
   }));
 }
+
+export default focusedOnly(OrgProfileScreen);

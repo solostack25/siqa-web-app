@@ -12,18 +12,19 @@ import {
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { useTheme, type AppColors } from '../../lib/theme';
-import { Glyph } from '../../components/Glyph';
-import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
-import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
-import { Icon } from '../../components/Icon';
-import { formatPrice } from '../../lib/money';
-import { shareProduct } from '../../lib/share';
-import { addToCart as addItemToCart } from '../../lib/cart';
-import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
-import { brandStyles, font } from '../../lib/ds';
-import { Button, IconButton, Stepper } from '../../components/ui';
+import { supabase } from '../../../lib/supabase';
+import { useTheme, type AppColors } from '../../../lib/theme';
+import { Glyph } from '../../../components/Glyph';
+import { Theme, HEADER_TOP_PADDING } from '../../../constants/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell';
+import { Icon } from '../../../components/Icon';
+import { formatPrice } from '../../../lib/money';
+import { shareProduct } from '../../../lib/share';
+import { addToCart as addItemToCart } from '../../../lib/cart';
+import { AddedToCartDrawer, type AddedItem } from '../../../components/AddedToCartDrawer';
+import { brandStyles, font } from '../../../lib/ds';
+import { Button, IconButton, Stepper } from '../../../components/ui';
+import { focusedOnly } from '../../../components/FocusedOnly';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -84,7 +85,7 @@ function notify(title: string, message: string) {
   }
 }
 
-export default function ProductDetailScreen() {
+function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
@@ -827,3 +828,5 @@ function makeStyles(C: AppColors) {
     gridPrice: { fontSize: 14, fontWeight: '800', color: C.text, marginTop: 3 },
   }));
 }
+
+export default focusedOnly(ProductDetailScreen);

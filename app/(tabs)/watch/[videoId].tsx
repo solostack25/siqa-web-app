@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import { focusedOnly } from '../../../components/FocusedOnly';
 import { Avatar } from '../../../components/SeedSocial';
 import { UnclaimedBadge } from '../../../components/ClaimNotice';
 import { Video, ResizeMode } from 'expo-av';
@@ -586,10 +586,6 @@ function makeStyles(C: AppColors) {
 }));
 }
 
-// This screen lives in the tab group (so the bottom menu stays visible), and
-// tab screens stay mounted after you leave them. Render nothing while it's
-// not focused so the video stops instead of playing in the background.
-export default function WatchRoute() {
-  const focused = useIsFocused();
-  return focused ? <WatchScreen /> : null;
-}
+
+// In the tab group so the bottom menu stays; see components/FocusedOnly.
+export default focusedOnly(WatchScreen);

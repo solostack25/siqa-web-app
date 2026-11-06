@@ -9,17 +9,17 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { SeedVideo } from '../../components/SeedVideo';
+import { SeedVideo } from '../../../components/SeedVideo';
 import { useCallback, useMemo, useState } from 'react';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { openDonation, donateLabel, DONATE_IN_BROWSER } from '../../lib/donateLink';
-import { shareLink, getSeedShareUrl } from '../../lib/share';
-import { useTheme, type AppColors } from '../../lib/theme';
-import { DesktopShell } from '../../components/DesktopShell';
-import { Icon } from '../../components/Icon';
-import { Glyph, type GlyphName } from '../../components/Glyph';
-import { showToast } from '../../components/Toast';
+import { supabase } from '../../../lib/supabase';
+import { openDonation, donateLabel, DONATE_IN_BROWSER } from '../../../lib/donateLink';
+import { shareLink, getSeedShareUrl } from '../../../lib/share';
+import { useTheme, type AppColors } from '../../../lib/theme';
+import { DesktopShell } from '../../../components/DesktopShell';
+import { Icon } from '../../../components/Icon';
+import { Glyph, type GlyphName } from '../../../components/Glyph';
+import { showToast } from '../../../components/Toast';
 import {
   Avatar,
   Card,
@@ -39,9 +39,10 @@ import {
   useReviewVotes,
   type PublicReview,
   type SeedEndorsement,
-} from '../../components/SeedSocial';
-import { brandStyles } from '../../lib/ds';
-import { Button, IconButton } from '../../components/ui';
+} from '../../../components/SeedSocial';
+import { brandStyles } from '../../../lib/ds';
+import { Button, IconButton } from '../../../components/ui';
+import { focusedOnly } from '../../../components/FocusedOnly';
 
 type SeedDetail = {
   id: string;
@@ -98,7 +99,7 @@ function categoryIcon(cat: string | null): GlyphName {
   return map[cat?.toLowerCase() ?? ''] ?? 'leaf-outline';
 }
 
-export default function SeedDetailScreen() {
+function SeedDetailScreen() {
   const { id, via, endorse } = useLocalSearchParams<{ id: string; via?: string; endorse?: string }>();
   const { colors: C } = useTheme();
   const { width, onLayout } = useMeasuredWidth();
@@ -597,3 +598,5 @@ function makeStyles(C: AppColors, wide: boolean) {
     textBtn: { minHeight: 36, justifyContent: 'center' },
   }));
 }
+
+export default focusedOnly(SeedDetailScreen);

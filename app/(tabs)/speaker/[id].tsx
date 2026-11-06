@@ -14,17 +14,18 @@ import {
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../../lib/supabase';
-import { Theme } from '../../constants/theme';
-import { useTheme, AppColors } from '../../lib/theme';
-import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
-import { uploadFileToBunny } from '../../lib/bunnyUpload';
-import { Icon } from '../../components/Icon';
-import { shareSpeaker } from '../../lib/share';
-import ImageCropModal from '../../components/ImageCropModal';
-import { ClaimNotice, UnclaimedBadge } from '../../components/ClaimNotice';
-import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
-import { Button } from '../../components/ui';
+import { supabase } from '../../../lib/supabase';
+import { Theme } from '../../../constants/theme';
+import { useTheme, AppColors } from '../../../lib/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell';
+import { uploadFileToBunny } from '../../../lib/bunnyUpload';
+import { Icon } from '../../../components/Icon';
+import { shareSpeaker } from '../../../lib/share';
+import ImageCropModal from '../../../components/ImageCropModal';
+import { ClaimNotice, UnclaimedBadge } from '../../../components/ClaimNotice';
+import { brandStyles, font, buttonStyles, dsStatic } from '../../../lib/ds';
+import { Button } from '../../../components/ui';
+import { focusedOnly } from '../../../components/FocusedOnly';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
   return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
@@ -116,7 +117,7 @@ function withProtocol(url: string) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
-export default function SpeakerProfileScreen() {
+function SpeakerProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const { colors: C } = useTheme();
@@ -945,3 +946,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     topicText: { fontSize: 13, color: C.emerald, fontWeight: '600' },
   }));
 }
+
+export default focusedOnly(SpeakerProfileScreen);
