@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../lib/supabase';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
@@ -155,10 +156,13 @@ function AppContent() {
 export default function RootLayout() {
   useOtaUpdates();
   return (
-    <ThemeProvider>
-      <SearchProvider>
-        <AppContent />
-      </SearchProvider>
-    </ThemeProvider>
+    // Needed for gesture-handler gestures (tab swipe on the phone app).
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <SearchProvider>
+          <AppContent />
+        </SearchProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

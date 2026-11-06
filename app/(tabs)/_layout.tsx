@@ -8,7 +8,8 @@ import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb, InDesktopShell } from '../../components/DesktopShell';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
-import { useTabSwipe } from '../../components/useTabSwipe';
+import { useTabSwipe, useNativeTabSwipeGesture } from '../../components/useTabSwipe';
+import { GestureDetector } from 'react-native-gesture-handler';
 
 type TabIconProps = {
   focused: boolean;
@@ -35,6 +36,8 @@ export default function TabsLayout() {
   const onLocal = usePathname().startsWith('/local');
   // Swipe sideways between the main tabs (phone web/PWA).
   useTabSwipe(!isDesktopWeb && !IS_MARKETPLACE_SITE);
+  // Same thing on the phone app.
+  const nativeSwipe = useNativeTabSwipeGesture(Platform.OS !== 'web' && !IS_MARKETPLACE_SITE);
 
   const tabs = (
     <Tabs
@@ -145,6 +148,13 @@ export default function TabsLayout() {
     </Tabs>
   );
 
+  if (Platform.OS !== 'web') {
+    return (
+      <GestureDetector gesture={nativeSwipe}>
+        <View style={{ flex: 1 }} collapsable={false}>{tabs}</View>
+      </GestureDetector>
+    );
+  }
   if (!isDesktopWeb) return tabs;
 
   return (

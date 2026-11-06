@@ -183,7 +183,7 @@ function CommentItem({
 const REPORT_REASONS = ['Spam or scam', 'Hateful or abusive', 'False or misleading', 'Something else'];
 
 export function CommentsView({
-  api, commentsEnabled = true, onAuthRequired = defaultAuth, onClose, inline = false, dragHandlers, onScrollY, scrollEnabled = true,
+  api, commentsEnabled = true, onAuthRequired = defaultAuth, onClose, inline = false, dragHandlers, onScrollY, scrollEnabled = true, onPullDownClose,
 }: {
   api: CommentsApi; commentsEnabled?: boolean; onAuthRequired?: AuthFn; onClose?: () => void; inline?: boolean;
   /** Pan handlers from the sheet, so dragging the header down closes it. */
@@ -191,6 +191,8 @@ export function CommentsView({
   /** The sheet uses this to tell "scrolled to the top" from "mid-list". */
   onScrollY?: (y: number) => void;
   scrollEnabled?: boolean;
+  /** Native: pulling the list down past its top (iOS bounce) closes the sheet. */
+  onPullDownClose?: () => void;
 }) {
   const { c: k } = useDS();
   const [draft, setDraft] = useState('');
@@ -448,7 +450,16 @@ export function CommentsView({
         contentContainerStyle={{ paddingBottom: 24 }}
         keyboardShouldPersistTaps="handled"
         scrollEnabled={scrollEnabled}
-        bounces={false}
+        // iOS: let the list bounce at the top so a pull-down can close the
+        // sheet (onScrollEndDrag below). JS pan responders can't take a drag
+        // away from a native iOS scroll view, so this is how swipe-to-close
+        // works inside the list on the phone app.
+        bounces={!!onPullDownClose && Platform.OS === 'ios'}
+        alwaysBounceVertical={!!onPullDownClose && Platform.OS === 'ios'}
+        onScrollEndDrag={onPullDownClose ? (e) => {
+          const { contentOffset, velocity } = e.nativeEvent;
+          if (contentOffset.y < -60 || (contentOffset.y < -10 && (velocity?.y ?? 0) < -0.8)) onPullDownClose();
+        } : undefined}
         onScroll={onScrollY ? (e) => onScrollY(e.nativeEvent.contentOffset.y) : undefined}
         scrollEventThrottle={16}
       >
@@ -548,7 +559,7 @@ export function CommentsSheet({
           <Pressable onPress={close} accessibilityLabel="Close comments" style={{ flex: 1, backgroundColor: k.scrim }} />
         </Animated.View>
         <Animated.View
-          {...(wide ? {} : pan.panHandlers)}
+          {...(wide || Platform.OS !== 'web' ? {} : pan.panHandlers)}
           style={[{
             width: '100%', maxWidth: wide ? 620 : undefined, height: sheetH,
             backgroundColor: k.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet,
@@ -557,7 +568,7 @@ export function CommentsSheet({
           }, shadow('sheet'), dragging && Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null]}
         >
           {!wide ? (
-            <View accessibilityHint="Swipe down to close" style={[{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }, Platform.OS === 'web' ? ({ userSelect: 'none', cursor: 'grab' } as any) : null]}>
+            <View {...(Platform.OS !== 'web' ? pan.panHandlers : {})} accessibilityHint="Swipe down to close" style={[{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }, Platform.OS === 'web' ? ({ userSelect: 'none', cursor: 'grab' } as any) : null]}>
               <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: k.surfaceStrong }} />
             </View>
           ) : <View style={{ height: 10 }} />}
@@ -568,6 +579,10 @@ export function CommentsSheet({
             onClose={close}
             onScrollY={(v) => { atTop.current = v <= 0; }}
             scrollEnabled={!dragging}
+            // Native: the header drags the sheet (no scroll view there), and
+            // pulling the list down past the top closes it.
+            dragHandlers={!wide && Platform.OS !== 'web' ? pan.panHandlers : undefined}
+            onPullDownClose={!wide && Platform.OS !== 'web' ? close : undefined}
           />
         </Animated.View>
       </KeyboardAvoidingView>
