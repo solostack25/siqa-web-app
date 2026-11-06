@@ -28,6 +28,8 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { makeBunnySeedVideoPath, uploadVideoToBunny } from '../lib/bunnyUpload';
 import { Icon } from './Icon';
 import { showToast } from './Toast';
+import { brandStyles, font, radius, type, useDS } from '../lib/ds';
+import { Button, Chip as DSChip } from './ui';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -116,9 +118,9 @@ export function useMeasuredWidth(initial = 390) {
 export function Avatar({ name, url, size = 44, tone = 'gold', square = false }: {
   name: string | null | undefined; url?: string | null; size?: number; tone?: 'gold' | 'emerald' | 'neutral'; square?: boolean;
 }) {
-  const { colors: C } = useTheme();
-  const bg = tone === 'gold' ? C.goldSoft : tone === 'emerald' ? C.emeraldSoft : C.surface3;
-  const fg = tone === 'gold' ? C.goldDim : tone === 'emerald' ? C.emerald : C.text2;
+  const { c } = useDS();
+  const bg = tone === 'gold' ? c.goldTint : tone === 'emerald' ? c.seedTint : c.surfaceSoft;
+  const fg = tone === 'gold' ? c.goldInk : tone === 'emerald' ? c.seed : c.ink2;
   return (
     <View style={{
       width: size, height: size, borderRadius: square ? size * 0.26 : size / 2, backgroundColor: bg,
@@ -127,69 +129,55 @@ export function Avatar({ name, url, size = 44, tone = 'gold', square = false }: 
       {url ? (
         <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : (
-        <Text style={{ color: fg, fontWeight: '700', fontSize: Math.max(11, size * 0.32) }}>{initialsOf(name)}</Text>
+        <Text style={[font(700), { color: fg, fontSize: Math.max(11, size * 0.32) }]}>{initialsOf(name)}</Text>
       )}
     </View>
   );
 }
 
 export function ProgressBar({ pct, height = 8 }: { pct: number; height?: number }) {
-  const { colors: C } = useTheme();
+  const { c } = useDS();
   return (
-    <View style={{ height, borderRadius: 999, backgroundColor: C.surface3, overflow: 'hidden' }}>
-      <View style={{ height, width: `${Math.max(0, Math.min(100, pct))}%` as any, borderRadius: 999, backgroundColor: C.emerald }} />
+    <View style={{ height, borderRadius: 999, backgroundColor: c.surfaceStrong, overflow: 'hidden' }}>
+      <View style={{ height, width: `${Math.max(0, Math.min(100, pct))}%` as any, borderRadius: 999, backgroundColor: c.seed }} />
     </View>
   );
 }
 
 export function Card({ children, style }: { children: React.ReactNode; style?: any }) {
-  const { colors: C } = useTheme();
+  const { c, shadow } = useDS();
   return (
     <View style={[{
-      backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border2, padding: 18, gap: 14,
-    }, style]}>
+      backgroundColor: c.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: c.line, padding: 18, gap: 14,
+    }, shadow('card'), style]}>
       {children}
     </View>
   );
 }
 
 export function CardTitle({ children, right, icon }: { children: React.ReactNode; right?: React.ReactNode; icon?: any }) {
-  const { colors: C } = useTheme();
+  const { c } = useDS();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
-        {icon ? <Icon name={icon} size={18} color={C.gold} /> : null}
-        <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', flexShrink: 1 }}>{children}</Text>
+        {icon ? <Icon name={icon} size={18} color={c.gold} /> : null}
+        <Text style={[type.headline, font(700, 'display'), { color: c.ink, fontSize: 18, flexShrink: 1 }]} accessibilityRole="header">{children}</Text>
       </View>
       {right}
     </View>
   );
 }
 
-export function Chip({ label, active, onPress, tone = 'emerald' }: { label: string; active?: boolean; onPress?: () => void; tone?: 'emerald' | 'gold' }) {
-  const { colors: C } = useTheme();
-  const on = tone === 'gold' ? C.gold : C.emerald;
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={!onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!active }}
-      style={{
-        minHeight: 36, paddingHorizontal: 14, borderRadius: 999, justifyContent: 'center',
-        borderWidth: 1, borderColor: active ? on : C.border, backgroundColor: active ? on : 'transparent',
-      }}
-    >
-      <Text style={{ color: active ? '#fff' : C.text2, fontSize: 13, fontWeight: '600' }}>{label}</Text>
-    </TouchableOpacity>
-  );
+/** Kept for existing callers; draws the brand kit chip. */
+export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void; tone?: 'emerald' | 'gold' }) {
+  return <DSChip label={label} selected={active} onPress={onPress} disabled={!onPress} />;
 }
 
 export function Tag({ label, tone = 'emerald' }: { label: string; tone?: 'emerald' | 'gold' }) {
-  const { colors: C } = useTheme();
+  const { c } = useDS();
   return (
-    <View style={{ alignSelf: 'flex-start', backgroundColor: tone === 'gold' ? C.goldBg : C.emeraldBg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-      <Text style={{ color: tone === 'gold' ? C.goldDim : C.emerald, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+    <View style={{ alignSelf: 'flex-start', backgroundColor: tone === 'gold' ? c.goldTint : c.seedTint, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+      <Text style={[type.micro, font(700), { color: tone === 'gold' ? c.goldInk : c.seed }]}>{label}</Text>
     </View>
   );
 }
@@ -348,7 +336,7 @@ export function Sheet({ visible, onClose, title, children, footer }: {
           borderRadius: 20, borderBottomLeftRadius: wide ? 20 : 0, borderBottomRightRadius: wide ? 20 : 0, overflow: 'hidden',
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border2 }}>
-            <Text style={{ flex: 1, color: C.text, fontSize: 17, fontWeight: '800' }}>{title}</Text>
+            <Text style={[type.headline, { flex: 1, color: C.text }]} accessibilityRole="header">{title}</Text>
             <TouchableOpacity onPress={onClose} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Close">
               <Icon name="close" size={22} color={C.text2} />
             </TouchableOpacity>
@@ -367,25 +355,15 @@ export function Sheet({ visible, onClose, title, children, footer }: {
   );
 }
 
+/**
+ * Kept for existing callers; draws the brand kit button.
+ * gold → gold (giving), emerald → primary, ghost → secondary.
+ */
 export function PrimaryButton({ label, onPress, busy, disabled, tone = 'gold', style }: {
   label: string; onPress: () => void; busy?: boolean; disabled?: boolean; tone?: 'gold' | 'emerald' | 'ghost'; style?: any;
 }) {
-  const { colors: C } = useTheme();
-  const bg = tone === 'gold' ? C.gold : tone === 'emerald' ? C.emerald : 'transparent';
-  const fg = tone === 'gold' ? C.black : tone === 'emerald' ? '#fff' : C.text;
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={busy || disabled}
-      accessibilityRole="button"
-      style={[{
-        minHeight: 50, borderRadius: 12, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: bg, borderWidth: tone === 'ghost' ? 1 : 0, borderColor: C.border, opacity: disabled ? 0.5 : 1,
-      }, style]}
-    >
-      {busy ? <ActivityIndicator color={fg} /> : <Text style={{ color: fg, fontSize: 15, fontWeight: '800' }}>{label}</Text>}
-    </TouchableOpacity>
-  );
+  const variant = tone === 'gold' ? 'gold' : tone === 'emerald' ? 'primary' : 'secondary';
+  return <Button label={label} onPress={onPress} loading={busy} disabled={disabled} variant={variant} style={style} />;
 }
 
 // ── Speaker picker (verified speakers only) ──────────────────────────────
@@ -516,7 +494,7 @@ export function RequestEndorsementsSheet({ visible, onClose, fundraiserId, exist
               <Avatar name={e.speakers?.display_name} url={e.speakers?.avatar_url} size={32} />
               <Text style={[s.pickName, { flex: 1 }]} numberOfLines={1}>{e.speakers?.display_name}</Text>
               <TouchableOpacity onPress={() => cancelRequest(e.id)} style={{ padding: 10 }}>
-                <Text style={{ color: C.text2, fontWeight: '600', fontSize: 13 }}>Cancel</Text>
+                <Text style={{ color: C.text2, ...font(600), fontSize: 13 }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -701,7 +679,7 @@ export function EndorseSeedSheet({ visible, onClose, fundraiserId, seedTitle, or
         <View style={{ gap: 8 }}>
           <EndorsementVideo url={videoUrl} />
           <TouchableOpacity onPress={() => setVideoUrl(null)} style={{ alignSelf: 'flex-start', paddingVertical: 8 }}>
-            <Text style={{ color: C.text2, fontWeight: '600' }}>Remove video</Text>
+            <Text style={{ color: C.text2, ...font(600) }}>Remove video</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -723,7 +701,7 @@ export function EndorseSeedSheet({ visible, onClose, fundraiserId, seedTitle, or
 // ── Styles ───────────────────────────────────────────────────────────────
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     endorseCard: { borderWidth: 1, borderColor: C.goldSoft, backgroundColor: C.goldBg, borderRadius: 14, padding: 14, gap: 10 },
     endorseName: { color: C.text, fontSize: 15, fontWeight: '700', flexShrink: 1 },
     endorseMeta: { color: C.text2, fontSize: 12, marginTop: 1 },
@@ -756,7 +734,7 @@ function makeStyles(C: AppColors) {
     body: { color: C.text, fontSize: 15, lineHeight: 22 },
     muted: { color: C.text2, fontSize: 13 },
     input: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, color: C.text, fontSize: 15 },
-  });
+  }));
 }
 
 // ── Speaker dashboard: pending endorsement requests ─────────────────────
@@ -794,7 +772,7 @@ export function EndorsementInbox({ speakerId, style }: { speakerId: string; styl
     <View style={[{ backgroundColor: C.goldBg, borderWidth: 1, borderColor: C.goldSoft, borderRadius: 16, padding: 16, gap: 12 }, style]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Icon name="mail-unread-outline" size={18} color={C.goldDim} />
-        <Text style={{ color: C.text, fontSize: 16, fontWeight: '800' }}>
+        <Text style={{ color: C.text, fontSize: 16, ...font(800) }}>
           Endorsement request{rows.length === 1 ? '' : 's'} ({rows.length})
         </Text>
       </View>
@@ -810,7 +788,7 @@ export function EndorsementInbox({ speakerId, style }: { speakerId: string; styl
             <Text style={s.pickName} numberOfLines={1}>{r.fundraisers?.title || 'A Seed'}</Text>
             <Text style={s.muted} numberOfLines={1}>{r.fundraisers?.organizations?.org_name || 'An organization'} · {timeAgo(r.created_at)}</Text>
           </View>
-          <Text style={{ color: C.emerald, fontWeight: '700', fontSize: 14 }}>Respond</Text>
+          <Text style={{ color: C.emerald, ...font(700), fontSize: 14 }}>Respond</Text>
         </TouchableOpacity>
       ))}
     </View>

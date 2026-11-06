@@ -40,6 +40,8 @@ import {
   type PublicReview,
   type SeedEndorsement,
 } from '../../components/SeedSocial';
+import { brandStyles } from '../../lib/ds';
+import { Button, IconButton } from '../../components/ui';
 
 type SeedDetail = {
   id: string;
@@ -238,9 +240,7 @@ export default function SeedDetailScreen() {
       <DesktopShell>
         <View style={styles.centered}>
           <Text style={styles.muted}>This Seed couldn't be found.</Text>
-          <TouchableOpacity style={{ padding: 12 }} onPress={() => router.back()}>
-            <Text style={styles.link}>← Go back</Text>
-          </TouchableOpacity>
+          <Button label="Go back" icon="arrow-back" variant="secondary" size="md" onPress={() => router.back()} />
         </View>
       </DesktopShell>
     );
@@ -449,13 +449,9 @@ export default function SeedDetailScreen() {
     <DesktopShell>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()} accessibilityLabel="Back">
-            <Icon name="arrow-back" size={20} color={C.text} />
-          </TouchableOpacity>
+          <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => router.back()} />
           <View style={{ flex: 1 }} />
-          <TouchableOpacity style={styles.iconBtn} onPress={handleShare} accessibilityLabel="Share">
-            <Icon name="share-outline" size={19} color={C.text} />
-          </TouchableOpacity>
+          <IconButton icon="share-outline" label="Share" variant="soft" onPress={handleShare} />
         </View>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: wide ? 56 : 24 }}>
@@ -543,7 +539,7 @@ export default function SeedDetailScreen() {
 }
 
 function makeStyles(C: AppColors, wide: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg2 },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 8 },
     topBar: {
@@ -599,5 +595,5 @@ function makeStyles(C: AppColors, wide: boolean) {
     link: { color: C.emerald, fontSize: 14, fontWeight: '700' },
     danger: { color: C.danger, fontSize: 13, fontWeight: '600' },
     textBtn: { minHeight: 36, justifyContent: 'center' },
-  });
+  }));
 }

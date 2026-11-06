@@ -180,7 +180,9 @@ export function useDS(): DS {
 }
 
 // ── Migrating older screens ────────────────────────────────────────────
-const TEXT_KEYS = ['fontSize', 'fontWeight', 'color', 'lineHeight', 'letterSpacing', 'textAlign'];
+// Only styles that set a size or weight: a modifier that just changes the
+// color (selected/active states) must not reset the weight of the base style.
+const TEXT_KEYS = ['fontSize', 'fontWeight'];
 
 function nearestWeight(w: unknown): Weight {
   const n = w === 'bold' ? 700 : w === 'normal' || w == null ? 400 : parseInt(String(w), 10) || 400;
@@ -191,7 +193,7 @@ function nearestWeight(w: unknown): Weight {
 
 /**
  * Puts an existing screen's text on the brand fonts: every style that styles
- * text (has a font size, weight, color…) gets the Inter file for its weight,
+ * text (has a font size or weight) gets the Inter file for its weight,
  * and big bold titles (20px+, semibold or heavier) get Inter Tight. Wrap a screen's style object before StyleSheet.create:
  *   StyleSheet.create(brandStyles({ ... }))
  * Styles that already set a fontFamily (icons, Arabic) are left alone.
