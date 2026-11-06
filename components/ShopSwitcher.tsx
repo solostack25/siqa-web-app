@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme, type AppColors } from '../lib/theme';
+import { brandStyles } from '../lib/ds';
 
 /**
  * Shop has two sides: Products (Marketplace, bought and shipped through
@@ -34,11 +35,11 @@ export function ShopSwitcher({ active, stretch = false }: { active: 'products' |
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     wrap: { flexDirection: 'row', alignSelf: 'flex-start', padding: 4, gap: 2, borderRadius: 999, backgroundColor: C.surface2 },
     btn: { minHeight: 36, paddingHorizontal: 16, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
     btnOn: { backgroundColor: C.surface, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
     text: { fontSize: 14, color: C.text2, fontWeight: '500' },
     textOn: { color: C.text, fontWeight: '700' },
-  });
+  }));
 }

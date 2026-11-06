@@ -20,9 +20,11 @@ type Props = {
   onSuccess: (paymentIntentId: string) => void;
   onCancel: () => void;
   confirmLabel?: string;
+  /** gold for donations (default), primary for purchases. */
+  confirmVariant?: 'gold' | 'primary';
 };
 
-function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel, confirmLabel = 'Confirm donation' }: Props) {
+function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel, confirmLabel = 'Confirm donation', confirmVariant = 'gold' }: Props) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -76,7 +78,7 @@ function InnerCardForm({ clientSecret, colors: C, isDark, onSuccess, onCancel, c
 
       <View style={styles.btnRow}>
         <Button label="Cancel" variant="secondary" onPress={onCancel} disabled={submitting} style={{ flex: 1 }} />
-        <Button label={confirmLabel} variant="gold" onPress={handleConfirm} loading={submitting} disabled={!stripe} style={{ flex: 1.6 }} />
+        <Button label={confirmLabel} variant={confirmVariant} onPress={handleConfirm} loading={submitting} disabled={!stripe} style={{ flex: 1.6 }} />
       </View>
     </View>
   );

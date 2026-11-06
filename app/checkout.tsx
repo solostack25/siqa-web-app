@@ -20,6 +20,8 @@ import { Icon } from '../components/Icon';
 import { formatPrice } from '../lib/money';
 import { SITE_ORIGIN } from '../lib/donateLink';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { brandStyles } from '../lib/ds';
+import { Button, IconButton } from '../components/ui';
 
 // Same platform split as donate.tsx: Stripe's native module doesn't
 // support web, and stripe-js touches browser globals — only load
@@ -285,9 +287,7 @@ export default function CheckoutScreen() {
 
   const header = (
     <View style={styles.header}>
-      <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()} accessibilityLabel="Back">
-        <Icon name="arrow-back" size={20} color={C.text} />
-      </TouchableOpacity>
+      <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => router.back()} />
       <Text style={styles.headerTitle}>Checkout</Text>
     </View>
   );
@@ -379,12 +379,11 @@ export default function CheckoutScreen() {
         // Apple's in-app purchase. Third-party digital downloads finish on
         // siqa.us in Safari instead (US storefront allows the link-out).
         <>
-          <TouchableOpacity
-            style={styles.payBtn}
+          <Button
+            label="Finish purchase on siqa.us"
+            iconRight="open-outline"
             onPress={() => Linking.openURL(productId ? `${SITE_ORIGIN}/product/${productId}` : `${SITE_ORIGIN}/cart`)}
-          >
-            <Text style={styles.payBtnText}>Finish purchase on siqa.us</Text>
-          </TouchableOpacity>
+          />
           <Text style={styles.secureNote}>Digital items are purchased on our website. Opens in Safari.</Text>
         </>
       ) : webClientSecret ? (
@@ -393,25 +392,14 @@ export default function CheckoutScreen() {
           colors={C}
           isDark={isDark}
           confirmLabel="Confirm purchase"
+          confirmVariant="primary"
           onSuccess={() => onPaymentSuccess()}
           onCancel={() => setWebClientSecret(null)}
         />
       ) : quote ? (
-        <TouchableOpacity
-          style={[styles.payBtn, placingOrder && styles.payBtnDisabled]}
-          onPress={createIntent}
-          disabled={placingOrder}
-        >
-          {placingOrder ? <ActivityIndicator color={C.black} /> : <Text style={styles.payBtnText}>Pay {formatPrice(quote.totalCents)}</Text>}
-        </TouchableOpacity>
+        <Button label={`Pay ${formatPrice(quote.totalCents)}`} icon="lock-closed" onPress={createIntent} loading={placingOrder} />
       ) : (
-        <TouchableOpacity
-          style={[styles.payBtn, (!addressComplete || quoting) && styles.payBtnDisabled]}
-          onPress={getQuote}
-          disabled={!addressComplete || quoting}
-        >
-          {quoting ? <ActivityIndicator color={C.black} /> : <Text style={styles.payBtnText}>Calculate total</Text>}
-        </TouchableOpacity>
+        <Button label="Calculate total" onPress={getQuote} loading={quoting} disabled={!addressComplete} />
       )}
       <Text style={styles.secureNote}>Payments are processed securely by Stripe.</Text>
     </View>
@@ -449,7 +437,7 @@ export default function CheckoutScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     scroll: { paddingBottom: 60, maxWidth: 600, width: '100%', alignSelf: 'center' },
@@ -503,5 +491,5 @@ function makeStyles(C: AppColors) {
     payBtn: { backgroundColor: C.gold, borderRadius: 999, paddingVertical: 15, alignItems: 'center' },
     payBtnDisabled: { opacity: 0.5 },
     payBtnText: { color: C.black, fontSize: Theme.fontSize.lg, fontWeight: '800' },
-  });
+  }));
 }

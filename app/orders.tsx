@@ -18,6 +18,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { formatPrice as formatMoney } from '../lib/money';
+import { brandStyles, font } from '../lib/ds';
 
 type Order = {
   id: string;
@@ -128,7 +129,7 @@ export default function OrdersScreen() {
             <Glyph name="cube-outline" style={styles.emptyEmoji} />
             <Text style={styles.emptyText}>No orders yet</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)} style={{ marginTop: 8 }}>
-              <Text style={{ color: C.gold, fontWeight: '700' }}>Browse the Marketplace</Text>
+              <Text style={{ color: C.gold, ...font(700) }}>Browse the Marketplace</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -218,7 +219,7 @@ export default function OrdersScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 6 },
     emptyEmoji: { fontSize: 36 },
@@ -266,5 +267,5 @@ function makeStyles(C: AppColors) {
     cancelNote: { fontSize: 12, color: C.text2, marginTop: 2 },
     submitReviewBtn: { backgroundColor: C.gold, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
     submitReviewBtnText: { fontSize: 12, fontWeight: '800', color: C.black },
-  });
+  }));
 }
