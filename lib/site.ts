@@ -52,3 +52,18 @@ export function isBlockedOnSite(pathname: string): boolean {
   if (pathname === '/' || pathname === '') return true;
   return BLOCKED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'));
 }
+
+/**
+ * The public address to put in links we hand out (share, password reset).
+ * Old installs still run on gems./marketplace.thesiqaapp.com — e.g. a
+ * home-screen app installed before the move — so never echo those hosts;
+ * map them to siqa.us. Previews and localhost keep their own origin.
+ */
+export function canonicalOrigin(): string {
+  const fallback = IS_MARKETPLACE_SITE ? 'https://shop.siqa.us' : 'https://www.siqa.us';
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location) return 'https://www.siqa.us';
+  const host = window.location.hostname.toLowerCase();
+  if (host === 'siqa.us' || host.endsWith('.siqa.us')) return window.location.origin;
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.vercel.app')) return window.location.origin;
+  return fallback;
+}

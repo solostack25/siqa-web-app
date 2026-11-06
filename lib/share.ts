@@ -1,5 +1,6 @@
 import { Share, Platform } from 'react-native';
 import { showToast } from '../components/Toast';
+import { canonicalOrigin } from './site';
 
 /**
  * Base URL used to build shareable links.
@@ -12,9 +13,7 @@ import { showToast } from '../components/Toast';
 export const NATIVE_SHARE_BASE_URL = 'https://www.siqa.us';
 
 export function getAppBaseUrl(): string {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location) {
-    return window.location.origin;
-  }
+  if (Platform.OS === 'web') return canonicalOrigin();
   return NATIVE_SHARE_BASE_URL;
 }
 
