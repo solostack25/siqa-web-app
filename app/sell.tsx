@@ -17,7 +17,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell } from '../components/DesktopShell';
-import { brandStyles } from '../lib/ds';
+import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
 
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
@@ -192,7 +192,7 @@ export default function SellScreen() {
             onPress={saveShop}
             disabled={!shopName.trim() || saving}
           >
-            {saving ? <ActivityIndicator color={C.black} /> : <Text style={styles.primaryBtnText}>Continue</Text>}
+            {saving ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>Continue</Text>}
           </TouchableOpacity>
         </View>
       ) : step === 2 ? (
@@ -213,7 +213,7 @@ export default function SellScreen() {
             onPress={connectStripe}
             disabled={connecting}
           >
-            {connecting ? <ActivityIndicator color={C.black} /> : <Text style={styles.primaryBtnText}>Connect with Stripe</Text>}
+            {connecting ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>Connect with Stripe</Text>}
           </TouchableOpacity>
         </View>
       ) : (
@@ -272,8 +272,8 @@ function makeStyles(C: AppColors) {
     },
     textArea: { minHeight: 90, textAlignVertical: 'top' },
 
-    primaryBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+    primaryBtn: buttonStyles('primary', 'lg').box,
     btnDisabled: { opacity: 0.6 },
-    primaryBtnText: { color: C.black, fontSize: 15, fontWeight: '800' },
+    primaryBtnText: buttonStyles('primary', 'lg').text,
   }));
 }

@@ -19,7 +19,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { formatPrice as formatMoney } from '../lib/money';
-import { brandStyles } from '../lib/ds';
+import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
 
 type Seller = { id: string; shop_name: string; approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null };
 type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
@@ -190,7 +190,7 @@ export default function SellerDashboardScreen() {
             </Text>
           </View>
           <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/listing-create' as any)}>
-            <Icon name="add" size={20} color={C.black} />
+            <Icon name="add" size={20} color={dsStatic().c.onPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -329,7 +329,7 @@ export default function SellerDashboardScreen() {
                           <View style={styles.orderActions}>
                             <TouchableOpacity style={styles.dangerBtn} onPress={() => confirmCancel(order)} disabled={busyId === order.id}>
                               {busyId === order.id
-                                ? <ActivityIndicator size="small" color="#fff" />
+                                ? <ActivityIndicator size="small" color={dsStatic().c.danger} />
                                 : <Text style={styles.dangerBtnText}>{order.status === 'pending' ? 'Cancel order' : 'Cancel & refund'}</Text>}
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.smallBtnGhost} onPress={() => setCancellingId(null)} disabled={busyId === order.id}>
@@ -423,7 +423,7 @@ function makeStyles(C: AppColors) {
     },
     headerTitle: { fontSize: Theme.fontSize.lg, fontWeight: '700', color: C.text },
     headerSub: { fontSize: 11, color: C.text3, marginTop: 1 },
-    addBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
+    addBtn: { ...buttonStyles('primary', 'md').box, width: 44, paddingHorizontal: 0 },
 
     notice: {
       marginHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.md,
@@ -463,8 +463,8 @@ function makeStyles(C: AppColors) {
       fontSize: 13, color: C.text, backgroundColor: C.bg, textAlignVertical: 'top',
     },
     cancelErrorText: { fontSize: 12, color: C.live },
-    dangerBtn: { backgroundColor: C.live, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, minWidth: 110, alignItems: 'center' },
-    dangerBtnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+    dangerBtn: buttonStyles('danger', 'sm').box,
+    dangerBtnText: buttonStyles('danger', 'sm').text,
     shipTo: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: C.surface2 },
     shipToLabel: { fontSize: 10, fontWeight: '700', color: C.text3, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
     shipToText: { fontSize: 12, color: C.text, lineHeight: 17 },
@@ -482,9 +482,9 @@ function makeStyles(C: AppColors) {
     },
     orderStatus: { fontSize: 10, fontWeight: '800', marginTop: 4, letterSpacing: 0.5 },
     orderActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-    smallBtn: { backgroundColor: C.gold, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-    smallBtnText: { fontSize: 11, fontWeight: '800', color: C.black },
-    smallBtnGhost: { borderWidth: 0.5, borderColor: C.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-    smallBtnGhostText: { fontSize: 11, fontWeight: '700', color: C.text2 },
+    smallBtn: buttonStyles('primary', 'sm').box,
+    smallBtnText: buttonStyles('primary', 'sm').text,
+    smallBtnGhost: buttonStyles('secondary', 'sm').box,
+    smallBtnGhostText: buttonStyles('secondary', 'sm').text,
   }));
 }

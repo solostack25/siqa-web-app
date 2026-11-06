@@ -12,7 +12,7 @@ import {
   Inter_800ExtraBold,
 } from '@expo-google-fonts/inter';
 import { InterTight_600SemiBold, InterTight_700Bold, InterTight_800ExtraBold } from '@expo-google-fonts/inter-tight';
-import { useTheme } from './theme';
+import { currentIsDark, useTheme } from './theme';
 
 // ── Fonts ──────────────────────────────────────────────────────────────
 // Inter for everything you read; Inter Tight (tighter, heavier) for titles
@@ -213,4 +213,44 @@ export function brandStyles<T extends Record<string, any>>(styles: T): T {
     }
   }
   return out as T;
+}
+
+// ── Static access (for StyleSheet factories outside React hooks) ──────
+/** Brand colors/shadows for the current theme, for makeStyles(C) functions. */
+export function dsStatic(): DS {
+  const isDark = currentIsDark;
+  const mode = isDark ? 'dark' : 'light';
+  return { c: isDark ? dark : light, isDark, shadow: (name) => ({ boxShadow: SHADOWS[mode][name] } as ViewStyle) };
+}
+
+/**
+ * Button look as plain styles, for older screens that draw their own
+ * TouchableOpacity buttons: style={styles.primaryBtn} + styles.primaryBtnText.
+ * Prefer <Button> from components/ui in new code.
+ */
+export function buttonStyles(variant: 'primary' | 'gold' | 'secondary' | 'soft' | 'danger', sz: 'lg' | 'md' | 'sm' = 'md') {
+  const { c, shadow } = dsStatic();
+  const look = {
+    primary: { bg: c.primary, fg: c.onPrimary, sh: 'primary' as const },
+    gold: { bg: c.gold, fg: c.onGold, sh: 'gold' as const },
+    secondary: { bg: c.surface, fg: c.ink, border: c.line, sh: 'hairline' as const },
+    soft: { bg: c.surfaceSoft, fg: c.ink },
+    danger: { bg: c.dangerTint, fg: c.danger },
+  }[variant] as { bg: string; fg: string; border?: string; sh?: ShadowName };
+  const h = sz === 'lg' ? size.controlLg : sz === 'md' ? size.controlMd : size.controlSm;
+  const box: ViewStyle = {
+    minHeight: h,
+    paddingHorizontal: sz === 'sm' ? 14 : 18,
+    borderRadius: sz === 'lg' ? radius.lg : radius.pill,
+    backgroundColor: look.bg,
+    borderWidth: look.border ? 1 : 0,
+    borderColor: look.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    ...(look.sh ? shadow(look.sh) : null),
+  };
+  const text: TextStyle = { ...(sz === 'lg' ? type.buttonLg : sz === 'md' ? type.buttonMd : type.buttonSm), color: look.fg };
+  return { box, text, fg: look.fg };
 }

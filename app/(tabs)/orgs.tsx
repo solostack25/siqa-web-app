@@ -24,7 +24,7 @@ import {
   ORG_CATEGORY_LABEL, ORG_FILTERS, categoryFromOrgType, type OrgCategory,
 } from '../../lib/orgCategories';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
-import { brandStyles, font } from '../../lib/ds';
+import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
 
 /**
  * Organizations directory.
@@ -272,7 +272,7 @@ function OrgsScreenInner() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/org-register' as any)} accessibilityLabel="Register an organization">
-                <Icon name="add" size={18} color="#fff" />
+                <Icon name="add" size={18} color={dsStatic().c.onPrimary} />
                 <Text style={styles.primaryBtnText}>{isDesktopWeb ? 'Register an organization' : 'Register'}</Text>
               </TouchableOpacity>
             </View>
@@ -568,16 +568,10 @@ function makeStyles(C: AppColors, desktop: boolean) {
     statVal: { fontWeight: '700', color: C.text },
     headerBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 
-    primaryBtn: {
-      minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    },
-    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    ghostBtn: {
-      minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border,
-      backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center',
-    },
-    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+    primaryBtn: buttonStyles('primary', 'md').box,
+    primaryBtnText: buttonStyles('primary', 'md').text,
+    ghostBtn: buttonStyles('secondary', 'md').box,
+    ghostBtnText: buttonStyles('secondary', 'md').text,
 
     filterCard: {
       gap: 14, padding: desktop ? 18 : 14, borderRadius: 18, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface,

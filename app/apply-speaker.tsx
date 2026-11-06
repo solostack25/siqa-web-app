@@ -17,7 +17,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { Glyph } from '../components/Glyph';
 import { DesktopShell } from '../components/DesktopShell';
-import { brandStyles } from '../lib/ds';
+import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
 
 /**
  * Apply to be a speaker. Siqa exists so people can trust who they're
@@ -244,7 +244,7 @@ export default function ApplySpeakerScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <TouchableOpacity style={[styles.primaryBtn, saving && { opacity: 0.6 }]} onPress={submit} disabled={saving}>
-            {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>Submit application</Text>}
+            {saving ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>Submit application</Text>}
           </TouchableOpacity>
           <Text style={styles.hint}>Your phone and email are only seen by the Siqa team.</Text>
         </View>
@@ -285,9 +285,7 @@ function makeStyles(C: AppColors) {
     inputMulti: { minHeight: 88, textAlignVertical: 'top' },
     hint: { fontSize: 12, color: C.text3 },
     error: { color: C.danger, fontSize: Theme.fontSize.sm },
-    primaryBtn: {
-      backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 13, alignItems: 'center', marginTop: 4,
-    },
-    primaryBtnText: { color: '#000', fontWeight: '700', fontSize: Theme.fontSize.md },
+    primaryBtn: buttonStyles('primary', 'lg').box,
+    primaryBtnText: buttonStyles('primary', 'lg').text,
   }));
 }

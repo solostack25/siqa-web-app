@@ -7,7 +7,7 @@ import { HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { categoryLabel, isFeatured } from '../../lib/businessCategories';
-import { brandStyles } from '../../lib/ds';
+import { brandStyles, buttonStyles, dsStatic } from '../../lib/ds';
 
 type MyListing = { id: string; name: string; category: string; status: string; featured_until: string | null };
 type Inquiry = { id: string; listing_id: string; sender_name: string | null; reply_to: string | null; message: string; read_at: string | null; created_at: string };
@@ -131,7 +131,7 @@ export default function LocalInboxScreen() {
             <View style={styles.row}>
               {q.reply_to ? (
                 <TouchableOpacity style={styles.primaryBtn} onPress={() => reply(q)}>
-                  <Icon name={q.reply_to.includes('@') ? 'mail-outline' : 'call-outline'} size={16} color="#fff" />
+                  <Icon name={q.reply_to.includes('@') ? 'mail-outline' : 'call-outline'} size={16} color={dsStatic().c.onPrimary} />
                   <Text style={styles.primaryBtnText}>Reply to {q.reply_to}</Text>
                 </TouchableOpacity>
               ) : <Text style={styles.small}>No reply contact given.</Text>}
@@ -188,9 +188,9 @@ function makeStyles(C: AppColors, desktop: boolean) {
     msgHead: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8 },
     msgFrom: { fontSize: 15, fontWeight: '700', color: C.text },
     msgBody: { fontSize: 15, lineHeight: 22, color: C.text },
-    primaryBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: C.gold, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
-    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+    primaryBtn: buttonStyles('primary', 'md').box,
+    primaryBtnText: buttonStyles('primary', 'md').text,
+    ghostBtn: buttonStyles('secondary', 'md').box,
+    ghostBtnText: buttonStyles('secondary', 'md').text,
   }));
 }

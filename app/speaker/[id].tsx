@@ -23,7 +23,7 @@ import { Icon } from '../../components/Icon';
 import { shareSpeaker } from '../../lib/share';
 import ImageCropModal from '../../components/ImageCropModal';
 import { ClaimNotice, UnclaimedBadge } from '../../components/ClaimNotice';
-import { brandStyles, font } from '../../lib/ds';
+import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
 import { Button } from '../../components/ui';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
@@ -433,7 +433,7 @@ export default function SpeakerProfileScreen() {
       {followButton}
       {isOwner && (
         <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/studio' as any)}>
-          <Icon name="stats-chart-outline" size={16} color="#fff" />
+          <Icon name="stats-chart-outline" size={16} color={dsStatic().c.onPrimary} />
           <Text style={styles.primaryBtnText}>Open Studio</Text>
         </TouchableOpacity>
       )}
@@ -641,7 +641,7 @@ export default function SpeakerProfileScreen() {
                 style={styles.primaryBtn}
                 onPress={() => Linking.openURL(`mailto:${speaker.booking_email}?subject=${encodeURIComponent('Speaking request via Siqa')}`)}
               >
-                <Icon name="mail-outline" size={16} color="#fff" />
+                <Icon name="mail-outline" size={16} color={dsStatic().c.onPrimary} />
                 <Text style={styles.primaryBtnText}>Request a talk</Text>
               </TouchableOpacity>
             )}
@@ -853,16 +853,10 @@ function makeStyles(C: AppColors, desktop: boolean) {
     followBtnActive: { backgroundColor: C.emeraldBg, borderWidth: 1, borderColor: C.emerald },
     followBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
     followBtnTextActive: { color: C.emerald },
-    primaryBtn: {
-      height: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    },
-    primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-    ghostBtn: {
-      height: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.surface,
-    },
-    ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
+    primaryBtn: buttonStyles('primary', 'md').box,
+    primaryBtnText: buttonStyles('primary', 'md').text,
+    ghostBtn: buttonStyles('secondary', 'md').box,
+    ghostBtnText: buttonStyles('secondary', 'md').text,
     iconBtn: {
       width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: C.border,
       alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface,
