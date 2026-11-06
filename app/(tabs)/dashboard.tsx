@@ -25,12 +25,15 @@ import { Glyph, type GlyphName } from '../../components/Glyph';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import ImageCropModal from '../../components/ImageCropModal';
 import { EndorsementInbox } from '../../components/SeedSocial';
+import { ProfileMobileView } from '../../components/ProfileMobileView';
+import { confirmDialog, notifyDialog } from '../../lib/dialogs';
 
 type Profile = {
   id: string;
   full_name: string | null;
   role: string | null;
   email: string | null;
+  avatar_url?: string | null;
 };
 
 type Speaker = {
@@ -181,6 +184,8 @@ function DashboardScreenInner() {
   const [savingName, setSavingName] = useState(false);
   const [expandedSaved, setExpandedSaved] = useState(false);
   const [expandedDonations, setExpandedDonations] = useState(false);
+  const [adminPending, setAdminPending] = useState<number | null>(null);
+  const [hasBusiness, setHasBusiness] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -201,7 +206,7 @@ function DashboardScreenInner() {
 
     const { data: profileData } = await supabase
       .from('profiles')
-      .select('id, full_name, role')
+      .select('id, full_name, role, avatar_url')
       .eq('id', uid)
       .single();
 
@@ -255,7 +260,7 @@ function DashboardScreenInner() {
           .eq('speaker_id', speakerData.id)
           .eq('is_published', true)
           .order('published_at', { ascending: false })
-          .limit(6),
+          .limit(30),
         supabase.from('follows')
           .select('*', { count: 'exact', head: true })
           .eq('following_id', uid),
@@ -285,6 +290,23 @@ function DashboardScreenInner() {
       .order('created_at', { ascending: false })
       .limit(10);
     if (donationsData) setDonations(donationsData);
+
+    const { data: biz } = await supabase.from('business_listings').select('id').eq('owner_id', uid).limit(1);
+    setHasBusiness(Boolean(biz && biz.length));
+
+    if (profileData && isAdminRole(profileData.role)) {
+      // Same queues as the admin screen; head-only counts.
+      const counts = await Promise.all([
+        supabase.from('videos').select('id', { count: 'exact', head: true }).in('status', ['pending', 'submitted']),
+        supabase.from('speaker_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('profile_claims').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('marketplace_sellers').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
+        supabase.from('content_reports').select('id', { count: 'exact', head: true }).or('status.is.null,status.eq.open,status.eq.pending'),
+      ]);
+      setAdminPending(counts.reduce((sum, r) => sum + (r.count ?? 0), 0));
+    } else {
+      setAdminPending(null);
+    }
 
     setLoading(false);
     setRefreshing(false);
@@ -328,25 +350,12 @@ function DashboardScreenInner() {
   const canCreateSeeds = Boolean(organization) || isOrgRole(role) || isAdminRole(role);
 
   async function deleteGem(id: string) {
-    Alert.alert(
-      'Delete Gem?',
-      'This will permanently delete this video. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const { error } = await supabase.from('videos').delete().eq('id', id);
-            if (error) {
-              Alert.alert('Error', 'Could not delete this Gem. Please try again.');
-              return;
-            }
-            setGems(prev => prev.filter(g => g.id !== id));
-          },
-        },
-      ]
-    );
+    const ok = await confirmDialog('Delete Gem?', 'This will permanently delete this video. This cannot be undone.', 'Delete');
+    if (!ok) return;
+    const { error } = await supabase.from('videos').delete().eq('id', id);
+    if (error) { notifyDialog('Error', 'Could not delete this Gem. Please try again.'); return; }
+    setGems(prev => prev.filter(g => g.id !== id));
+    setLiveVideoCount(n => (n == null ? n : Math.max(0, n - 1)));
   }
   async function pickGemThumbnail(gemId: string) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -405,327 +414,51 @@ function DashboardScreenInner() {
         { key: 'donations', label: 'Donations' },
       ];
 
+  const cropModal = (
+    <ImageCropModal
+      visible={Boolean(thumbCropUri)}
+      imageUri={thumbCropUri ?? ''}
+      aspectRatio={9 / 16}
+      outputWidth={720}
+      onCancel={() => { setThumbCropUri(null); setThumbCropGemId(null); }}
+      onCropped={handleThumbCropped}
+    />
+  );
+
   if (!isDesktopWeb) {
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scroll}
-      refreshControl={
-        <RefreshControl
+    return (
+      <>
+        <ProfileMobileView
+          name={profile.full_name || 'Welcome'}
+          email={profile.email}
+          avatarUrl={profile.avatar_url ?? null}
+          roleLabels={[
+            ...(isAdminRole(role) ? ['Admin'] : []),
+            ...(speaker ? [speaker.is_verified ? 'Verified speaker' : 'Speaker'] : []),
+            ...(organization ? [organization.org_name] : []),
+          ]}
+          speakerId={speaker?.id ?? null}
+          organization={organization ? { id: organization.id, org_name: organization.org_name } : null}
+          canCreateSeeds={canCreateSeeds}
+          isAdmin={isAdminRole(role)}
+          adminPending={adminPending}
+          hasBusiness={hasBusiness}
+          followers={liveFollowerCount}
+          gemCount={liveVideoCount}
+          raisedCents={speaker?.total_raised ?? 0}
+          gems={gems}
+          saved={savedGems}
+          seeds={orgSeeds}
+          donations={donations}
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); loadDashboard(); }}
-          tintColor={C.gold}
+          onChangeCover={pickGemThumbnail}
+          onDeleteGem={deleteGem}
+          uploadingThumbFor={uploadingThumbFor}
         />
-      }
-    >
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.logo}>صِقا</Text>
-          <Text style={styles.logoSub}>SIQA</Text>
-        </View>
-        <TouchableOpacity style={styles.gearBtn} onPress={() => router.push('/settings' as any)}>
-          <Icon name="settings-outline" size={17} color={C.text} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.profileCard}>
-        <View style={styles.profileAvatar}>
-          <Text style={styles.profileAvatarText}>{initial}</Text>
-        </View>
-        <View style={styles.profileInfo}>
-          <Text style={styles.profileName}>{profile.full_name || 'Welcome'}</Text>
-          <Text style={styles.profileEmail}>{profile.email}</Text>
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>
-              {profile.role?.toUpperCase() || 'MEMBER'}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Quick actions — a scrollable pill row instead of several
-          full-width cards stacked on top of each other. */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsScroll} contentContainerStyle={styles.pillsRow}>
-        {speaker && (
-          <TouchableOpacity style={styles.pillBtnPrimary} onPress={() => router.push('/gem-upload')}>
-            <Text style={styles.pillBtnPrimaryText}>+ Post a Gem</Text>
-          </TouchableOpacity>
-        )}
-        {speaker && (
-          <TouchableOpacity style={styles.pillBtn} onPress={() => router.push(`/speaker/${speaker.id}` as any)}>
-            <Text style={styles.pillBtnText}>My Public Profile</Text>
-          </TouchableOpacity>
-        )}
-        {speaker && (
-          <TouchableOpacity style={styles.pillBtn} onPress={() => router.push('/studio' as any)}>
-            <Text style={styles.pillBtnText}>Speaker Studio</Text>
-          </TouchableOpacity>
-        )}
-        {canCreateSeeds && (
-          <TouchableOpacity style={styles.pillBtn} onPress={() => router.push('/seed-create' as any)}>
-            <Text style={styles.pillBtnText}>+ Create Seed</Text>
-          </TouchableOpacity>
-        )}
-        {canCreateSeeds && organization && (
-          <TouchableOpacity
-            style={styles.pillBtn}
-            onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
-          >
-            <Text style={styles.pillBtnText}>{organization.org_name}</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
-
-      {speaker && (
-        <View style={styles.statsGrid}>
-          {[
-            { val: formatCount(liveFollowerCount), label: 'Followers' },
-            { val: formatMoney(speaker.total_raised), label: 'Total Raised' },
-            { val: (liveVideoCount ?? 0).toString(), label: 'Gems' },
-          ].map((s, i) => (
-            <View key={i} style={styles.statCard}>
-              <Text style={styles.statVal}>{s.val}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {speaker && <EndorsementInbox speakerId={speaker.id} style={{ marginHorizontal: 16, marginBottom: 16 }} />}
-
-      {/* ── My Gems ── */}
-      {speaker && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>My Gems</Text>
-            {gems.length > 0 && (
-              <TouchableOpacity onPress={() => router.push(`/speaker/${speaker.id}` as any)}>
-                <Text style={styles.viewAllText}>View all ›</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {gems.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Glyph name="film-outline" style={styles.emptyEmoji} />
-              <Text style={styles.emptyTitle}>No gems yet</Text>
-              <Text style={styles.emptySub}>Post your first clip to get started.</Text>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hzRow}>
-              {gems.map(v => (
-                <TouchableOpacity
-                  key={v.id}
-                  style={styles.hzGemCard}
-                  activeOpacity={0.86}
-                  onPress={() => router.push({ pathname: '/(tabs)/gems', params: { videoId: v.id } } as any)}
-                >
-                  <View style={styles.hzGemThumb}>
-                    {v.thumbnail_url ? (
-                      <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.addThumbBtn}
-                        onPress={(e) => { e.stopPropagation(); pickGemThumbnail(v.id); }}
-                        disabled={uploadingThumbFor === v.id}
-                      >
-                        {uploadingThumbFor === v.id ? (
-                          <ActivityIndicator size="small" color={C.text} />
-                        ) : (
-                          <>
-                            <Icon name="image-outline" size={18} color={C.text3} />
-                            <Text style={styles.addThumbBtnText}>Add thumbnail</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                    <View style={styles.gemPlayIcon}>
-                      <Text style={styles.gemPlayText}>▶</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.gemDeleteBtn}
-                      onPress={(e) => { e.stopPropagation(); deleteGem(v.id); }}
-                    >
-                      <Text style={styles.gemDeleteBtnText}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.gemInfo}>
-                    <Text style={styles.gemTitle} numberOfLines={2}>{v.title}</Text>
-                    <View style={styles.gemMeta}>
-                      <Text style={styles.gemMetaText}>▶ {formatCount(v.view_count)}</Text>
-                      <Text style={styles.gemMetaText}>♡ {formatCount(v.like_count)}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
-      {/* ── Seeds (organization fundraisers) ── */}
-      {canCreateSeeds && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Seeds</Text>
-            {orgSeeds.length > 0 && organization && (
-              <TouchableOpacity onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}>
-                <Text style={styles.viewAllText}>View all ›</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {orgSeeds.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Glyph name="leaf-outline" style={styles.emptyEmoji} />
-              <Text style={styles.emptyTitle}>No seeds yet</Text>
-              <Text style={styles.emptySub}>Create a donation appeal to get started.</Text>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hzRow}>
-              {orgSeeds.map(s => (
-                <TouchableOpacity
-                  key={s.id}
-                  style={styles.hzSeedCard}
-                  activeOpacity={0.86}
-                  onPress={() => router.push({ pathname: '/seed/[id]', params: { id: s.id } } as any)}
-                >
-                  <View style={styles.hzSeedThumb}>
-                    {(s.cover_image_url || s.image_url) ? (
-                      <Image source={{ uri: (s.cover_image_url || s.image_url) as string }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                    ) : (
-                      <Glyph name="leaf-outline" style={styles.seedThumbEmoji} color={C.gold} />
-                    )}
-                  </View>
-                  <Text style={styles.gemTitle} numberOfLines={2}>{s.title}</Text>
-                  <Text style={styles.gemMetaText}>
-                    {formatMoney(s.raised_amount)} of {formatMoney(s.goal_amount)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
-      {/* ── Saved Gems ── */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Saved Gems</Text>
-          {savedGems.length > 0 && (
-            <TouchableOpacity onPress={() => setExpandedSaved(v => !v)}>
-              <Text style={styles.viewAllText}>{expandedSaved ? 'Show less' : 'View all ›'}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {savedGems.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Glyph name="bookmark-outline" style={styles.emptyEmoji} />
-            <Text style={styles.emptyTitle}>No saved gems</Text>
-            <Text style={styles.emptySub}>Tap the bookmark on any clip to save it.</Text>
-          </View>
-        ) : expandedSaved ? (
-          <View style={[styles.gemsGrid, { paddingHorizontal: Theme.spacing.xl }]}>
-            {savedGems.map(v => (
-              <TouchableOpacity
-                key={v.id}
-                style={styles.gemCard}
-                activeOpacity={0.86}
-                onPress={() => router.push({ pathname: '/(tabs)/gems', params: { videoId: v.id } } as any)}
-              >
-                <View style={styles.gemThumb}>
-                  {v.thumbnail_url ? (
-                    <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                  ) : null}
-                  <View style={styles.gemPlayIcon}>
-                    <Text style={styles.gemPlayText}>▶</Text>
-                  </View>
-                </View>
-                <View style={styles.gemInfo}>
-                  <Text style={styles.gemTitle} numberOfLines={2}>{v.title}</Text>
-                  <Text style={styles.gemMetaText}>▶ {formatCount(v.view_count)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hzRow}>
-            {savedGems.map(v => (
-              <TouchableOpacity
-                key={v.id}
-                style={styles.hzGemCard}
-                activeOpacity={0.86}
-                onPress={() => router.push({ pathname: '/(tabs)/gems', params: { videoId: v.id } } as any)}
-              >
-                <View style={styles.hzGemThumb}>
-                  {v.thumbnail_url ? (
-                    <Image source={{ uri: v.thumbnail_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                  ) : null}
-                  <View style={styles.gemPlayIcon}>
-                    <Text style={styles.gemPlayText}>▶</Text>
-                  </View>
-                </View>
-                <View style={styles.gemInfo}>
-                  <Text style={styles.gemTitle} numberOfLines={2}>{v.title}</Text>
-                  <Text style={styles.gemMetaText}>▶ {formatCount(v.view_count)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
-      </View>
-
-      {/* ── Donations ── */}
-      <View style={[styles.section, { marginBottom: Theme.spacing.xl }]}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Donations</Text>
-          {donations.length > 3 && (
-            <TouchableOpacity onPress={() => setExpandedDonations(v => !v)}>
-              <Text style={styles.viewAllText}>{expandedDonations ? 'Show less' : 'View all ›'}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        {donations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Glyph name="heart-outline" style={styles.emptyEmoji} />
-            <Text style={styles.emptyTitle}>No donations yet</Text>
-            <Text style={styles.emptySub}>Your donation history will appear here.</Text>
-            <TouchableOpacity
-              style={styles.browseSeedsBtn}
-              onPress={() => router.push('/(tabs)/seeds' as any)}
-            >
-              <Text style={styles.browseSeedsBtnText}>Browse Seeds</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={[styles.listWrap, { paddingHorizontal: Theme.spacing.xl }]}>
-            {(expandedDonations ? donations : donations.slice(0, 3)).map(d => (
-              <View key={d.id} style={styles.donationCard}>
-                <View style={styles.donationLeft}>
-                  <Text style={styles.donationAmount}>{formatMoney(d.amount)}</Text>
-                  <Text style={styles.donationCampaign} numberOfLines={1}>
-                    {d.campaign_title || 'Donation'}
-                  </Text>
-                  <Text style={styles.donationTime}>{timeAgo(d.created_at)}</Text>
-                </View>
-                <View style={[
-                  styles.donationStatus,
-                  d.status === 'completed' && styles.donationStatusCompleted,
-                ]}>
-                  <Text style={[
-                    styles.donationStatusText,
-                    d.status === 'completed' && styles.donationStatusTextCompleted,
-                  ]}>
-                    {d.status === 'completed' ? '✓ Paid' : d.status}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-
-      <View style={{ height: 100 }} />
-    </ScrollView>
-  );
+        {cropModal}
+      </>
+    );
   }
 
   // ─── DESKTOP LAYOUT ──────────────────────────────────────────
