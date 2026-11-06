@@ -73,6 +73,9 @@ type ReportRow = {
   created_at?: string | null;
   video_id?: string | null;
   profile_id?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  details?: string | null;
 };
 
 type SpeakerApplication = {
@@ -198,7 +201,7 @@ export default function AdminScreen() {
 
       const reportsRes = await supabase
         .from('content_reports')
-        .select('id, reason, status, created_at, video_id, profile_id')
+        .select('id, reason, status, created_at, video_id, profile_id, target_type, target_id, details')
         .or('status.is.null,status.eq.open,status.eq.pending')
         .order('created_at', { ascending: false })
         .limit(30);
@@ -579,7 +582,7 @@ export default function AdminScreen() {
 
       <QueueSection title="Reports" count={reports.length} C={C}>
         {reports.length === 0 ? <Empty text="No open reports." C={C} /> : reports.map((r) => (
-          <SimpleRow key={r.id} title={r.reason || 'Reported content'} sub={`Video: ${r.video_id || 'unknown'}`} action="Close" busy={busyId === r.id} onPress={() => closeReport(r.id)} C={C} />
+          <SimpleRow key={r.id} title={r.reason || 'Reported content'} sub={r.target_type === 'comment' ? `Comment: “${(r.details || '').slice(0, 140)}”` : `Video: ${r.video_id || 'unknown'}`} action="Close" busy={busyId === r.id} onPress={() => closeReport(r.id)} C={C} />
         ))}
       </QueueSection>
 
