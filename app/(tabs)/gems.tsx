@@ -1,3 +1,4 @@
+import { openDonation } from "../../lib/donateLink";
 import { Redirect } from 'expo-router';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
@@ -1198,10 +1199,9 @@ function GemClip({
             onPress={() => {
               const fundraiserId = (item as any).fundraiser_id;
               if (fundraiserId) {
-                router.push({
-                  pathname: "/donate" as any,
-                  params: { fundraiserId, title: item.title },
-                });
+                // Only the id: the donate screen looks up the org's payment
+                // setup itself. iOS opens siqa.us in Safari (App Store rules).
+                openDonation({ fundraiserId });
               } else {
                 router.push("/(tabs)/seeds" as any);
               }

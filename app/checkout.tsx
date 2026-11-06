@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   TextInput,
+  Linking,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -17,6 +18,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { formatPrice } from '../lib/money';
+import { SITE_ORIGIN } from '../lib/donateLink';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 
 // Same platform split as donate.tsx: Stripe's native module doesn't
@@ -178,6 +180,7 @@ export default function CheckoutScreen() {
   }
 
   const hasPhysical = lineItems.some(i => !i.is_digital);
+  const iosDigital = Platform.OS === 'ios' && lineItems.some(i => i.is_digital);
   const itemsTotal = lineItems.reduce((sum, i) => sum + i.price_cents * i.quantity, 0);
   const addressComplete = hasPhysical
     ? Boolean(address.name.trim() && address.line1.trim() && address.city.trim() && address.state.trim().length === 2 && address.postal_code.trim().length >= 5)
@@ -371,7 +374,20 @@ export default function CheckoutScreen() {
 
       {quoteError && <Text style={styles.errorText}>{quoteError}</Text>}
 
-      {webClientSecret ? (
+      {iosDigital ? (
+        // App Store 3.1.1: digital content bought inside an iOS app must use
+        // Apple's in-app purchase. Third-party digital downloads finish on
+        // siqa.us in Safari instead (US storefront allows the link-out).
+        <>
+          <TouchableOpacity
+            style={styles.payBtn}
+            onPress={() => Linking.openURL(productId ? `${SITE_ORIGIN}/product/${productId}` : `${SITE_ORIGIN}/cart`)}
+          >
+            <Text style={styles.payBtnText}>Finish purchase on siqa.us</Text>
+          </TouchableOpacity>
+          <Text style={styles.secureNote}>Digital items are purchased on our website. Opens in Safari.</Text>
+        </>
+      ) : webClientSecret ? (
         <WebDonateForm
           clientSecret={webClientSecret}
           colors={C}
