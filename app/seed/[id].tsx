@@ -9,7 +9,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { SeedVideo } from '../../components/SeedVideo';
 import { useCallback, useMemo, useState } from 'react';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { supabase } from '../../lib/supabase';
@@ -109,7 +109,6 @@ export default function SeedDetailScreen() {
   const [reviews, setReviews] = useState<PublicReview[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
-  const [playing, setPlaying] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [mySpeaker, setMySpeaker] = useState<{ id: string; verified: boolean } | null>(null);
   const [filter, setFilter] = useState<ReviewFilter>('all');
@@ -475,29 +474,15 @@ export default function SeedDetailScreen() {
 
             <View style={styles.columns}>
               <View style={styles.main}>
-                <TouchableOpacity activeOpacity={0.95} style={styles.hero} onPress={() => videoUrl && setPlaying(p => !p)} accessibilityLabel={videoUrl ? (playing ? 'Pause video' : 'Play video') : undefined}>
+                <View style={styles.hero}>
                   {videoUrl ? (
-                    <Video
-                      source={{ uri: videoUrl }}
-                      posterSource={coverUrl ? { uri: coverUrl } : undefined}
-                      usePoster={!!coverUrl && !playing}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode={ResizeMode.COVER}
-                      shouldPlay={playing}
-                      isLooping
-                      useNativeControls={false}
-                    />
+                    <SeedVideo uri={videoUrl} poster={coverUrl} fit="contain" />
                   ) : coverUrl ? (
                     <Image source={{ uri: coverUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                   ) : (
                     <View style={styles.heroFallback}><Glyph name={categoryIcon(seed.cause_category)} style={{ fontSize: 56 }} color={C.gold} /></View>
                   )}
-                  {videoUrl && !playing && (
-                    <View style={styles.heroScrim}>
-                      <View style={styles.playCircle}><Icon name="play" size={26} color={C.black} /></View>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                </View>
 
                 {organizerCard}
                 {!wide && donateBox}
