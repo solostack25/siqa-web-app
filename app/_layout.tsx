@@ -30,7 +30,7 @@ SplashScreen.preventAutoHideAsync();
 function AppContent() {
   const { isDark, mode, colors: C } = useTheme();
   const [initialized, setInitialized] = useState(false);
-  // Brand font (Plus Jakarta Sans). Wait for it briefly so screens don't
+  // Brand fonts (Inter + Inter Tight). Wait for them briefly so screens don't
   // flash the system font, but never block the app on it.
   const [fontsLoaded, fontError] = useFonts(FONT_FILES);
   const [fontWaitOver, setFontWaitOver] = useState(false);
