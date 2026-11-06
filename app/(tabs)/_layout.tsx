@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, usePathname } from 'expo-router';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, Platform, Easing, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
 import { DesktopSidebar } from '../../components/DesktopSidebar';
@@ -29,9 +29,17 @@ function TabIcon({ focused, label, icon }: TabIconProps) {
   );
 }
 
+// The five main tabs, in bottom-bar order. Moving between them slides the
+// screens sideways like pages (old one out, new one in from the side you're
+// heading to). Detail screens inside the tab group (seed, org profile, watch…)
+// keep opening instantly.
+const SLIDE_TABS = new Set(['home', 'marketplace', 'gems', 'seeds', 'orgs']);
+
 export default function TabsLayout() {
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
+  const { width } = useWindowDimensions();
+  const slide = !isDesktopWeb && !IS_MARKETPLACE_SITE;
   // Local & services lives under the Shop tab.
   const onLocal = usePathname().startsWith('/local');
   // Swipe sideways between the main tabs (phone web/PWA).
@@ -43,7 +51,28 @@ export default function TabsLayout() {
     <Tabs
       // Back returns to the tab/screen you came from, not always to the first tab.
       backBehavior="history"
-      screenOptions={{
+      screenOptions={({ route }) => ({
+        ...(slide && SLIDE_TABS.has(route.name)
+          ? {
+              animation: 'shift' as const,
+              transitionSpec: {
+                animation: 'timing' as const,
+                config: { duration: 280, easing: Easing.out(Easing.cubic) },
+              },
+              // progress: 0 = this tab is showing, 1 = it sits to the right of
+              // the focused tab, -1 = to the left. Full-width slide.
+              sceneStyleInterpolator: ({ current }: any) => ({
+                sceneStyle: {
+                  transform: [{
+                    translateX: current.progress.interpolate({
+                      inputRange: [-1, 0, 1],
+                      outputRange: [-width, 0, width],
+                    }),
+                  }],
+                },
+              }),
+            }
+          : { animation: 'none' as const }),
         headerShown: false,
         // The Marketplace site has only the Shop, so no tab bar at all
         // (the Shop header has cart, messages and account buttons).
@@ -70,7 +99,7 @@ export default function TabsLayout() {
         },
         tabBarActiveTintColor: C.gold,
         tabBarInactiveTintColor: C.text3,
-      }}
+      })}
     >
       <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen
