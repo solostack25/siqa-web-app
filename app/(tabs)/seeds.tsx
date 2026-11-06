@@ -12,7 +12,7 @@ import {
   useWindowDimensions,
   Platform,
 } from "react-native";
-import { Video, ResizeMode } from "expo-av";
+import { SeedVideo } from "../../components/SeedVideo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
@@ -70,7 +70,6 @@ function SeedsScreenInner() {
   const [filtered, setFiltered] = useState<Fundraiser[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
-  const [playingSeedId, setPlayingSeedId] = useState<string | null>(null);
   const [canCreate, setCanCreate] = useState(false);
   const [userOrgIds, setUserOrgIds] = useState<string[]>([]);
   const [userRole, setUserRole] = useState<string>('');
@@ -244,9 +243,7 @@ function SeedsScreenInner() {
     const categoryIcon = getCategoryIcon(item.cause_category);
     const left = daysLeft(item.end_date);
     const videoUrl = getSeedVideoUrl(item);
-    const hasVideo = Boolean(videoUrl);
     const coverUrl = item.cover_image_url || item.image_url || null;
-    const isPlaying = playingSeedId === item.id;
 
     return (
       <View style={styles.card}>
@@ -271,48 +268,22 @@ function SeedsScreenInner() {
           </View>
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.9}
-          style={styles.videoCard}
-          onPress={() => {
-            if (!videoUrl) return;
-            setPlayingSeedId((prev) => (prev === item.id ? null : item.id));
-          }}
-        >
-          {videoUrl ? (
-            <Video
-              key={item.id}
-              source={{ uri: videoUrl }}
-              style={styles.videoCover}
-              resizeMode={ResizeMode.COVER}
-              shouldPlay={isPlaying}
-              isLooping
-              useNativeControls={false}
-              // Show the cover image until it plays (was a flat grey box).
-              posterSource={coverUrl ? { uri: coverUrl } : undefined}
-              usePoster={Boolean(coverUrl)}
-              posterStyle={{ resizeMode: 'cover' } as any}
-              onError={(error) =>
-                console.warn("Seed video playback error:", error)
-              }
-            />
-          ) : coverUrl ? (
-            <Image source={{ uri: coverUrl }} style={styles.videoCover} />
-          ) : null}
-          <View style={styles.videoScrim} />
-          {!isPlaying && (
-            <View style={styles.playCircle}>
-              <Glyph name="play" style={styles.playIcon} />
-            </View>
-          )}
-          <Text style={styles.videoLabel}>
-            {hasVideo
-              ? isPlaying
-                ? "Playing Appeal"
-                : Platform.OS === "web" ? "Play appeal" : "Tap to play appeal"
-              : "Video pending"}
-          </Text>
-        </TouchableOpacity>
+        {videoUrl ? (
+          // The player's own controls start it (see SeedVideo).
+          <View style={styles.videoCard}>
+            <SeedVideo key={item.id} uri={videoUrl} poster={coverUrl} />
+          </View>
+        ) : (
+          <TouchableOpacity
+            activeOpacity={0.9}
+            style={styles.videoCard}
+            onPress={() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any)}
+          >
+            {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.videoCover} /> : null}
+            <View style={styles.videoScrim} />
+            <Text style={styles.videoLabel}>Video pending</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           onPress={() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any)}
