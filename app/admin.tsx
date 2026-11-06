@@ -16,6 +16,7 @@ import { Theme } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialogs';
+import { brandStyles, font } from '../lib/ds';
 
 type ProfileClaimRow = {
   id: string;
@@ -474,7 +475,7 @@ export default function AdminScreen() {
               <Text style={styles.cardMeta} selectable>{c.contact_email}{c.contact_phone ? ` · ${c.contact_phone}` : ''}</Text>
               {c.official_link ? <Text style={[styles.cardMeta, { color: C.gold }]} selectable>{c.official_link}</Text> : null}
               <Text style={styles.cardMeta}>
-                Verify: {METHOD_LABEL[c.verification_method || 'other']} · code <Text style={{ fontWeight: '800', color: C.text }} selectable>{c.verification_code}</Text>
+                Verify: {METHOD_LABEL[c.verification_method || 'other']} · code <Text style={{ ...font(800), color: C.text }} selectable>{c.verification_code}</Text>
               </Text>
               {c.notes ? <Text style={styles.cardMeta} numberOfLines={3}>“{c.notes}”</Text> : null}
               <Text style={styles.cardMeta}>{new Date(c.created_at).toLocaleString()}</Text>
@@ -622,7 +623,7 @@ function SimpleRow({ title, sub, action, busy, onPress, C }: { title: string; su
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     screen: { flex: 1, backgroundColor: C.bg },
     // This page never had any desktop treatment at all — no DesktopShell
     // (so no sidebar/top bar either), and this content padding had no
@@ -664,5 +665,5 @@ function makeStyles(C: AppColors) {
     primarySmallBtn: { backgroundColor: C.gold, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
     primarySmallText: { color: C.black, fontWeight: Theme.fontWeight.bold, fontSize: 12 },
     simpleRow: { backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2, borderRadius: 16, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  });
+  }));
 }

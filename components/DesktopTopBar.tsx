@@ -7,6 +7,7 @@ import { Icon } from './Icon';
 import { useSearchContext } from '../contexts/SearchContext';
 import { onCartChanged } from '../lib/cart';
 import { IS_MARKETPLACE_SITE } from '../lib/site';
+import { brandStyles } from '../lib/ds';
 
 // The desktop sidebar had no top-level search, notifications, or
 // account access anywhere — search only existed buried inside
@@ -231,7 +232,7 @@ export function DesktopTopBar() {
 }
 
 function makeStyles(C: any) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     bar: {
       height: 64,
       flexDirection: 'row',
@@ -303,5 +304,5 @@ function makeStyles(C: any) {
     createMenu: { right: undefined, left: 0, width: 220, paddingVertical: 8 },
     createItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, paddingVertical: 13 },
     createItemText: { fontSize: 14, color: C.text, fontWeight: '500' },
-  });
+  }));
 }

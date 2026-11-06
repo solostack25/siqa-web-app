@@ -17,6 +17,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { Glyph } from '../components/Glyph';
 import { DesktopShell } from '../components/DesktopShell';
+import { brandStyles } from '../lib/ds';
 
 /**
  * Apply to be a speaker. Siqa exists so people can trust who they're
@@ -253,7 +254,7 @@ export default function ApplySpeakerScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     scroll: { paddingBottom: 80, maxWidth: 600, width: '100%', alignSelf: 'center' },
@@ -288,5 +289,5 @@ function makeStyles(C: AppColors) {
       backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 13, alignItems: 'center', marginTop: 4,
     },
     primaryBtnText: { color: '#000', fontWeight: '700', fontSize: Theme.fontSize.md },
-  });
+  }));
 }

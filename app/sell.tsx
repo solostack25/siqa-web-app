@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell } from '../components/DesktopShell';
+import { brandStyles } from '../lib/ds';
 
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
@@ -230,7 +231,7 @@ export default function SellScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     scroll: { paddingBottom: 60, maxWidth: 560, width: '100%', alignSelf: 'center' },
@@ -274,5 +275,5 @@ function makeStyles(C: AppColors) {
     primaryBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
     btnDisabled: { opacity: 0.6 },
     primaryBtnText: { color: C.black, fontSize: 15, fontWeight: '800' },
-  });
+  }));
 }

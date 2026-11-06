@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { Icon } from './Icon';
+import { brandStyles } from '../lib/ds';
 
 export type ClaimEntityType = 'speaker' | 'business' | 'organization';
 
@@ -75,7 +76,7 @@ export function UnclaimedBadge() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     card: {
       gap: 10, padding: 18, borderRadius: Theme.radius.lg,
       borderWidth: 1, borderColor: C.border, backgroundColor: C.surface2,
@@ -93,5 +94,5 @@ function makeStyles(C: AppColors) {
     btnText: { color: C.bg, fontSize: 14, fontWeight: '700' },
     badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border },
     badgeText: { fontSize: 12, fontWeight: '700', color: C.text2 },
-  });
+  }));
 }

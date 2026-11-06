@@ -19,6 +19,7 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { IS_MARKETPLACE_SITE } from '../lib/site';
 import { SettingsMobileView } from '../components/SettingsMobileView';
+import { brandStyles } from '../lib/ds';
 
 type Profile = {
   id: string;
@@ -591,7 +592,7 @@ export default function SettingsScreen() {
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     emptyText: { color: C.text3, fontSize: 14 },
@@ -682,5 +683,5 @@ function makeStyles(C: AppColors) {
     themeBtnTextActive: { color: C.black },
 
     footer: { textAlign: 'center', color: C.text3, fontSize: 11, marginTop: Theme.spacing.lg },
-  });
+  }));
 }

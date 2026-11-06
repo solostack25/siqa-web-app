@@ -19,6 +19,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { formatPrice as formatMoney } from '../lib/money';
+import { brandStyles } from '../lib/ds';
 
 type Seller = { id: string; shop_name: string; approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null };
 type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
@@ -407,7 +408,7 @@ export default function SellerDashboardScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     topColumn: { maxWidth: 760, width: '100%', alignSelf: 'center' },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
@@ -485,5 +486,5 @@ function makeStyles(C: AppColors) {
     smallBtnText: { fontSize: 11, fontWeight: '800', color: C.black },
     smallBtnGhost: { borderWidth: 0.5, borderColor: C.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
     smallBtnGhostText: { fontSize: 11, fontWeight: '700', color: C.text2 },
-  });
+  }));
 }

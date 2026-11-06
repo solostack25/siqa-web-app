@@ -10,6 +10,7 @@ import { Icon, type SiqaIconName } from './Icon';
 import { LocationPicker } from './LocationPicker';
 import type { SavedLocation } from '../lib/location';
 import { IS_MARKETPLACE_SITE } from '../lib/site';
+import { brandStyles, font } from '../lib/ds';
 
 // Phone layout for app/settings.tsx: big title, search, account row, theme
 // preview tiles, then borderless groups of rows with soft icon tiles.
@@ -202,7 +203,7 @@ export function SettingsMobileView(p: {
                       </View>
                     )}
                   </View>
-                  <Text style={[s.themeLabel, on && { color: C.text, fontWeight: '600' }]}>{label}</Text>
+                  <Text style={[s.themeLabel, on && { color: C.text, ...font(600) }]}>{label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -291,7 +292,7 @@ export function SettingsMobileView(p: {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     page: { paddingHorizontal: 20, paddingTop: HEADER_TOP_PADDING - 12, paddingBottom: 48, gap: 26 },
     back: { width: 44, height: 44, marginLeft: -10, alignItems: 'center', justifyContent: 'center', marginBottom: -18 },
     title: { color: C.text, fontSize: 34, lineHeight: 40, fontWeight: '800', letterSpacing: -1 },
@@ -322,5 +323,5 @@ function makeStyles(C: AppColors) {
     footBtn: { minHeight: 48, justifyContent: 'center' },
     footText: { color: C.text, fontSize: 16, fontWeight: '500' },
     version: { color: C.text3, fontSize: 12, paddingTop: 8 },
-  });
+  }));
 }

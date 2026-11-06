@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme } from '../constants/theme';
 import { Icon } from './Icon';
+import { brandStyles } from '../lib/ds';
 
 // expo-image-picker's allowsEditing/aspect options only work on native —
 // they trigger the OS's own crop UI there. On web they're silently a
@@ -238,7 +239,7 @@ export default function ImageCropModal({ visible, imageUri, aspectRatio, outputW
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 20 },
     card: {
       backgroundColor: C.surface, borderRadius: Theme.radius.xl, padding: Theme.spacing.lg,
@@ -261,5 +262,5 @@ function makeStyles(C: AppColors) {
     cancelBtnText: { color: C.text2, fontWeight: '700', fontSize: 13 },
     confirmBtn: { flex: 2, paddingVertical: 12, alignItems: 'center', borderRadius: Theme.radius.md, backgroundColor: C.gold },
     confirmBtnText: { color: C.black, fontWeight: '800', fontSize: 13 },
-  });
+  }));
 }

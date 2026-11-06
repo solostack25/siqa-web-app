@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Platform, StyleSheet } from 'react-native';
 import { youTubeEmbedUrl, youTubeNativeSource } from './youtubeNative';
+import { brandStyles } from '../lib/ds';
 
 type Props = {
   videoId: string;
@@ -51,7 +52,7 @@ export function YouTubeEmbed({ videoId, autoplay = false }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   nativeWrap: { flex: 1 },
   webview: { flex: 1, backgroundColor: 'transparent' },
-});
+}));

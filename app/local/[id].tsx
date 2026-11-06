@@ -16,6 +16,7 @@ import { shareLink, getAppBaseUrl } from '../../lib/share';
 import {
   categoryLabel, initialsOf, isFeatured, placeLine, tintFor, withProtocol, type BusinessListing,
 } from '../../lib/businessCategories';
+import { brandStyles, font } from '../../lib/ds';
 
 export default function LocalListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -283,7 +284,7 @@ export default function LocalListingScreen() {
                 ))}
               </View>
             )}
-            {!l.services?.length && l.price_text ? <Text style={styles.body}><Text style={{ fontWeight: '700' }}>Pricing: </Text>{l.price_text}</Text> : null}
+            {!l.services?.length && l.price_text ? <Text style={styles.body}><Text style={{ ...font(700) }}>Pricing: </Text>{l.price_text}</Text> : null}
 
             <View style={styles.facts}>
               {facts.map(f => (
@@ -327,7 +328,7 @@ export default function LocalListingScreen() {
               {l.is_claimed && l.status === 'published' && !isOwner ? (
                 sent ? (
                   <View style={styles.sentBox}>
-                    <Text style={styles.sentText}><Text style={{ fontWeight: '800' }}>Message sent.</Text> The business will reply by email or phone{replyTo ? ` (${replyTo})` : ''}.</Text>
+                    <Text style={styles.sentText}><Text style={{ ...font(800) }}>Message sent.</Text> The business will reply by email or phone{replyTo ? ` (${replyTo})` : ''}.</Text>
                     <TouchableOpacity onPress={() => setSent(false)}><Text style={styles.link}>Send another</Text></TouchableOpacity>
                   </View>
                 ) : uid ? (
@@ -393,7 +394,7 @@ export default function LocalListingScreen() {
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     page: { width: '100%', maxWidth: 1180, alignSelf: 'center', gap: 18, paddingHorizontal: desktop ? 28 : 16, paddingTop: desktop ? 24 : HEADER_TOP_PADDING },
     center: { paddingVertical: 80, alignItems: 'center', gap: 8 },
     back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', minHeight: 40 },
@@ -462,5 +463,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
-  });
+  }));
 }

@@ -16,6 +16,8 @@ import { Colors } from '../../constants/colors';
 import { Glyph, type GlyphName } from '../../components/Glyph';
 import { Theme } from '../../constants/theme';
 import { IS_MARKETPLACE_SITE, SITE_HOME } from '../../lib/site';
+import { brandStyles } from '../../lib/ds';
+import { Button } from '../../components/ui';
 
 type Role = 'viewer' | 'speaker' | 'org';
 
@@ -189,20 +191,7 @@ export default function LoginScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={mode === 'signin' ? handleSignIn : handleSignUp}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color={Colors.black} />
-            ) : (
-              <Text style={styles.submitText}>
-                {mode === 'signin' ? 'Sign In' : 'Create Account'}
-              </Text>
-            )}
-          </TouchableOpacity>
+          <Button label={mode === 'signin' ? 'Sign In' : 'Create Account'} onPress={mode === 'signin' ? handleSignIn : handleSignUp} loading={loading} style={{ marginTop: 8 }} />
 
           <TouchableOpacity
             style={styles.skipBtn}
@@ -216,7 +205,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   container: { flex: 1, backgroundColor: Colors.bg },
   // Capped so the form is a centered column on desktop instead of stretching
   // edge to edge; phones are narrower than the cap, so nothing changes there.
@@ -255,4 +244,4 @@ const styles = StyleSheet.create({
   roleCardLabel: { fontSize: 10, color: Colors.text2, fontWeight: '600', textAlign: 'center' },
   roleCardLabelActive: { color: Colors.gold },
   roleDesc: { fontSize: Theme.fontSize.xs, color: Colors.text3, textAlign: 'center', lineHeight: 16, marginTop: -4 },
-});
+}));

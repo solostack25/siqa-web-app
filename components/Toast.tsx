@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { brandStyles } from '../lib/ds';
 
 /**
  * Tiny app-wide toast. Works the same on native and web — unlike
@@ -57,7 +58,7 @@ export function ToastHost() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   wrap: {
     position: 'absolute',
     left: 0,
@@ -79,4 +80,4 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   text: { color: '#FFFFFF', fontSize: 14, fontWeight: '600', textAlign: 'center' },
-});
+}));

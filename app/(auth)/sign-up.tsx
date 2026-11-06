@@ -15,6 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
+import { brandStyles } from '../../lib/ds';
+import { Button } from '../../components/ui';
 
 export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
@@ -117,18 +119,7 @@ export default function SignUpScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-            onPress={handleSignUp}
-            disabled={loading}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color={Colors.black} />
-            ) : (
-              <Text style={styles.submitText}>Create Account</Text>
-            )}
-          </TouchableOpacity>
+          <Button label={'Create Account'} onPress={handleSignUp} loading={loading} style={{ marginTop: 8 }} />
 
           <Text style={styles.disclaimer}>
             By creating an account you agree to our Terms of Service.
@@ -146,7 +137,7 @@ export default function SignUpScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create(brandStyles({
   container: {
     flex: 1,
     backgroundColor: Colors.bg,
@@ -258,4 +249,4 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     fontWeight: '600',
   },
-});
+}));

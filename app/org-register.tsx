@@ -17,6 +17,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Glyph } from '../components/Glyph';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
+import { brandStyles } from '../lib/ds';
 
 const ORG_TYPES = [
   { value: 'masjid', label: 'Masjid' },
@@ -546,7 +547,7 @@ function SuccessStep({ n, label, done }: { n: string; label: string; done?: bool
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
   root: { flex: 1, backgroundColor: C.bg },
   header: {
     flexDirection: 'row',
@@ -712,5 +713,5 @@ function makeStyles(C: AppColors) {
     alignItems: 'center',
   },
   successBtnText: { fontSize: Theme.fontSize.base, color: C.text2, fontWeight: '600' },
-});
+}));
 }

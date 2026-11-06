@@ -8,6 +8,7 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon, type SiqaIconName } from './Icon';
 import { EndorsementInbox } from './SeedSocial';
+import { brandStyles, font } from '../lib/ds';
 
 // The phone version of the "You" screen (app/(tabs)/dashboard.tsx).
 // Layout: big name + avatar, one line of stats, two soft buttons, an admin
@@ -314,7 +315,7 @@ export function ProfileMobileView(p: {
               <Icon name="trash-outline" size={20} color={C.danger} /><Text style={[s.sheetText, { color: C.danger }]}>Delete Gem</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.sheetRow, { justifyContent: 'center' }]} onPress={() => setMenuFor(null)}>
-              <Text style={[s.sheetText, { fontWeight: '600' }]}>Cancel</Text>
+              <Text style={[s.sheetText, { ...font(600) }]}>Cancel</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -324,7 +325,7 @@ export function ProfileMobileView(p: {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     topBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingTop: HEADER_TOP_PADDING - 10, paddingHorizontal: 10 },
     iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
     identity: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 20, paddingTop: 2 },
@@ -379,5 +380,5 @@ function makeStyles(C: AppColors) {
     sheetTitle: { color: C.text2, fontSize: 13, paddingBottom: 6 },
     sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52 },
     sheetText: { color: C.text, fontSize: 16 },
-  });
+  }));
 }

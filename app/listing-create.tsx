@@ -21,6 +21,7 @@ import { showToast } from '../components/Toast';
 import { DesktopShell } from '../components/DesktopShell';
 import { BottomSheet, Button, IconButton, ListRow, OptionRow, SegmentedControl, Stepper, TextField } from '../components/ui';
 import { font, radius, space, type as T, useDS } from '../lib/ds';
+import { brandStyles } from '../lib/ds';
 
 const CATEGORIES = [
   'Home Decor', 'Books & Media', 'Clothing & Accessories', 'Art & Prints',
@@ -279,7 +280,7 @@ export default function ListingCreateScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     scroll: { paddingBottom: 60, maxWidth: 640, width: '100%', alignSelf: 'center' },
@@ -333,5 +334,5 @@ function makeStyles(C: AppColors) {
     submitBtn: { backgroundColor: C.gold, borderRadius: Theme.radius.md, paddingVertical: 15, alignItems: 'center', marginTop: 8 },
     btnDisabled: { opacity: 0.6 },
     submitBtnText: { color: C.black, fontSize: 15, fontWeight: '800' },
-  });
+  }));
 }

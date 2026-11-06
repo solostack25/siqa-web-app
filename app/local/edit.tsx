@@ -16,6 +16,7 @@ import { geocodePlace } from '../../lib/location';
 import {
   BUSINESS_CATEGORIES, tintFor, initialsOf, type BusinessCategory, type BusinessListing, type BusinessService,
 } from '../../lib/businessCategories';
+import { brandStyles } from '../../lib/ds';
 
 type Form = {
   name: string; category: BusinessCategory | ''; tagline: string; description: string;
@@ -375,7 +376,7 @@ function Toggle({ label, value, onChange, hint, styles, C }: {
 }
 
 function makeStyles(C: AppColors, desktop: boolean) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     page: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 16, paddingHorizontal: desktop ? 24 : 16, paddingTop: desktop ? 24 : HEADER_TOP_PADDING },
     back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', minHeight: 40 },
     backText: { fontSize: 14, fontWeight: '600', color: C.text },
@@ -410,5 +411,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
     ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
-  });
+  }));
 }
