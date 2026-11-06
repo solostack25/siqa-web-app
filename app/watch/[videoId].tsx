@@ -21,7 +21,7 @@ import { Theme } from '../../constants/theme';
 import { shareVideo } from '../../lib/share';
 import { CastButton } from '../../components/CastButton';
 import { YouTubeEmbed } from '../../components/YouTubeEmbed';
-import { CommentsSection } from '../../components/CommentsSection';
+import { WatchComments } from '../../components/comments/Comments';
 import { Icon } from '../../components/Icon';
 import { brandStyles } from '../../lib/ds';
 import { Button, Chip } from '../../components/ui';
@@ -364,9 +364,7 @@ export default function WatchScreen() {
         ) : null}
 
         <View style={styles.mBand} />
-        <View style={styles.mSection}>
-          <CommentsSection videoId={video.id} />
-        </View>
+        <WatchComments videoId={video.id} wide={false} />
 
         {related.length > 0 && (
           <>
@@ -460,7 +458,9 @@ export default function WatchScreen() {
                 ) : null}
               </View>
   
-              <CommentsSection videoId={video.id} />
+              <View style={{ marginTop: 24 }}>
+                <WatchComments videoId={video.id} wide />
+              </View>
             </View>
   
             <View style={isWide ? styles.relatedWideCol : styles.bodyStacked}>
