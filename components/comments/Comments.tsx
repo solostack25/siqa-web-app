@@ -183,11 +183,14 @@ function CommentItem({
 const REPORT_REASONS = ['Spam or scam', 'Hateful or abusive', 'False or misleading', 'Something else'];
 
 export function CommentsView({
-  api, commentsEnabled = true, onAuthRequired = defaultAuth, onClose, inline = false, dragHandlers,
+  api, commentsEnabled = true, onAuthRequired = defaultAuth, onClose, inline = false, dragHandlers, onScrollY, scrollEnabled = true,
 }: {
   api: CommentsApi; commentsEnabled?: boolean; onAuthRequired?: AuthFn; onClose?: () => void; inline?: boolean;
   /** Pan handlers from the sheet, so dragging the header down closes it. */
   dragHandlers?: any;
+  /** The sheet uses this to tell "scrolled to the top" from "mid-list". */
+  onScrollY?: (y: number) => void;
+  scrollEnabled?: boolean;
 }) {
   const { c: k } = useDS();
   const [draft, setDraft] = useState('');
@@ -440,7 +443,15 @@ export function CommentsView({
   return (
     <View style={{ flex: 1 }}>
       {header}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={[{ flex: 1 }, Platform.OS === 'web' ? ({ overscrollBehavior: 'contain' } as any) : null]}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={scrollEnabled}
+        bounces={false}
+        onScroll={onScrollY ? (e) => onScrollY(e.nativeEvent.contentOffset.y) : undefined}
+        scrollEventThrottle={16}
+      >
         {list}
       </ScrollView>
       {composer}
@@ -477,6 +488,7 @@ export function CommentsSheet({
     if (wide) { setShown(visible); return; }
     if (visible) {
       closing.current = false;
+      atTop.current = true;
       setShown(true);
       y.setValue(sheetH);
       Animated.spring(y, { toValue: 0, useNativeDriver: false, bounciness: 0, speed: 16 }).start();
@@ -492,18 +504,31 @@ export function CommentsSheet({
     Animated.timing(y, { toValue: sheetH, duration: 200, useNativeDriver: false }).start(() => onClose());
   }
 
+  // Swipe down from anywhere (TikTok-style): when the list is at the top,
+  // a downward swipe moves the sheet instead of scrolling; mid-list it
+  // scrolls first and hands over to the sheet once the top is reached. The
+  // handle and header always drag the sheet.
+  const atTop = useRef(true);
+  const startDy = useRef(0);
+  const sheetTop = height - sheetH;
+  const sheetTopRef = useRef(sheetTop);
+  sheetTopRef.current = sheetTop;
+  const shouldDrag = (g: { dy: number; dx: number; y0: number }) =>
+    g.dy > 6 && g.dy > Math.abs(g.dx) * 1.2 && (atTop.current || g.y0 < sheetTopRef.current + 120);
+
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
-      onMoveShouldSetPanResponderCapture: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onMoveShouldSetPanResponder: (_e, g) => shouldDrag(g),
+      onMoveShouldSetPanResponderCapture: (_e, g) => shouldDrag(g),
       // Keep the drag once it starts (the browser would otherwise turn it
       // into a text selection or a scroll and cancel it).
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => setDragging(true),
-      onPanResponderMove: (_e, g) => y.setValue(Math.max(0, g.dy)),
+      onPanResponderGrant: (_e, g) => { startDy.current = g.dy; setDragging(true); },
+      onPanResponderMove: (_e, g) => y.setValue(Math.max(0, g.dy - startDy.current)),
       onPanResponderRelease: (_e, g) => {
         setDragging(false);
-        if (g.dy > sheetHRef.current * 0.3 || g.vy > 1.1) closeRef.current();
+        const moved = g.dy - startDy.current;
+        if (moved > sheetHRef.current * 0.3 || (g.vy > 1.1 && moved > 20)) closeRef.current();
         else Animated.spring(y, { toValue: 0, useNativeDriver: false, bounciness: 4 }).start();
       },
       onPanResponderTerminate: () => (setDragging(false), Animated.spring(y, { toValue: 0, useNativeDriver: false }).start()),
@@ -523,6 +548,7 @@ export function CommentsSheet({
           <Pressable onPress={close} accessibilityLabel="Close comments" style={{ flex: 1, backgroundColor: k.scrim }} />
         </Animated.View>
         <Animated.View
+          {...(wide ? {} : pan.panHandlers)}
           style={[{
             width: '100%', maxWidth: wide ? 620 : undefined, height: sheetH,
             backgroundColor: k.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet,
@@ -531,7 +557,7 @@ export function CommentsSheet({
           }, shadow('sheet'), dragging && Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null]}
         >
           {!wide ? (
-            <View {...pan.panHandlers} accessibilityHint="Drag down to close" style={[{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }, Platform.OS === 'web' ? ({ userSelect: 'none', cursor: 'grab' } as any) : null]}>
+            <View accessibilityHint="Swipe down to close" style={[{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }, Platform.OS === 'web' ? ({ userSelect: 'none', cursor: 'grab' } as any) : null]}>
               <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: k.surfaceStrong }} />
             </View>
           ) : <View style={{ height: 10 }} />}
@@ -540,7 +566,8 @@ export function CommentsSheet({
             commentsEnabled={commentsEnabled}
             onAuthRequired={onAuthRequired}
             onClose={close}
-            dragHandlers={wide ? undefined : pan.panHandlers}
+            onScrollY={(v) => { atTop.current = v <= 0; }}
+            scrollEnabled={!dragging}
           />
         </Animated.View>
       </KeyboardAvoidingView>
