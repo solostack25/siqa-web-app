@@ -18,6 +18,7 @@ import { Theme } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { IS_MARKETPLACE_SITE } from '../lib/site';
+import { SettingsMobileView } from '../components/SettingsMobileView';
 
 type Profile = {
   id: string;
@@ -115,6 +116,7 @@ export default function SettingsScreen() {
   const [savingName, setSavingName] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>('account');
   const [savedLoc, setSavedLoc] = useState<SavedLocation | null>(null);
+  const [hasBusiness, setHasBusiness] = useState(false);
   useEffect(() => { getSavedLocation().then(setSavedLoc); }, []);
 
   useEffect(() => {
@@ -158,6 +160,9 @@ export default function SettingsScreen() {
       .eq('user_id', uid)
       .maybeSingle();
     if (sellerData) setMySeller(sellerData);
+
+    const { data: biz } = await supabase.from('business_listings').select('id').eq('owner_id', uid).limit(1);
+    setHasBusiness(Boolean(biz && biz.length));
 
     setLoading(false);
   }
@@ -229,6 +234,36 @@ export default function SettingsScreen() {
   // the gap between them; capped so cards don't get absurdly wide on a
   // huge monitor, floored so this doesn't collapse to something
   // unreadable on a smaller desktop window.
+  if (!isDesktopWeb) {
+    return (
+      <SettingsMobileView
+        name={profile.full_name || 'Your account'}
+        email={profile.email}
+        isSpeaker={Boolean(speaker)}
+        speakerId={speaker?.id ?? null}
+        organization={organization}
+        canCreateSeeds={canCreateSeeds}
+        isAdmin={isAdminRole(role)}
+        seller={mySeller}
+        hasBusiness={hasBusiness}
+        savedLoc={savedLoc}
+        onLocationChange={setSavedLoc}
+        editName={editName}
+        setEditName={setEditName}
+        savingName={savingName}
+        onSaveName={saveDisplayName}
+        onSignOut={handleSignOut}
+        deleteOpen={deleteOpen}
+        setDeleteOpen={setDeleteOpen}
+        deleteText={deleteText}
+        setDeleteText={setDeleteText}
+        deleting={deleting}
+        deleteError={deleteError}
+        onConfirmDelete={confirmDeleteAccount}
+      />
+    );
+  }
+
   const desktopContentWidth = Math.min(windowWidth - 220, 980);
   const gridGap = Theme.spacing.md;
   const gridWidth = isDesktopWeb ? (desktopContentWidth - Theme.spacing.xl * 2 - gridGap) / 2 : undefined;
