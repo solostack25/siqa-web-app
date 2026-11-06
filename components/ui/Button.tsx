@@ -60,7 +60,10 @@ export function Button({
       hitSlop={size === 'sm' ? 5 : 0}
       style={({ pressed }) => [
         {
-          height: h,
+          // minHeight, not height: when the OS/browser scales text up
+          // (Android font size), the button grows instead of clipping.
+          minHeight: h,
+          paddingVertical: 4,
           paddingHorizontal: size === 'lg' ? 20 : size === 'md' ? 18 : 14,
           borderRadius: size === 'lg' ? radius.lg : radius.pill,
           backgroundColor: bg,
@@ -83,7 +86,7 @@ export function Button({
       ) : (
         <>
           {icon ? <Icon name={icon} size={iconSize} color={fg} /> : null}
-          <Text style={[text, { color: fg }]} numberOfLines={1}>{label}</Text>
+          <Text style={[text, { color: fg, flexShrink: 1 }]} numberOfLines={1}>{label}</Text>
           {iconRight ? <Icon name={iconRight} size={iconSize} color={fg} /> : null}
         </>
       )}

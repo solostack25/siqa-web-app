@@ -40,7 +40,7 @@ import {
   type SeedEndorsement,
 } from '../../components/SeedSocial';
 import { brandStyles, font } from '../../lib/ds';
-import { Button } from '../../components/ui';
+import { Button, IconButton } from '../../components/ui';
 import { OrgVideos } from '../../components/OrgVideos';
 import { OrgPosts } from '../../components/OrgPosts';
 import { focusedOnly } from '../../components/FocusedOnly';
@@ -978,12 +978,20 @@ function OrgProfileScreen() {
                   </View>
                   <View style={[styles.actions, !wide && { width: '100%' }]}>
                     {/* One gold button per row: with a Seed to give to, Donate is the gold one. */}
-                    <Button size="md" variant={following || fundraisers[0] ? 'secondary' : 'gold'} icon={following ? 'checkmark' : 'add'} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} grow={!wide} />
-                    {org.website ? (
-                      <Button size="md" variant="secondary" label="Website" iconRight="open-outline" onPress={() => Linking.openURL(org.website!)} grow={!wide} />
-                    ) : null}
+                    {/* Phones: three labelled buttons don't fit one row (Android
+                        Chrome renders text a bit larger and cut them to "We…" /
+                        "Don…"), so Website becomes a round icon button there and
+                        Follow/Donate drop their icons to keep full labels. */}
+                    <Button size="md" variant={following || fundraisers[0] ? 'secondary' : 'gold'} icon={wide ? (following ? 'checkmark' : 'add') : undefined} label={following ? 'Following' : 'Follow'} onPress={toggleFollow} grow={!wide} />
                     {fundraisers[0] ? (
-                      <Button size="md" variant="gold" icon="leaf-outline" label="Donate" onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fundraisers[0].id } } as any)} grow={!wide} />
+                      <Button size="md" variant="gold" icon={wide ? 'leaf-outline' : undefined} label="Donate" onPress={() => router.push({ pathname: '/seed/[id]', params: { id: fundraisers[0].id } } as any)} grow={!wide} />
+                    ) : null}
+                    {org.website ? (
+                      wide ? (
+                        <Button size="md" variant="secondary" label="Website" iconRight="open-outline" onPress={() => Linking.openURL(org.website!)} />
+                      ) : (
+                        <IconButton icon="globe-outline" label="Website" variant="raised" onPress={() => Linking.openURL(org.website!)} style={{ borderWidth: 1, borderColor: C.border }} />
+                      )
                     ) : null}
                   </View>
                 </View>
