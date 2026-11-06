@@ -22,6 +22,7 @@ import { shareVideo } from '../../lib/share';
 import { CastButton } from '../../components/CastButton';
 import { YouTubeEmbed } from '../../components/YouTubeEmbed';
 import { CommentsSection } from '../../components/CommentsSection';
+import { Icon } from '../../components/Icon';
 
 type VideoDetail = {
   id: string;
@@ -32,6 +33,7 @@ type VideoDetail = {
   category: string | null;
   topics: string[] | null;
   view_count: number;
+  like_count?: number | null;
   comment_count: number;
   published_at: string | null;
   created_at: string;
@@ -52,6 +54,8 @@ type RelatedVideo = {
   title: string;
   thumbnail_url: string | null;
   view_count: number;
+  published_at?: string | null;
+  created_at?: string | null;
   speakers: { display_name: string } | null;
 };
 
@@ -83,6 +87,10 @@ export default function WatchScreen() {
   const [related, setRelated] = useState<RelatedVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const [descOpen, setDescOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!videoId) return;
@@ -92,7 +100,7 @@ export default function WatchScreen() {
       .from('videos')
       .select(
         `id, title, description, video_url, thumbnail_url, category, topics,
-         view_count, comment_count, published_at, created_at, speaker_id,
+         view_count, like_count, comment_count, published_at, created_at, speaker_id,
          platform, platform_video_id,
          speakers(id, display_name, is_verified, is_claimed, follower_count, profile_id, avatar_url)`
       )
@@ -100,11 +108,13 @@ export default function WatchScreen() {
       .single();
 
     setVideo(v as any);
+    setLikeCount((v as any)?.like_count ?? 0);
+    setDescOpen(false);
 
     if (v) {
       let relQuery = supabase
         .from('videos')
-        .select(`id, title, thumbnail_url, view_count, speakers(display_name)`)
+        .select(`id, title, thumbnail_url, view_count, published_at, created_at, speakers(display_name)`)
         .eq('format', 'long')
         .eq('is_published', true)
         .neq('id', videoId)
@@ -127,6 +137,17 @@ export default function WatchScreen() {
           .maybeSingle();
         setFollowing(Boolean(existing));
       }
+      if (user) {
+        const [{ data: l }, { data: sv }] = await Promise.all([
+          supabase.from('video_likes').select('video_id').eq('video_id', videoId).eq('profile_id', user.id).maybeSingle(),
+          supabase.from('video_saves').select('video_id').eq('video_id', videoId).eq('profile_id', user.id).maybeSingle(),
+        ]);
+        setLiked(Boolean(l));
+        setSaved(Boolean(sv));
+      } else {
+        setLiked(false);
+        setSaved(false);
+      }
 
     }
 
@@ -144,6 +165,39 @@ export default function WatchScreen() {
     if (!video) return;
     // shareVideo shows its own "Link copied" toast when it falls back to the clipboard.
     await shareVideo(video.id, video.title, video.speakers?.display_name);
+  }
+
+  function goBack() {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/gems' as any);
+  }
+
+  async function toggleLike() {
+    if (!video) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.push('/(auth)/login' as any); return; }
+    const was = liked;
+    setLiked(!was);
+    setLikeCount(n => (was ? Math.max(0, n - 1) : n + 1));
+    const res = was
+      ? await supabase.from('video_likes').delete().eq('video_id', video.id).eq('profile_id', user.id)
+      : await supabase.from('video_likes').insert({ video_id: video.id, profile_id: user.id });
+    if (res.error) {
+      setLiked(was);
+      setLikeCount(n => (was ? n + 1 : Math.max(0, n - 1)));
+    }
+  }
+
+  async function toggleSave() {
+    if (!video) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { router.push('/(auth)/login' as any); return; }
+    const was = saved;
+    setSaved(!was);
+    const res = was
+      ? await supabase.from('video_saves').delete().eq('video_id', video.id).eq('profile_id', user.id)
+      : await supabase.from('video_saves').upsert({ video_id: video.id, profile_id: user.id }, { onConflict: 'video_id,profile_id' });
+    if (res.error) setSaved(was);
   }
 
   async function toggleFollow() {
@@ -221,97 +275,223 @@ export default function WatchScreen() {
             />
           )}
           {!isYouTube && <CastButton variant="overlay" media={castMedia} getVideoElement={getPlayerVideo} />}
+          {!isWide && (
+            <TouchableOpacity onPress={goBack} style={styles.playerBack} accessibilityLabel="Back" hitSlop={8}>
+              <Icon name="chevron-back" size={22} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-        <View style={isWide ? styles.wideContent : undefined}>
-          <View style={isWide ? styles.body : styles.bodyStacked}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backRow} hitSlop={8}>
-              <Text style={styles.backArrow}>‹</Text>
-              <Text style={styles.backLabel}>Back</Text>
-            </TouchableOpacity>
+      {!isWide ? (
+      <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 32 }}>
+        {/* Title + meta */}
+        <View style={styles.mSection}>
+          <Text style={styles.mTitle}>{video.title}</Text>
+          <Text style={styles.mMeta}>
+            {formatViews(video.view_count)} · {timeAgo(video.published_at ?? video.created_at)}
+            {video.category ? ` · ${video.category}` : ''}
+          </Text>
+        </View>
 
-            <Text style={styles.title}>{video.title}</Text>
+        {/* Actions */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mPills}>
+          <TouchableOpacity style={[styles.mPill, liked && styles.mPillOn]} onPress={toggleLike} accessibilityLabel={liked ? 'Unlike' : 'Like'}>
+            <Icon name={liked ? 'thumbs-up' : 'thumbs-up-outline'} size={17} color={liked ? C.goldDim : C.text} />
+            <Text style={[styles.mPillText, liked && { color: C.goldDim }]}>{likeCount > 0 ? likeCount.toLocaleString() : 'Like'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.mPill, saved && styles.mPillOn]} onPress={toggleSave}>
+            <Icon name={saved ? 'bookmark' : 'bookmark-outline'} size={17} color={saved ? C.goldDim : C.text} />
+            <Text style={[styles.mPillText, saved && { color: C.goldDim }]}>{saved ? 'Saved' : 'Save'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mPill} onPress={handleShare}>
+            <Icon name="share-outline" size={17} color={C.text} />
+            <Text style={styles.mPillText}>Share</Text>
+          </TouchableOpacity>
+        </ScrollView>
 
-            <View style={[styles.creatorRow, !isWide && styles.creatorRowStacked]}>
-              <TouchableOpacity
-                style={[styles.creatorInfo, !isWide && { alignSelf: 'stretch' }]}
-                onPress={() => router.push(`/speaker/${video.speaker_id}` as any)}
-              >
-                <Avatar name={video.speakers?.display_name ?? 'Siqa'} url={(video.speakers as any)?.avatar_url ?? null} size={44} />
-                <View style={{ flexShrink: 1, minWidth: 0 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Text style={[styles.creatorName, { flexShrink: 1 }]} numberOfLines={1}>
-                      {video.speakers?.display_name ?? 'Siqa'}
-                      {video.speakers?.is_verified && (video.speakers as any)?.is_claimed ? ' ✓' : ''}
-                    </Text>
-                    {video.speakers && (video.speakers as any).is_claimed === false && <UnclaimedBadge />}
-                  </View>
-                  <Text style={styles.creatorMeta}>
-                    {(video.speakers?.follower_count ?? 0).toLocaleString()} followers
-                  </Text>
+        <View style={styles.mBand} />
+
+        {/* Speaker */}
+        <View style={[styles.mSection, { gap: 10 }]}>
+          <View style={styles.mSpeakerRow}>
+            <TouchableOpacity
+              style={styles.mSpeakerInfo}
+              onPress={() => router.push(`/speaker/${video.speaker_id}` as any)}
+            >
+              <Avatar name={video.speakers?.display_name ?? 'Siqa'} url={(video.speakers as any)?.avatar_url ?? null} size={44} />
+              <View style={{ flexShrink: 1, minWidth: 0, gap: 2 }}>
+                <Text style={styles.creatorName} numberOfLines={1}>
+                  {video.speakers?.display_name ?? 'Siqa'}
+                  {video.speakers?.is_verified && (video.speakers as any)?.is_claimed ? ' ✓' : ''}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.creatorMeta} numberOfLines={1}>{(video.speakers?.follower_count ?? 0).toLocaleString()} followers</Text>
+                  {video.speakers && (video.speakers as any).is_claimed === false && <UnclaimedBadge />}
                 </View>
-              </TouchableOpacity>
-
-              <View style={[styles.actionsRow, !isWide && { alignSelf: 'stretch' }]}>
-                <TouchableOpacity
-                  style={[styles.followBtn, following && styles.followingBtn, !isWide && { flex: 1, alignItems: 'center' }]}
-                  onPress={toggleFollow}
-                >
-                  <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
-                    {following ? 'Following' : 'Follow'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={[styles.shareBtn, !isWide && { flex: 1, justifyContent: 'center' }]} onPress={handleShare}>
-                  <Text style={styles.shareBtnIcon}>↗</Text>
-                  <Text style={styles.shareBtnText}>Share</Text>
-                </TouchableOpacity>
-
-                {/* Phones use the cast icon on the player instead (no room here). */}
-                {!isYouTube && isWide && <CastButton media={castMedia} getVideoElement={getPlayerVideo} />}
               </View>
-            </View>
-
-            <View style={styles.descCard}>
-              <Text style={styles.descMeta}>
-                {formatViews(video.view_count)} · {timeAgo(video.published_at ?? video.created_at)}
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.mFollow, following && styles.followingBtn]} onPress={toggleFollow}>
+              <Text style={[styles.followBtnText, following && styles.followingBtnText]}>{following ? 'Following' : 'Follow'}</Text>
+            </TouchableOpacity>
+          </View>
+          {video.speakers && (video.speakers as any).is_claimed === false && (
+            <Text style={styles.mClaim}>
+              Siqa set up this profile from public videos.{' '}
+              <Text
+                style={styles.mClaimLink}
+                onPress={() => router.push({ pathname: '/claim', params: { type: 'speaker', id: video.speaker_id } } as any)}
+              >
+                Is this you? Claim it
               </Text>
-              {video.description ? <Text style={styles.descText}>{video.description}</Text> : null}
+            </Text>
+          )}
+        </View>
+
+        {(video.description || (video.topics && video.topics.length > 0)) ? (
+          <>
+            <View style={styles.mBand} />
+            <View style={[styles.mSection, { gap: 10 }]}>
+              <Text style={styles.mH2}>About this video</Text>
+              {video.description ? (
+                <TouchableOpacity activeOpacity={0.8} style={styles.mDescCard} onPress={() => setDescOpen(o => !o)}>
+                  <Text style={styles.mDescText} numberOfLines={descOpen ? undefined : 3}>{video.description}</Text>
+                  {video.description.length > 140 && (
+                    <Text style={styles.mShowMore}>{descOpen ? 'Show less' : 'Show more'}</Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
               {video.topics && video.topics.length > 0 ? (
                 <View style={styles.topicRow}>
                   {video.topics.map((t) => (
-                    <View key={t} style={styles.topicChip}>
-                      <Text style={styles.topicText}>#{t}</Text>
-                    </View>
+                    <View key={t} style={styles.mTag}><Text style={styles.mTagText}>{t}</Text></View>
                   ))}
                 </View>
               ) : null}
             </View>
+          </>
+        ) : null}
 
-            <CommentsSection videoId={video.id} />
-          </View>
-
-          <View style={isWide ? styles.relatedWideCol : styles.bodyStacked}>
-            <Text style={styles.relatedLabel}>Related videos</Text>
-            {related.map((r) => (
-              <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
-                <View style={styles.relatedThumbWrap}>
-                  {r.thumbnail_url ? (
-                    <Image source={{ uri: r.thumbnail_url }} style={styles.relatedThumb} resizeMode="cover" />
-                  ) : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.relatedTitle} numberOfLines={2}>{r.title}</Text>
-                  <Text style={styles.relatedMeta}>{r.speakers?.display_name}</Text>
-                  <Text style={styles.relatedMeta}>{formatViews(r.view_count)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+        <View style={styles.mBand} />
+        <View style={styles.mSection}>
+          <CommentsSection videoId={video.id} />
         </View>
+
+        {related.length > 0 && (
+          <>
+            <View style={styles.mBand} />
+            <View style={[styles.mSection, { gap: 14 }]}>
+              <Text style={styles.mH2}>Up next</Text>
+              {related.map((r, i) => (
+                <View key={r.id} style={{ gap: 14 }}>
+                  <TouchableOpacity style={styles.mRelRow} onPress={() => router.push(`/watch/${r.id}`)}>
+                    <View style={styles.mRelThumb}>
+                      {r.thumbnail_url ? <Image source={{ uri: r.thumbnail_url }} style={styles.relatedThumb} resizeMode="cover" /> : null}
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+                      <Text style={styles.mRelTitle} numberOfLines={3}>{r.title}</Text>
+                      <Text style={styles.creatorMeta} numberOfLines={1}>
+                        {r.speakers?.display_name}{r.view_count ? ` · ${formatViews(r.view_count)}` : ''}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  {i < related.length - 1 && <View style={styles.mDivider} />}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
+      ) : (
+      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+          <View style={isWide ? styles.wideContent : undefined}>
+            <View style={isWide ? styles.body : styles.bodyStacked}>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backRow} hitSlop={8}>
+                <Text style={styles.backArrow}>‹</Text>
+                <Text style={styles.backLabel}>Back</Text>
+              </TouchableOpacity>
+  
+              <Text style={styles.title}>{video.title}</Text>
+  
+              <View style={[styles.creatorRow, !isWide && styles.creatorRowStacked]}>
+                <TouchableOpacity
+                  style={[styles.creatorInfo, !isWide && { alignSelf: 'stretch' }]}
+                  onPress={() => router.push(`/speaker/${video.speaker_id}` as any)}
+                >
+                  <Avatar name={video.speakers?.display_name ?? 'Siqa'} url={(video.speakers as any)?.avatar_url ?? null} size={44} />
+                  <View style={{ flexShrink: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <Text style={[styles.creatorName, { flexShrink: 1 }]} numberOfLines={1}>
+                        {video.speakers?.display_name ?? 'Siqa'}
+                        {video.speakers?.is_verified && (video.speakers as any)?.is_claimed ? ' ✓' : ''}
+                      </Text>
+                      {video.speakers && (video.speakers as any).is_claimed === false && <UnclaimedBadge />}
+                    </View>
+                    <Text style={styles.creatorMeta}>
+                      {(video.speakers?.follower_count ?? 0).toLocaleString()} followers
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+  
+                <View style={[styles.actionsRow, !isWide && { alignSelf: 'stretch' }]}>
+                  <TouchableOpacity
+                    style={[styles.followBtn, following && styles.followingBtn, !isWide && { flex: 1, alignItems: 'center' }]}
+                    onPress={toggleFollow}
+                  >
+                    <Text style={[styles.followBtnText, following && styles.followingBtnText]}>
+                      {following ? 'Following' : 'Follow'}
+                    </Text>
+                  </TouchableOpacity>
+  
+                  <TouchableOpacity style={[styles.shareBtn, !isWide && { flex: 1, justifyContent: 'center' }]} onPress={handleShare}>
+                    <Text style={styles.shareBtnIcon}>↗</Text>
+                    <Text style={styles.shareBtnText}>Share</Text>
+                  </TouchableOpacity>
+  
+                  {/* Phones use the cast icon on the player instead (no room here). */}
+                  {!isYouTube && isWide && <CastButton media={castMedia} getVideoElement={getPlayerVideo} />}
+                </View>
+              </View>
+  
+              <View style={styles.descCard}>
+                <Text style={styles.descMeta}>
+                  {formatViews(video.view_count)} · {timeAgo(video.published_at ?? video.created_at)}
+                </Text>
+                {video.description ? <Text style={styles.descText}>{video.description}</Text> : null}
+                {video.topics && video.topics.length > 0 ? (
+                  <View style={styles.topicRow}>
+                    {video.topics.map((t) => (
+                      <View key={t} style={styles.topicChip}>
+                        <Text style={styles.topicText}>#{t}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+  
+              <CommentsSection videoId={video.id} />
+            </View>
+  
+            <View style={isWide ? styles.relatedWideCol : styles.bodyStacked}>
+              <Text style={styles.relatedLabel}>Related videos</Text>
+              {related.map((r) => (
+                <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
+                  <View style={styles.relatedThumbWrap}>
+                    {r.thumbnail_url ? (
+                      <Image source={{ uri: r.thumbnail_url }} style={styles.relatedThumb} resizeMode="cover" />
+                    ) : null}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.relatedTitle} numberOfLines={2}>{r.title}</Text>
+                    <Text style={styles.relatedMeta}>{r.speakers?.display_name}</Text>
+                    <Text style={styles.relatedMeta}>{formatViews(r.view_count)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      )}
     </View>
     </DesktopShell>
   );
@@ -324,6 +504,36 @@ function makeStyles(C: AppColors) {
   // it doesn't stretch to an absurd size on an ultrawide monitor; centered.
   playerWrapFixed: { backgroundColor: C.black, alignItems: 'center' },
   playerInner: { width: '100%', maxWidth: 1000, aspectRatio: 16 / 9 },
+  playerBack: {
+    position: 'absolute', top: 10, left: 10, width: 40, height: 40, borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
+  },
+  mSection: { paddingHorizontal: 16, paddingVertical: 14 },
+  mTitle: { color: C.text, fontSize: 19, lineHeight: 25, fontWeight: '700', letterSpacing: -0.2 },
+  mMeta: { color: C.text2, fontSize: 13, lineHeight: 18, marginTop: 6 },
+  mPills: { gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  mPill: {
+    height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: C.bg2,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+  },
+  mPillOn: { backgroundColor: C.goldSoft },
+  mPillText: { color: C.text, fontSize: 13, fontWeight: '600' },
+  mBand: { height: 8, backgroundColor: C.bg2 },
+  mSpeakerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mSpeakerInfo: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  mFollow: { backgroundColor: C.gold, height: 38, paddingHorizontal: 18, borderRadius: 999, justifyContent: 'center' },
+  mClaim: { color: C.text2, fontSize: 12, lineHeight: 17 },
+  mClaimLink: { color: C.goldDim, fontWeight: '700' },
+  mH2: { color: C.text, fontSize: 15, fontWeight: '700' },
+  mDescCard: { backgroundColor: C.surface2, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 8 },
+  mDescText: { color: C.text, fontSize: 14, lineHeight: 21 },
+  mShowMore: { color: C.text, fontSize: 13, fontWeight: '700' },
+  mTag: { backgroundColor: C.goldBg, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  mTagText: { color: C.goldDim, fontSize: 12, fontWeight: '600' },
+  mRelRow: { flexDirection: 'row', gap: 12 },
+  mRelThumb: { width: 156, aspectRatio: 16 / 9, borderRadius: 10, overflow: 'hidden', backgroundColor: C.surface3 },
+  mRelTitle: { color: C.text, fontSize: 14, lineHeight: 19, fontWeight: '600' },
+  mDivider: { height: 1, backgroundColor: C.border },
   scrollArea: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   wideLayout: { flexDirection: 'row', maxWidth: 1600, alignSelf: 'center', width: '100%' },
