@@ -23,6 +23,7 @@ import { Theme } from "../../constants/theme";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { SearchIcon, ClearIcon } from "../../components/Siqa";
 import { useSearchContext } from "../../contexts/SearchContext";
+import { brandStyles } from '../../lib/ds';
 
 type LongVideo = {
   id: string;
@@ -432,7 +433,7 @@ function HomeScreenInner() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
 
@@ -541,7 +542,7 @@ function makeStyles(C: AppColors) {
     emptyState: { alignItems: "center", paddingTop: Theme.spacing.xxxl * 2 },
     emptyTitle: { color: C.text, fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.semibold },
     emptySubtitle: { color: C.text2, fontSize: Theme.fontSize.base, marginTop: Theme.spacing.xs },
-  });
+  }));
 }
 
 // Not part of the Marketplace site (marketplace.thesiqaapp.com): go to the Shop.
