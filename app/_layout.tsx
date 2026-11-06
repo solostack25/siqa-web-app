@@ -131,7 +131,6 @@ function AppContent() {
         <Stack.Screen name="gem-upload" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="seed-create" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
-        <Stack.Screen name="local/index" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="local/[id]" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="local/edit" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="local/inbox" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />

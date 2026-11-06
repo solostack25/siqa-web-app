@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
@@ -29,6 +29,8 @@ function TabIcon({ focused, label, icon }: TabIconProps) {
 export default function TabsLayout() {
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
+  // Local & services lives under the Shop tab.
+  const onLocal = usePathname().startsWith('/local');
 
   const tabs = (
     <Tabs
@@ -77,7 +79,7 @@ export default function TabsLayout() {
         options={{
           title: 'Marketplace',
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Shop" icon={<DiscoverIcon color={focused ? C.gold : C.text3} />} />
+            <TabIcon focused={focused || onLocal} label="Shop" icon={<DiscoverIcon color={focused || onLocal ? C.gold : C.text3} />} />
           ),
           tabBarLabel: () => null,
         }}
@@ -109,6 +111,10 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="local"
+        options={{ href: null, title: 'Local & services' }}
       />
       <Tabs.Screen
         name="orgs"

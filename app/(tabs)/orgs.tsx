@@ -23,6 +23,7 @@ import { useSearchContext } from '../../contexts/SearchContext';
 import {
   ORG_CATEGORY_LABEL, ORG_FILTERS, categoryFromOrgType, type OrgCategory,
 } from '../../lib/orgCategories';
+import { MobileBrandBar } from '../../components/MobileBrandBar';
 
 /**
  * Organizations directory.
@@ -247,6 +248,7 @@ function OrgsScreenInner() {
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={{ paddingBottom: 72 }} keyboardShouldPersistTaps="handled">
+        <MobileBrandBar />
         <View style={[styles.page, { paddingHorizontal: pad }]}>
           {/* Header */}
           <View style={styles.header}>
@@ -301,8 +303,8 @@ function OrgsScreenInner() {
                 onPress={() => setStatePickerOpen(o => !o)}
                 accessibilityState={{ expanded: statePickerOpen }}
               >
-                <Icon name="location-outline" size={18} color={stateCode ? C.emerald : C.text2} />
-                <Text style={[styles.stateBtnText, stateCode ? { color: C.emerald, fontWeight: '700' } : null]}>
+                <Icon name="location-outline" size={18} color={stateCode ? C.gold : C.text2} />
+                <Text style={[styles.stateBtnText, stateCode ? { color: C.gold, fontWeight: '700' } : null]}>
                   {stateCode || 'All states'}
                 </Text>
                 <Icon name={statePickerOpen ? 'chevron-up' : 'chevron-down'} size={16} color={C.text3} />
@@ -347,8 +349,8 @@ function OrgsScreenInner() {
                 accessibilityRole="switch"
                 accessibilityState={{ checked: onlyDonations }}
               >
-                <Icon name={onlyDonations ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={onlyDonations ? C.emerald : C.text3} />
-                <Text style={[styles.toggleText, onlyDonations && { color: C.emerald, fontWeight: '700' }]}>Takes donations on Siqa</Text>
+                <Icon name={onlyDonations ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={onlyDonations ? C.gold : C.text3} />
+                <Text style={[styles.toggleText, onlyDonations && { color: C.gold, fontWeight: '700' }]}>Takes donations on Siqa</Text>
               </TouchableOpacity>
             </View>
 
@@ -552,7 +554,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     container: { flex: 1, backgroundColor: C.bg },
     page: {
       width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center', gap: 26,
-      paddingTop: desktop ? 32 : HEADER_TOP_PADDING,
+      paddingTop: desktop ? 32 : 8,
     },
     centered: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
 
@@ -566,7 +568,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     headerBtns: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 
     primaryBtn: {
-      minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald,
+      minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold,
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     },
     primaryBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
@@ -593,7 +595,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       flexGrow: 1, flexBasis: 150, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: C.border,
       flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14,
     },
-    stateBtnActive: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    stateBtnActive: { borderColor: C.gold, backgroundColor: C.goldBg },
     stateBtnText: { flex: 1, fontSize: 15, color: C.text },
     statePanel: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 2 },
     scopeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
@@ -609,7 +611,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       minHeight: 38, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
       flexDirection: 'row', alignItems: 'center', gap: 6,
     },
-    toggleOn: { borderColor: C.emerald, backgroundColor: C.emeraldBg },
+    toggleOn: { borderColor: C.gold, backgroundColor: C.goldBg },
     toggleText: { fontSize: 13, color: C.text2, fontWeight: '500' },
     chipRow: { flexDirection: 'row', flexWrap: desktop ? 'wrap' : 'nowrap', gap: 8 },
     chip: {
@@ -623,7 +625,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     section: { gap: 14 },
     sectionHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10 },
     h2: { fontSize: desktop ? 20 : 18, fontWeight: '700', color: C.text },
-    link: { fontSize: 14, fontWeight: '600', color: C.emerald },
+    link: { fontSize: 14, fontWeight: '600', color: C.gold },
     small: { fontSize: 13, color: C.text2, lineHeight: 18 },
     strong: { fontWeight: '700', color: C.text },
     empty: { fontSize: 14, color: C.text2 },
@@ -686,7 +688,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
       paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, overflow: 'hidden',
     },
     claimLink: { minHeight: 44, minWidth: 56, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
-    claimLinkText: { fontSize: 14, fontWeight: '700', color: C.emerald },
+    claimLinkText: { fontSize: 14, fontWeight: '700', color: C.gold },
     listFoot: {
       flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10,
       padding: 14, backgroundColor: C.bg2,
