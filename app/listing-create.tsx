@@ -7,7 +7,7 @@ import {
   TextInput,
   Image,
   ActivityIndicator,
-  Switch,
+  Pressable,
 } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
@@ -19,6 +19,8 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { showToast } from '../components/Toast';
 import { DesktopShell } from '../components/DesktopShell';
+import { BottomSheet, Button, IconButton, ListRow, OptionRow, SegmentedControl, Stepper, TextField } from '../components/ui';
+import { font, radius, space, type as T, useDS } from '../lib/ds';
 
 const CATEGORIES = [
   'Home Decor', 'Books & Media', 'Clothing & Accessories', 'Art & Prints',
@@ -28,6 +30,8 @@ const CATEGORIES = [
 export default function ListingCreateScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
+  const ds = useDS();
+  const [catOpen, setCatOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -152,92 +156,124 @@ export default function ListingCreateScreen() {
     );
   }
 
+  const { c, shadow } = ds;
+  const canPublish = !!title.trim() && !!price.trim() && !saving && !uploading;
+  const stock = parseInt(inventory, 10) || 0;
+
   return (
     <DesktopShell>
-    <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
-          <Icon name="arrow-back" size={20} color={C.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>New Listing</Text>
+    <View style={{ flex: 1, backgroundColor: c.surfaceSoft }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, width: '100%', maxWidth: 560, alignSelf: 'center' }} keyboardShouldPersistTaps="handled">
+      {/* Photo stage */}
+      <View style={{ paddingTop: HEADER_TOP_PADDING - 12, paddingBottom: 26 + 30 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 }}>
+          <IconButton icon="close" label="Close" variant="raised" onPress={() => router.back()} />
+          <Text style={[T.headline, { color: c.ink }]} accessibilityRole="header">New product</Text>
+          <View style={{ width: 44 }} />
+        </View>
+
+        {images.length === 0 ? (
+          <View style={{ alignItems: 'center', gap: 16, paddingTop: 28 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }} importantForAccessibility="no-hide-descendants">
+              <View style={[{ width: 86, height: 110, borderRadius: 16, backgroundColor: c.surfaceStrong, transform: [{ rotate: '-8deg' }] }, shadow('hairline')]} />
+              <View style={[{ width: 120, height: 150, borderRadius: 18, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }, shadow('raised')]}>
+                <Icon name="image-outline" size={34} color={c.ink3} />
+              </View>
+              <View style={[{ width: 86, height: 110, borderRadius: 16, backgroundColor: c.surfaceStrong, transform: [{ rotate: '8deg' }] }, shadow('hairline')]} />
+            </View>
+            <Button label="Add photos" icon="camera-outline" size="md" onPress={pickImages} loading={uploading} />
+            <Text style={[T.caption, font(400), { color: c.ink2 }]}>The first photo is the cover</Text>
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingTop: 24, paddingBottom: 8 }}>
+            {images.map((url, i) => (
+              <View key={url} style={[{ width: 120, height: 150, borderRadius: 18, backgroundColor: c.surface, overflow: 'hidden' }, shadow('card')]}>
+                <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                {i === 0 ? (
+                  <View style={{ position: 'absolute', left: 8, bottom: 8, backgroundColor: c.scrim, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+                    <Text style={[T.micro, { color: '#fff' }]}>Cover</Text>
+                  </View>
+                ) : null}
+                <IconButton icon="close" label="Remove photo" variant="scrim" size="sm" onPress={() => removeImage(url)} style={{ position: 'absolute', top: 6, right: 6 }} />
+              </View>
+            ))}
+            <Pressable
+              onPress={pickImages}
+              disabled={uploading}
+              accessibilityRole="button"
+              accessibilityLabel="Add more photos"
+              style={({ pressed }) => ({ width: 120, height: 150, borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.lineControl, alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.6 : 1 })}
+            >
+              {uploading ? <ActivityIndicator color={c.ink2} /> : <Icon name="add" size={26} color={c.ink2} />}
+              <Text style={[T.caption, { color: c.ink2 }]}>{uploading ? 'Uploading' : 'Add'}</Text>
+            </Pressable>
+          </ScrollView>
+        )}
       </View>
 
-      {!sellerApproved && (
-        <View style={styles.notice}>
-          <Text style={styles.noticeText}>
-            Your shop is still pending approval. You can create listings now — they'll go live automatically once approved.
-          </Text>
-        </View>
-      )}
+      {/* Sheet */}
+      <View style={[{ flexGrow: 1, marginTop: -26, backgroundColor: c.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet }, shadow('sheet')]}>
+        <View style={{ alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: c.surfaceStrong, marginTop: 8 }} />
 
-      <View style={styles.body}>
-        <Text style={styles.label}>Photos</Text>
-        <View style={styles.imagesRow}>
-          {images.map(url => (
-            <View key={url} style={styles.imageThumb}>
-              <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-              <TouchableOpacity style={styles.imageRemove} onPress={() => removeImage(url)}>
-                <Icon name="close" size={12} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          ))}
-          <TouchableOpacity style={styles.addImageBtn} onPress={pickImages} disabled={uploading}>
-            {uploading ? <ActivityIndicator color={C.text3} size="small" /> : <Icon name="add" size={22} color={C.text3} />}
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.label}>Title *</Text>
-        <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Product name" placeholderTextColor={C.text3} />
-
-        <Text style={styles.label}>Description</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe your product..."
-          placeholderTextColor={C.text3}
-          multiline
-          numberOfLines={4}
-        />
-
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Price (USD) *</Text>
-            <TextInput style={styles.input} value={price} onChangeText={setPrice} placeholder="0.00" placeholderTextColor={C.text3} keyboardType="decimal-pad" />
+        {!sellerApproved ? (
+          <View style={{ marginHorizontal: space[5], marginTop: 14, padding: 12, borderRadius: radius.md, backgroundColor: c.goldTint, flexDirection: 'row', gap: 10 }}>
+            <Icon name="time-outline" size={18} color={c.goldInk} />
+            <Text style={[T.caption, font(500), { color: c.goldInk, flex: 1 }]}>Your shop is waiting for approval. Products you add now go live once it's approved.</Text>
           </View>
-          {!isDigital && (
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Inventory</Text>
-              <TextInput style={styles.input} value={inventory} onChangeText={setInventory} placeholder="1" placeholderTextColor={C.text3} keyboardType="number-pad" />
+        ) : null}
+
+        <View style={{ paddingHorizontal: space[5], paddingTop: 16, gap: 2 }}>
+          <TextField variant="bare" textStyle="title2" value={title} onChangeText={setTitle} placeholder="Product name" accessibilityLabel="Product name" maxLength={120} />
+          <TextField variant="bare" textStyle="callout" value={description} onChangeText={setDescription} placeholder="Add a description: materials, size, what's included" accessibilityLabel="Description" multiline style={{ minHeight: 64 }} />
+        </View>
+
+        {/* Price card */}
+        <View style={[{ marginHorizontal: space[5], marginTop: 10, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.xl, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }, shadow('card')]}>
+          <View style={{ flex: 1, minWidth: 130 }}>
+            <Text style={[T.micro, { color: c.ink2 }]}>Price</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <Text style={[T.title1, font(700), { color: price ? c.ink3 : c.ghost }]}>$</Text>
+              <TextInput
+                value={price}
+                onChangeText={(v) => setPrice(v.replace(/[^0-9.]/g, ''))}
+                placeholder="0.00"
+                placeholderTextColor={c.ghost}
+                keyboardType="decimal-pad"
+                accessibilityLabel="Price in dollars"
+                style={[T.title1, font(700), { flex: 1, color: c.ink, padding: 0, minWidth: 80, outlineStyle: 'none' } as any]}
+              />
             </View>
+          </View>
+          <SegmentedControl
+            label="Product type"
+            value={isDigital ? 'digital' : 'physical'}
+            onChange={(v) => setIsDigital(v === 'digital')}
+            options={[{ value: 'physical', label: 'Physical' }, { value: 'digital', label: 'Digital' }]}
+          />
+        </View>
+
+        <View style={{ paddingHorizontal: space[5], paddingTop: 8 }}>
+          {!isDigital ? (
+            <ListRow icon="cube-outline" label="In stock" right={<Stepper label="in stock" value={stock} min={0} max={99999} onChange={(n) => setInventory(String(n))} />} />
+          ) : (
+            <ListRow icon="cloud-download-outline" label="Delivery" value="Download after purchase" />
           )}
+          <ListRow icon="grid-outline" label="Category" value={category} onPress={() => setCatOpen(true)} last />
         </View>
 
-        <View style={styles.switchRow}>
-          <Text style={styles.label}>Digital product</Text>
-          <Switch value={isDigital} onValueChange={setIsDigital} trackColor={{ false: C.border, true: C.gold }} />
+        <View style={{ flex: 1 }} />
+        <View style={{ paddingHorizontal: space[5], paddingTop: 14, paddingBottom: 28 }}>
+          <Button label="Publish product" onPress={submit} loading={saving} disabled={!canPublish} />
         </View>
-
-        <Text style={styles.label}>Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {CATEGORIES.map(cat => (
-              <TouchableOpacity key={cat} style={[styles.catPill, category === cat && styles.catPillActive]} onPress={() => setCategory(cat)}>
-                <Text style={[styles.catText, category === cat && styles.catTextActive]}>{cat}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        <TouchableOpacity
-          style={[styles.submitBtn, (!title.trim() || !price.trim() || saving) && styles.btnDisabled]}
-          onPress={submit}
-          disabled={!title.trim() || !price.trim() || saving}
-        >
-          {saving ? <ActivityIndicator color={C.black} /> : <Text style={styles.submitBtnText}>Publish Listing</Text>}
-        </TouchableOpacity>
       </View>
     </ScrollView>
+
+    <BottomSheet visible={catOpen} onClose={() => setCatOpen(false)} title="Category">
+      {CATEGORIES.map((cat, i) => (
+        <OptionRow key={cat} label={cat} selected={category === cat} onPress={() => { setCategory(cat); setCatOpen(false); }} last={i === CATEGORIES.length - 1} />
+      ))}
+    </BottomSheet>
+    </View>
     </DesktopShell>
   );
 }

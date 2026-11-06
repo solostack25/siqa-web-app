@@ -11,6 +11,8 @@ import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
 import { ToastHost } from '../components/Toast';
 import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
 import { useOtaUpdates } from '../lib/useOtaUpdates';
+import { useFonts } from 'expo-font';
+import { FONT_FILES } from '../lib/ds';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -28,16 +30,21 @@ SplashScreen.preventAutoHideAsync();
 function AppContent() {
   const { isDark, mode, colors: C } = useTheme();
   const [initialized, setInitialized] = useState(false);
+  // Brand font (Plus Jakarta Sans). Wait for it briefly so screens don't
+  // flash the system font, but never block the app on it.
+  const [fontsLoaded, fontError] = useFonts(FONT_FILES);
+  const [fontWaitOver, setFontWaitOver] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setFontWaitOver(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   // Keep legacy static Colors imports in sync before screens render.
   // This is important because many existing screens build StyleSheet values from Colors.
   Object.assign(Colors, isDark ? DarkColors : LightColors);
 
   useEffect(() => {
-    supabase.auth.getSession().then(() => {
-      setInitialized(true);
-      SplashScreen.hideAsync();
-    });
+    supabase.auth.getSession().then(() => setInitialized(true));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {}
@@ -64,7 +71,12 @@ function AppContent() {
     return () => clearTimeout(t);
   }, [pathname]);
 
-  if (!initialized) return null;
+  const ready = initialized && (fontsLoaded || !!fontError || fontWaitOver);
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return null;
 
   const stripeProps =
     Platform.OS === 'web'

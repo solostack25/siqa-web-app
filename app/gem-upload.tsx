@@ -14,6 +14,7 @@ import {
   View,
   Dimensions,
   PanResponder,
+  Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -33,6 +34,8 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Glyph } from '../components/Glyph';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
+import { BottomSheet, Button, IconButton, ListRow, OptionRow, Switch as DSSwitch, TextField, Chip } from '../components/ui';
+import { font, radius, space, type as T, useDS } from '../lib/ds';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -202,6 +205,11 @@ function GemUploadScreenContent() {
   const [scrubPosition, setScrubPosition] = useState(0); // 0–1
   const [frameUri, setFrameUri] = useState<string | null>(null);
   const [capturingFrame, setCapturingFrame] = useState(false);
+  // Phone layout (brand kit v2): which bottom sheet is open, and preview playback.
+  const ds = useDS();
+  const [sheet, setSheet] = useState<null | 'speaker' | 'topics' | 'visibility' | 'format' | 'seed' | 'cover'>(null);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [speakerQuery, setSpeakerQuery] = useState('');
   const scrubBarWidth = useRef(0);
   const videoDuration = useRef(0);
 
@@ -1162,90 +1170,239 @@ function GemUploadScreenContent() {
     );
   }
 
-  if (isDesktopWeb) return renderDesktop();
+  // ── Phone layout: dark stage with the clip, white sheet with the details ──
+  function renderPhone() {
+    const { c, shadow } = ds;
+    const speakerName = isAdmin
+      ? speakers.find((s) => s.id === selectedSpeakerId)?.display_name || 'Choose speaker'
+      : 'You';
+    const chosenSeed = seeds.find((s) => s.id === fundraiserId);
+    const detected = video?.duration != null ? (video.duration > 180 ? 'Long' : 'Short') : null;
+    const formatValue =
+      contentFormat === 'auto' ? (detected ? `Auto · ${detected}` : 'Auto') : contentFormat === 'short' ? 'Short' : 'Long';
+    const fileTitle = video?.fileName?.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+    const filteredSpeakers = speakerQuery.trim()
+      ? speakers.filter((s) => s.display_name.toLowerCase().includes(speakerQuery.trim().toLowerCase()))
+      : speakers;
 
-  return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} disabled={uploading}>
-          <Text style={styles.cancel}>Cancel</Text>
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>New Gem</Text>
-          <Text style={styles.headerArabic}>صِقا</Text>
-        </View>
-        <TouchableOpacity onPress={postGem} disabled={uploading} style={[styles.postBtn, uploading && styles.postBtnDisabled]}>
-          <Text style={styles.postBtnText}>{uploading ? 'Posting' : 'Post'}</Text>
-        </TouchableOpacity>
-      </View>
+    return (
+      <View style={{ flex: 1, backgroundColor: c.stage }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          {/* Stage */}
+          <View style={{ paddingTop: Platform.OS === 'web' ? 8 : 52, paddingBottom: 26 + 24 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 }}>
+              <IconButton icon="close" label="Close" color="#ffffff" onPress={() => router.back()} disabled={uploading} />
+              <Text style={[T.headline, { color: '#ffffff' }]} accessibilityRole="header">New Gem</Text>
+              <Pressable onPress={discardDraft} disabled={uploading} hitSlop={6} style={{ height: 44, paddingHorizontal: 12, justifyContent: 'center' }} accessibilityRole="button">
+                <Text style={[T.buttonMd, font(600), { color: 'rgba(255,255,255,0.72)' }]}>Clear</Text>
+              </Pressable>
+            </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.draftRow}>
-          <TouchableOpacity style={styles.draftBtn} onPress={() => saveDraft(true)} disabled={uploading || savingDraft}>
-            <Text style={styles.draftBtnText}>{savingDraft ? 'Saving...' : 'Save Draft'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.draftBtnGhost} onPress={discardDraft} disabled={uploading}>
-            <Text style={styles.draftBtnGhostText}>Discard</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={{ alignItems: 'center', marginTop: 12 }}>
+              {video ? (
+                <View style={[{ width: 206, height: 366, borderRadius: 22, overflow: 'hidden', backgroundColor: '#48525C' }, { boxShadow: '0px 24px 60px rgba(0,0,0,0.55), 0px 0px 0px 1px rgba(255,255,255,0.08)' } as any]}>
+                  {previewPlaying || !thumbnail ? (
+                    <Video
+                      source={{ uri: video.uri }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode={ResizeMode.COVER}
+                      shouldPlay={previewPlaying}
+                      isLooping
+                      isMuted={!previewPlaying}
+                    />
+                  ) : (
+                    <Image source={{ uri: thumbnail.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  )}
+                  <Pressable
+                    onPress={() => setPreviewPlaying((p) => !p)}
+                    accessibilityRole="button"
+                    accessibilityLabel={previewPlaying ? 'Pause preview' : 'Play preview'}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 56, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {!previewPlaying ? (
+                      <View style={[{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }, { boxShadow: 'inset 0px 0px 0px 1px rgba(255,255,255,0.35)' } as any]}>
+                        <Icon name="play" size={24} color="#ffffff" />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                  {video.duration != null ? (
+                    <View style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 }}>
+                      <Text style={[T.micro, { color: '#ffffff' }]}>{formatTime(video.duration)}</Text>
+                    </View>
+                  ) : null}
+                  <View style={{ position: 'absolute', left: 10, right: 10, bottom: 10, flexDirection: 'row', gap: 6 }}>
+                    <Button label="Edit cover" icon="image-outline" variant="light" size="sm" grow onPress={() => setSheet('cover')} disabled={uploading} />
+                    <IconButton icon="swap-horizontal" label="Replace video" variant="scrim" size="sm" onPress={pickVideo} disabled={uploading} />
+                  </View>
+                </View>
+              ) : (
+                <View style={{ width: 206, height: 366, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="film-outline" size={26} color="#ffffff" />
+                  </View>
+                  <Text style={[T.callout, { color: 'rgba(255,255,255,0.8)', textAlign: 'center' }]}>Vertical clips work best</Text>
+                  <Button label="Choose video" icon="add" variant="light" size="md" onPress={pickVideo} disabled={uploading} />
+                  {Platform.OS !== 'web' ? (
+                    <Button label="Record" icon="radio-button-on" variant="ghost" size="sm" onPress={recordVideo} disabled={uploading} style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                  ) : null}
+                </View>
+              )}
+            </View>
+          </View>
 
-        <TouchableOpacity style={[styles.uploadZone, video && styles.uploadZoneLoaded]} onPress={pickVideo} disabled={uploading}>
-          {video ? (
-            <>
-              <Video
-                source={{ uri: video.uri }}
-                style={StyleSheet.absoluteFill}
-                resizeMode={ResizeMode.COVER}
-                isMuted
-                shouldPlay={false}
+          {/* Sheet */}
+          <View style={[{ flexGrow: 1, backgroundColor: c.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, marginTop: -26 }, shadow('sheet')]}>
+            <View style={{ alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: c.surfaceStrong, marginTop: 8 }} />
+
+            <View style={{ paddingHorizontal: space[5], paddingTop: space[4], gap: 10 }}>
+              <TextField
+                variant="bare"
+                value={caption}
+                onChangeText={setCaption}
+                placeholder="Describe your Gem…"
+                accessibilityLabel="Caption"
+                multiline
+                editable={!uploading}
+                style={{ minHeight: 84, fontSize: 18, lineHeight: 26 }}
               />
-              <View style={styles.videoScrim} />
-              <Text style={styles.uploadIcon}>✓</Text>
-              <Text style={styles.uploadTitle} numberOfLines={1}>{video.fileName}</Text>
-              <Text style={styles.uploadSub}>Tap to choose a different video</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.uploadIcon}>＋</Text>
-              <Text style={styles.uploadTitle}>Select video</Text>
-              <Text style={styles.uploadSub}>MP4/MOV · short vertical clips work best</Text>
-            </>
-          )}
-        </TouchableOpacity>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                <Chip label="# Topic" onPress={() => setSheet('topics')} disabled={uploading} />
+                {video && fileTitle && !caption.trim() ? (
+                  <Chip label="Use file name" onPress={() => setCaption(fileTitle)} disabled={uploading} />
+                ) : null}
+              </View>
+            </View>
 
-        {!video && (
-          <TouchableOpacity style={styles.recordBtn} onPress={recordVideo} disabled={uploading}>
-            <View style={styles.recordDot} />
-            <Text style={styles.recordBtnText}>Record a new Gem now</Text>
-          </TouchableOpacity>
-        )}
+            <View style={{ height: 1, backgroundColor: c.line, marginHorizontal: space[5], marginTop: 14 }} />
 
-        {thumbnailCard}
+            <View style={{ paddingHorizontal: space[5] }}>
+              {isAdmin ? (
+                <ListRow icon="person-outline" label="Posting as" value={speakerName} onPress={() => setSheet('speaker')} disabled={uploading} />
+              ) : null}
+              <ListRow icon="pricetag-outline" label="Topics" value={selectedTopics.join(', ') || 'None'} onPress={() => setSheet('topics')} disabled={uploading} />
+              <ListRow icon="eye-outline" label="Who can see" value={visibility === 'public' ? 'Everyone' : 'Followers'} onPress={() => setSheet('visibility')} disabled={uploading} />
+              <ListRow icon="phone-portrait-outline" label="Format" value={formatValue} onPress={() => setSheet('format')} disabled={uploading} />
+              <ListRow
+                icon="leaf-outline"
+                label="Plant a Seed button"
+                sub="Let viewers donate from this Gem"
+                last={!plantSeed}
+                right={
+                  <DSSwitch
+                    label="Plant a Seed button"
+                    value={plantSeed}
+                    disabled={uploading}
+                    onValueChange={(v) => { setPlantSeed(v); if (v && !fundraiserId) setSheet('seed'); }}
+                  />
+                }
+              />
+              {plantSeed ? (
+                <Pressable
+                  onPress={() => setSheet('seed')}
+                  disabled={uploading}
+                  accessibilityRole="button"
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 38, marginBottom: 8, padding: 10, paddingRight: 12, borderRadius: 14, borderWidth: 1, borderColor: c.line, backgroundColor: c.goldTint, opacity: pressed ? 0.7 : 1 })}
+                >
+                  <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: c.seedTint, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name="leaf" size={17} color={c.seed} />
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <Text style={[T.subhead, font(600), { color: c.ink }]} numberOfLines={1}>
+                      {chosenSeed?.title || (fundraiserId ? 'Seed selected' : 'Choose a Seed')}
+                    </Text>
+                    <Text style={[T.micro, font(500), { color: c.ink2 }]}>
+                      {fundraiserId ? 'Tap to choose a different Seed' : 'Pick the Seed this Gem supports'}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-forward" size={16} color={c.ink3} />
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={{ flex: 1 }} />
+
+            <View style={{ paddingHorizontal: space[5], paddingTop: 14, paddingBottom: Platform.OS === 'ios' ? 34 : 24, gap: 12 }}>
+              {uploading ? (
+                <View style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={[T.caption, font(700), { color: c.ink }]}>{progressPct}%</Text>
+                    <Text style={[T.caption, { color: c.ink2 }]} numberOfLines={1}>{progressLabel}</Text>
+                  </View>
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: c.surfaceStrong, overflow: 'hidden' }}>
+                    <View style={{ height: 6, width: `${progressPct}%`, backgroundColor: c.gold }} />
+                  </View>
+                </View>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Button label={savingDraft ? 'Saving…' : 'Save draft'} variant="secondary" onPress={() => saveDraft(true)} disabled={uploading || savingDraft} style={{ flex: 1 }} />
+                <Button label={uploading ? 'Posting' : 'Post Gem'} iconRight={uploading ? undefined : 'arrow-forward'} onPress={postGem} loading={uploading} style={{ flex: 1.6 }} />
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Sheets */}
+        <BottomSheet visible={sheet === 'topics'} onClose={() => setSheet(null)} title="Topics" footer={<Button label="Done" onPress={() => setSheet(null)} />}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 6 }}>
+            {TOPICS.map((topic) => (
+              <Chip key={topic} label={topic} selected={selectedTopics.includes(topic)} onPress={() => toggleTopic(topic)} />
+            ))}
+          </View>
+        </BottomSheet>
+
+        <BottomSheet visible={sheet === 'visibility'} onClose={() => setSheet(null)} title="Who can see">
+          <OptionRow label="Everyone" sub="Anyone on Siqa can watch" icon="globe-outline" selected={visibility === 'public'} onPress={() => { setVisibility('public'); setSheet(null); }} />
+          <OptionRow label="Followers" sub="Only people who follow you" icon="people-outline" selected={visibility === 'followers'} onPress={() => { setVisibility('followers'); setSheet(null); }} last />
+        </BottomSheet>
+
+        <BottomSheet visible={sheet === 'format'} onClose={() => setSheet(null)} title="Format">
+          <OptionRow label="Auto" sub={detected ? `Detected as ${detected} (${formatTime(video!.duration!)})` : 'Short if 3 minutes or less'} selected={contentFormat === 'auto'} onPress={() => { setContentFormat('auto'); setSheet(null); }} />
+          <OptionRow label="Short" sub="Shows in the Gems feed" selected={contentFormat === 'short'} onPress={() => { setContentFormat('short'); setSheet(null); }} />
+          <OptionRow label="Long" sub="Shows in Browse and on your channel" selected={contentFormat === 'long'} onPress={() => { setContentFormat('long'); setSheet(null); }} last />
+        </BottomSheet>
+
+        <BottomSheet visible={sheet === 'speaker'} onClose={() => setSheet(null)} title="Posting as">
+          <TextField placeholder="Search speakers" value={speakerQuery} onChangeText={setSpeakerQuery} autoCapitalize="none" containerStyle={{ marginBottom: 6 }} />
+          {filteredSpeakers.slice(0, 60).map((s, i, arr) => (
+            <OptionRow key={s.id} label={s.display_name} selected={selectedSpeakerId === s.id} onPress={() => { setSelectedSpeakerId(s.id); setSheet(null); }} last={i === arr.length - 1} />
+          ))}
+        </BottomSheet>
+
+        <BottomSheet visible={sheet === 'seed'} onClose={() => setSheet(null)} title="Choose a Seed">
+          {seeds.length === 0 ? (
+            <Text style={[T.callout, { color: c.ink2, paddingVertical: 8 }]}>No Seeds yet. Paste a Seed ID below.</Text>
+          ) : null}
+          {seeds.map((seed) => (
+            <OptionRow
+              key={seed.id}
+              label={seed.title}
+              sub={seed.organization_name || undefined}
+              icon="leaf-outline"
+              selected={fundraiserId === seed.id}
+              onPress={() => { setFundraiserId(seed.id); setPlantSeed(true); setSheet(null); }}
+            />
+          ))}
+          <TextField label="Or paste a Seed ID" value={fundraiserId} onChangeText={setFundraiserId} autoCapitalize="none" containerStyle={{ marginTop: 14 }} />
+        </BottomSheet>
+
+        <BottomSheet visible={sheet === 'cover'} onClose={() => setSheet(null)} title="Cover">
+          <OptionRow label="Pick a frame from the clip" icon="film-outline" action onPress={() => { setSheet(null); openFramePicker(); }} />
+          <OptionRow label="Choose a photo" icon="image-outline" action onPress={() => { setSheet(null); pickThumbnail(); }} last />
+        </BottomSheet>
 
         {framePickerModal}
+        {successOverlay}
+      </View>
+    );
+  }
 
-        {progressBox}
-
-        {speakerCard}
-
-        {captionCard}
-
-        {topicsCard}
-
-        {seedCard}
-
-        {visibilityCard}
-
-        {formatCard}
-
-        <Text style={styles.securityNote}>
-          Uploads go to Bunny.net and the Gem record is saved in Supabase. Move the Bunny key server-side before public beta.
-        </Text>
-      </ScrollView>
-
-      {successOverlay}
-    </View>
-  );
+  if (isDesktopWeb) return renderDesktop();
+  return renderPhone();
 }
 
 function formatTime(seconds: number) {
