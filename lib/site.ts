@@ -41,7 +41,7 @@ export const SITE_HOME = IS_MARKETPLACE_SITE ? '/marketplace' : '/';
 // Routes that belong to Gems (videos) or the nonprofit side. On the
 // Marketplace site, landing on one of these sends you to the Shop.
 const BLOCKED_PREFIXES = [
-  '/gems', '/watch', '/channel', '/speaker', '/browse', '/gem-upload',
+  '/home', '/gems', '/watch', '/channel', '/speaker', '/browse', '/gem-upload',
   '/seeds', '/seed', '/seed-create', '/orgs', '/org-profile', '/org-register',
   '/donate', '/donate-success', '/dashboard',
 ];

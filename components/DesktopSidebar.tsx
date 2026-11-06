@@ -79,8 +79,8 @@ export function DesktopSidebar() {
     {
       key: 'home',
       label: 'Home',
-      path: '/(tabs)',
-      matchPrefixes: ['/', '/watch', '/channel', '/browse'],
+      path: '/home',
+      matchPrefixes: ['/home', '/watch', '/channel', '/browse'],
       icon: (color) => <HomeIcon color={color} />,
     },
     {
@@ -129,7 +129,7 @@ export function DesktopSidebar() {
   ];
 
   function isActive(item: { matchPrefixes: string[] }, key: string) {
-    if (key === 'home') return pathname === '/' || pathname.startsWith('/watch') || pathname.startsWith('/channel') || pathname.startsWith('/browse');
+    if (key === 'home') return pathname === '/home' || pathname.startsWith('/watch') || pathname.startsWith('/channel') || pathname.startsWith('/browse');
     return item.matchPrefixes.some((p) => pathname.startsWith(p));
   }
 

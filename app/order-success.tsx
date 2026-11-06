@@ -7,6 +7,7 @@ import { Theme } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
 import { brandStyles } from '../lib/ds';
 import { Button } from '../components/ui';
+import { IS_MARKETPLACE_SITE } from '../lib/site';
 
 export default function OrderSuccessScreen() {
   const { total, count } = useLocalSearchParams<{ total: string; count: string }>();
@@ -52,7 +53,7 @@ export default function OrderSuccessScreen() {
 
       <Animated.View style={[styles.actions, { opacity: fadeAnim }]}>
         <Button label="Continue shopping" onPress={() => router.replace('/(tabs)/marketplace' as any)} />
-        <Button label="Back to Home" variant="secondary" onPress={() => router.replace('/(tabs)')} />
+        <Button label="Back to Home" variant="secondary" onPress={() => router.replace((IS_MARKETPLACE_SITE ? '/marketplace' : '/home') as any)} />
       </Animated.View>
     </View>
     </DesktopShell>
