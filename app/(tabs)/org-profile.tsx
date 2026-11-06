@@ -42,6 +42,7 @@ import {
 import { brandStyles, font } from '../../lib/ds';
 import { Button } from '../../components/ui';
 import { OrgVideos } from '../../components/OrgVideos';
+import { OrgPosts } from '../../components/OrgPosts';
 import { focusedOnly } from '../../components/FocusedOnly';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
@@ -111,7 +112,7 @@ type Fundraiser = {
   zakat_eligible: boolean | null;
 };
 
-type Tab = 'overview' | 'videos' | 'seeds' | 'endorsements' | 'reviews' | 'about';
+type Tab = 'overview' | 'posts' | 'videos' | 'seeds' | 'endorsements' | 'reviews' | 'about';
 
 function orgIcon(type: string | null): GlyphName {
   const map: Record<string, GlyphName> = {
@@ -161,6 +162,7 @@ function OrgProfileScreen() {
   const canEditOrg = isOwner || isAdmin;
   const [activeTab, setActiveTab] = useState<Tab>(initialTab || 'overview');
   const [videoCount, setVideoCount] = useState(0);
+  const [postCount, setPostCount] = useState(0);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -532,6 +534,7 @@ function OrgProfileScreen() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'posts', label: `Posts${postCount ? ` (${postCount})` : ''}` },
     { key: 'videos', label: `Videos${videoCount ? ` (${videoCount})` : ''}` },
     { key: 'seeds', label: `Seeds${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
     { key: 'endorsements', label: `Endorsements${endorsingSpeakerIds.size ? ` (${endorsingSpeakerIds.size})` : ''}` },
@@ -837,9 +840,24 @@ function OrgProfileScreen() {
     />
   );
 
+  // Org posts live only on this page (public.org_posts), never in Gems.
+  const postsBlock = (limit?: number) => (
+    <OrgPosts
+      key={`posts-${org.id}-${limit ?? 'all'}`}
+      orgId={org.id}
+      orgName={org.org_name}
+      orgLogo={org.logo_url}
+      canEdit={canEditOrg}
+      limit={limit}
+      onSeeAll={() => setActiveTab('posts')}
+      onCount={setPostCount}
+    />
+  );
+
   // ── Layout per tab ───────────────────────────────────────────────────
 
   function renderTab() {
+    if (activeTab === 'posts') return <View style={styles.stack}>{postsBlock()}</View>;
     if (activeTab === 'videos') return <View style={styles.stack}>{videosBlock()}</View>;
     if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
     if (activeTab === 'endorsements') return <View style={styles.stack}>{endorsementsBlock()}</View>;
@@ -861,7 +879,7 @@ function OrgProfileScreen() {
       return (
         <View style={styles.row}>
           <View style={[styles.stack, styles.colLeft]}>{aboutBlock}{trustBlock}{services.length ? servicesBlock : null}</View>
-          <View style={[styles.stack, styles.colMain]}>{videosBlock(3)}{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colMain]}>{postsBlock(2)}{videosBlock(3)}{seedsBlock(4)}{reviewsBlock(3)}</View>
           <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(4)}</View>
         </View>
       );
@@ -869,13 +887,14 @@ function OrgProfileScreen() {
     if (cols === 2) {
       return (
         <View style={styles.row}>
-          <View style={[styles.stack, styles.colMain]}>{videosBlock(2)}{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colMain]}>{postsBlock(2)}{videosBlock(2)}{seedsBlock(4)}{reviewsBlock(3)}</View>
           <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(3)}{aboutBlock}{trustBlock}</View>
         </View>
       );
     }
     return (
       <View style={styles.stack}>
+        {postsBlock(2)}
         {videosBlock(2)}
         {seedsBlock(3)}
         {endorsementsBlock(3)}
