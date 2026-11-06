@@ -10,21 +10,22 @@ import {
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { Avatar } from '../../components/SeedSocial';
-import { UnclaimedBadge } from '../../components/ClaimNotice';
+import { useIsFocused } from '@react-navigation/native';
+import { Avatar } from '../../../components/SeedSocial';
+import { UnclaimedBadge } from '../../../components/ClaimNotice';
 import { Video, ResizeMode } from 'expo-av';
-import { supabase } from '../../lib/supabase';
-import { recordView, VIEW_DELAY_MS } from '../../lib/views';
-import { useTheme, type AppColors } from '../../lib/theme';
-import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
-import { Theme } from '../../constants/theme';
-import { shareVideo } from '../../lib/share';
-import { CastButton } from '../../components/CastButton';
-import { YouTubeEmbed } from '../../components/YouTubeEmbed';
-import { WatchComments } from '../../components/comments/Comments';
-import { Icon } from '../../components/Icon';
-import { brandStyles } from '../../lib/ds';
-import { Button, Chip } from '../../components/ui';
+import { supabase } from '../../../lib/supabase';
+import { recordView, VIEW_DELAY_MS } from '../../../lib/views';
+import { useTheme, type AppColors } from '../../../lib/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell';
+import { Theme } from '../../../constants/theme';
+import { shareVideo } from '../../../lib/share';
+import { CastButton } from '../../../components/CastButton';
+import { YouTubeEmbed } from '../../../components/YouTubeEmbed';
+import { WatchComments } from '../../../components/comments/Comments';
+import { Icon } from '../../../components/Icon';
+import { brandStyles } from '../../../lib/ds';
+import { Button, Chip } from '../../../components/ui';
 
 type VideoDetail = {
   id: string;
@@ -76,7 +77,7 @@ function timeAgo(ts: string | null) {
   return `${Math.floor(days / 30)}mo ago`;
 }
 
-export default function WatchScreen() {
+function WatchScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
   const { videoId } = useLocalSearchParams<{ videoId: string }>();
@@ -583,4 +584,12 @@ function makeStyles(C: AppColors) {
   relatedTitle: { color: C.text, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
   relatedMeta: { color: C.text2, fontSize: Theme.fontSize.xs, marginTop: 2 },
 }));
+}
+
+// This screen lives in the tab group (so the bottom menu stays visible), and
+// tab screens stay mounted after you leave them. Render nothing while it's
+// not focused so the video stops instead of playing in the background.
+export default function WatchRoute() {
+  const focused = useIsFocused();
+  return focused ? <WatchScreen /> : null;
 }

@@ -5,7 +5,7 @@ import { useTheme } from '../../lib/theme';
 import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
 import { DesktopSidebar } from '../../components/DesktopSidebar';
 import { DesktopTopBar } from '../../components/DesktopTopBar';
-import { useIsDesktopWeb } from '../../components/DesktopShell';
+import { useIsDesktopWeb, InDesktopShell } from '../../components/DesktopShell';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
 
@@ -35,6 +35,8 @@ export default function TabsLayout() {
 
   const tabs = (
     <Tabs
+      // Back returns to the tab/screen you came from, not always to the first tab.
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         // The Marketplace site has only the Shop, so no tab bar at all
@@ -64,8 +66,9 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: C.text3,
       }}
     >
+      <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen
-        name="index"
+        name="home"
         options={{
           ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Home',
@@ -117,6 +120,9 @@ export default function TabsLayout() {
         name="local"
         options={{ href: null, title: 'Local & services' }}
       />
+      {/* Inside the tab group so the bottom menu stays visible on them. */}
+      <Tabs.Screen name="browse" options={{ href: null, title: 'Browse' }} />
+      <Tabs.Screen name="watch/[videoId]" options={{ href: null, title: 'Watch' }} />
       <Tabs.Screen
         name="orgs"
         options={{
@@ -138,7 +144,7 @@ export default function TabsLayout() {
       <DesktopSidebar />
       <View style={{ flex: 1, flexDirection: 'column' }}>
         <DesktopTopBar />
-        <View style={{ flex: 1 }}>{tabs}</View>
+        <View style={{ flex: 1 }}><InDesktopShell.Provider value>{tabs}</InDesktopShell.Provider></View>
       </View>
     </View>
   );

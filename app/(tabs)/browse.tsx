@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../lib/supabase';
-import { useTheme, type AppColors } from '../lib/theme';
-import { Theme } from '../constants/theme';
-import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
-import { SearchIcon, ClearIcon } from '../components/Siqa';
-import { brandStyles } from '../lib/ds';
+import { supabase } from '../../lib/supabase';
+import { useTheme, type AppColors } from '../../lib/theme';
+import { Theme } from '../../constants/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
+import { SearchIcon, ClearIcon } from '../../components/Siqa';
+import { brandStyles } from '../../lib/ds';
 
 const CATEGORIES = [
   'All',
