@@ -5,52 +5,68 @@
 
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 import {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
-} from '@expo-google-fonts/plus-jakarta-sans';
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
+import { InterTight_600SemiBold, InterTight_700Bold, InterTight_800ExtraBold } from '@expo-google-fonts/inter-tight';
 import { useTheme } from './theme';
 
 // ── Fonts ──────────────────────────────────────────────────────────────
-// Custom fonts on phones need one family name per weight (fontWeight alone
-// won't pick the bold file), so text styles set fontFamily from the weight.
-// Phones only; the web uses the self-hosted variable font in public/index.html.
+// Inter for everything you read; Inter Tight (tighter, heavier) for titles
+// and money. Custom fonts on phones need one family name per weight
+// (fontWeight alone won't pick the bold file), so text styles set
+// fontFamily from the weight.
+// Phones only; the web uses the self-hosted variable fonts in public/index.html.
 export const FONT_FILES: Record<string, number> = Platform.OS === 'web' ? {} : {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+  InterTight_600SemiBold,
+  InterTight_700Bold,
+  InterTight_800ExtraBold,
 };
 
 export type Weight = 400 | 500 | 600 | 700 | 800;
-const FAMILY: Record<Weight, string> = {
-  400: 'PlusJakartaSans_400Regular',
-  500: 'PlusJakartaSans_500Medium',
-  600: 'PlusJakartaSans_600SemiBold',
-  700: 'PlusJakartaSans_700Bold',
-  800: 'PlusJakartaSans_800ExtraBold',
+export type Family = 'sans' | 'display';
+const SANS: Record<Weight, string> = {
+  400: 'Inter_400Regular',
+  500: 'Inter_500Medium',
+  600: 'Inter_600SemiBold',
+  700: 'Inter_700Bold',
+  800: 'Inter_800ExtraBold',
+};
+const DISPLAY: Record<Weight, string> = {
+  400: 'InterTight_600SemiBold',
+  500: 'InterTight_600SemiBold',
+  600: 'InterTight_600SemiBold',
+  700: 'InterTight_700Bold',
+  800: 'InterTight_800ExtraBold',
+};
+const WEB_STACK = {
+  sans: '"Inter", system-ui, -apple-system, sans-serif',
+  display: '"Inter Tight", "Inter", system-ui, -apple-system, sans-serif',
 };
 
-/** fontFamily (+ fontWeight on web, where it's harmless) for a weight. */
-export function font(weight: Weight = 400): TextStyle {
-  return Platform.OS === 'web'
-    // Web: the self-hosted variable font from public/index.html, so no extra download.
-    ? { fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif', fontWeight: String(weight) as any }
-    : { fontFamily: FAMILY[weight] };
+/** fontFamily (+ fontWeight on web, where the fonts are variable) for a weight. */
+export function font(weight: Weight = 400, family: Family = 'sans'): TextStyle {
+  if (Platform.OS === 'web') return { fontFamily: WEB_STACK[family], fontWeight: String(weight) as any };
+  return { fontFamily: (family === 'display' ? DISPLAY : SANS)[weight] };
 }
 
 // ── Type styles ────────────────────────────────────────────────────────
-function t(size: number, line: number, weight: Weight, tracking = 0): TextStyle {
-  return { fontSize: size, lineHeight: line, letterSpacing: tracking, ...font(weight) };
+function t(size: number, line: number, weight: Weight, tracking = 0, family: Family = 'sans'): TextStyle {
+  return { fontSize: size, lineHeight: line, letterSpacing: tracking, ...font(weight, family) };
 }
 export const type = {
-  display: t(34, 40, 800, -1),
-  title1: t(28, 32, 800, -0.7),
-  title2: t(22, 28, 700, -0.3),
-  amount: t(34, 40, 800, -1),
+  display: t(34, 40, 800, -1, 'display'),
+  title1: t(28, 32, 800, -0.7, 'display'),
+  title2: t(22, 28, 700, -0.3, 'display'),
+  amount: t(34, 40, 800, -1, 'display'),
   headline: t(17, 22, 700),
   body: t(16, 22, 400),
   callout: t(15, 21, 400),
@@ -174,9 +190,9 @@ function nearestWeight(w: unknown): Weight {
 }
 
 /**
- * Puts an existing screen's text on the brand font: every style that styles
- * text (has a font size, weight, color…) gets the Plus Jakarta file for its
- * weight. Wrap a screen's style object before StyleSheet.create:
+ * Puts an existing screen's text on the brand fonts: every style that styles
+ * text (has a font size, weight, color…) gets the Inter file for its weight,
+ * and big bold titles (20px+, semibold or heavier) get Inter Tight. Wrap a screen's style object before StyleSheet.create:
  *   StyleSheet.create(brandStyles({ ... }))
  * Styles that already set a fontFamily (icons, Arabic) are left alone.
  */
@@ -186,7 +202,8 @@ export function brandStyles<T extends Record<string, any>>(styles: T): T {
     const s = styles[key];
     if (s && typeof s === 'object' && !s.fontFamily && TEXT_KEYS.some((k) => k in s)) {
       const w = nearestWeight(s.fontWeight);
-      const next = { ...s, ...font(w) };
+      const title = typeof s.fontSize === 'number' && s.fontSize >= 20 && w >= 600;
+      const next = { ...s, ...font(w, title ? 'display' : 'sans') };
       if (Platform.OS !== 'web') delete next.fontWeight;
       out[key] = next;
     } else {
