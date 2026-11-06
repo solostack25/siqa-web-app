@@ -1,14 +1,15 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../../lib/supabase';
-import { useTheme, type AppColors } from '../../lib/theme';
-import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
-import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
-import { Icon } from '../../components/Icon';
-import { ClaimNotice, UnclaimedBadge } from '../../components/ClaimNotice';
-import { ORG_CATEGORY_LABEL, type OrgCategory } from '../../lib/orgCategories';
-import { brandStyles } from '../../lib/ds';
+import { supabase } from '../../../lib/supabase';
+import { useTheme, type AppColors } from '../../../lib/theme';
+import { Theme, HEADER_TOP_PADDING } from '../../../constants/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell';
+import { Icon } from '../../../components/Icon';
+import { ClaimNotice, UnclaimedBadge } from '../../../components/ClaimNotice';
+import { ORG_CATEGORY_LABEL, type OrgCategory } from '../../../lib/orgCategories';
+import { brandStyles } from '../../../lib/ds';
+import { focusedOnly } from '../../../components/FocusedOnly';
 
 /**
  * Public-record page for an organization Siqa listed from the crawler but
@@ -34,7 +35,7 @@ function withProtocol(url: string) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
-export default function OrgListingScreen() {
+function OrgListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
@@ -163,3 +164,5 @@ function makeStyles(C: AppColors, desktop: boolean) {
     small: { fontSize: 12, color: C.text3, lineHeight: 17 },
   }));
 }
+
+export default focusedOnly(OrgListingScreen);
