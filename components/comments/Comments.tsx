@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
+  PanResponder,
   Modal,
   Platform,
   Pressable,
@@ -181,9 +183,11 @@ function CommentItem({
 const REPORT_REASONS = ['Spam or scam', 'Hateful or abusive', 'False or misleading', 'Something else'];
 
 export function CommentsView({
-  api, commentsEnabled = true, onAuthRequired = defaultAuth, onClose, inline = false,
+  api, commentsEnabled = true, onAuthRequired = defaultAuth, onClose, inline = false, dragHandlers,
 }: {
   api: CommentsApi; commentsEnabled?: boolean; onAuthRequired?: AuthFn; onClose?: () => void; inline?: boolean;
+  /** Pan handlers from the sheet, so dragging the header down closes it. */
+  dragHandlers?: any;
 }) {
   const { c: k } = useDS();
   const [draft, setDraft] = useState('');
@@ -236,7 +240,7 @@ export function CommentsView({
   }
 
   const header = (
-    <View>
+    <View {...(dragHandlers ?? {})} style={dragHandlers && Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : undefined}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: inline ? 0 : 20, paddingRight: inline ? 0 : 8, paddingTop: inline ? 0 : 4 }}>
         <Text style={[type.title2, { fontSize: 20, flex: 1, color: k.ink }]} accessibilityRole="header">
           Comments{api.count ? <Text style={{ color: k.ink3 }}>{`  ${api.count}`}</Text> : null}
@@ -458,23 +462,87 @@ export function CommentsSheet({
   const { c: k, shadow } = useDS();
   const { width, height } = useWindowDimensions();
   const wide = width >= 760;
+  const sheetH = wide ? Math.min(760, height * 0.86) : height * 0.82;
 
   useEffect(() => { if (!api.loading) onCountChange?.(api.count); }, [api.count, api.loading]);
 
+  // Phones: the sheet slides itself (so a drag and the close animation are
+  // one motion) and closes when dragged down far or fast enough.
+  const y = useRef(new Animated.Value(sheetH)).current;
+  const [shown, setShown] = useState(visible);
+  const closing = useRef(false);
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    if (wide) { setShown(visible); return; }
+    if (visible) {
+      closing.current = false;
+      setShown(true);
+      y.setValue(sheetH);
+      Animated.spring(y, { toValue: 0, useNativeDriver: false, bounciness: 0, speed: 16 }).start();
+    } else if (shown) {
+      Animated.timing(y, { toValue: sheetH, duration: 180, useNativeDriver: false }).start(() => setShown(false));
+    }
+  }, [visible, wide]);
+
+  function close() {
+    if (wide) { onClose(); return; }
+    if (closing.current) return;
+    closing.current = true;
+    Animated.timing(y, { toValue: sheetH, duration: 200, useNativeDriver: false }).start(() => onClose());
+  }
+
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onMoveShouldSetPanResponderCapture: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      // Keep the drag once it starts (the browser would otherwise turn it
+      // into a text selection or a scroll and cancel it).
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => setDragging(true),
+      onPanResponderMove: (_e, g) => y.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_e, g) => {
+        setDragging(false);
+        if (g.dy > sheetHRef.current * 0.3 || g.vy > 1.1) closeRef.current();
+        else Animated.spring(y, { toValue: 0, useNativeDriver: false, bounciness: 4 }).start();
+      },
+      onPanResponderTerminate: () => (setDragging(false), Animated.spring(y, { toValue: 0, useNativeDriver: false }).start()),
+    }),
+  ).current;
+  const sheetHRef = useRef(sheetH);
+  sheetHRef.current = sheetH;
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
+  const backdropOpacity = wide ? 1 : y.interpolate({ inputRange: [0, sheetH], outputRange: [1, 0], extrapolate: 'clamp' });
+
   return (
-    <Modal visible={visible} transparent animationType={wide ? 'fade' : 'slide'} onRequestClose={onClose}>
+    <Modal visible={shown} transparent animationType={wide ? 'fade' : 'none'} onRequestClose={close}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: wide ? 'center' : 'flex-end', alignItems: 'center' }}>
-        <Pressable onPress={onClose} accessibilityLabel="Close comments" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: k.scrim }} />
-        <View
+        <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: backdropOpacity }}>
+          <Pressable onPress={close} accessibilityLabel="Close comments" style={{ flex: 1, backgroundColor: k.scrim }} />
+        </Animated.View>
+        <Animated.View
           style={[{
-            width: '100%', maxWidth: wide ? 620 : undefined, height: wide ? Math.min(760, height * 0.86) : height * 0.82,
+            width: '100%', maxWidth: wide ? 620 : undefined, height: sheetH,
             backgroundColor: k.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet,
             borderBottomLeftRadius: wide ? radius.sheet : 0, borderBottomRightRadius: wide ? radius.sheet : 0, overflow: 'hidden',
-          }, shadow('sheet')]}
+            transform: wide ? [] : [{ translateY: y }],
+          }, shadow('sheet'), dragging && Platform.OS === 'web' ? ({ userSelect: 'none' } as any) : null]}
         >
-          {!wide ? <View style={{ alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: k.surfaceStrong, marginTop: 8 }} /> : <View style={{ height: 10 }} />}
-          <CommentsView api={api} commentsEnabled={commentsEnabled} onAuthRequired={onAuthRequired} onClose={onClose} />
-        </View>
+          {!wide ? (
+            <View {...pan.panHandlers} accessibilityHint="Drag down to close" style={[{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }, Platform.OS === 'web' ? ({ userSelect: 'none', cursor: 'grab' } as any) : null]}>
+              <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: k.surfaceStrong }} />
+            </View>
+          ) : <View style={{ height: 10 }} />}
+          <CommentsView
+            api={api}
+            commentsEnabled={commentsEnabled}
+            onAuthRequired={onAuthRequired}
+            onClose={close}
+            dragHandlers={wide ? undefined : pan.panHandlers}
+          />
+        </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
   );
