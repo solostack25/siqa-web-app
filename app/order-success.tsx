@@ -5,6 +5,8 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Glyph } from '../components/Glyph';
 import { Theme } from '../constants/theme';
 import { DesktopShell } from '../components/DesktopShell';
+import { brandStyles } from '../lib/ds';
+import { Button } from '../components/ui';
 
 export default function OrderSuccessScreen() {
   const { total, count } = useLocalSearchParams<{ total: string; count: string }>();
@@ -49,12 +51,8 @@ export default function OrderSuccessScreen() {
       </Animated.View>
 
       <Animated.View style={[styles.actions, { opacity: fadeAnim }]}>
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.replace('/(tabs)/marketplace' as any)}>
-          <Text style={styles.primaryBtnText}>Continue Shopping</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryBtn} onPress={() => router.replace('/(tabs)')}>
-          <Text style={styles.secondaryBtnText}>Back to Home</Text>
-        </TouchableOpacity>
+        <Button label="Continue shopping" onPress={() => router.replace('/(tabs)/marketplace' as any)} />
+        <Button label="Back to Home" variant="secondary" onPress={() => router.replace('/(tabs)')} />
       </Animated.View>
     </View>
     </DesktopShell>
@@ -62,7 +60,7 @@ export default function OrderSuccessScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: {
       flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center',
       paddingHorizontal: Theme.spacing.xl, gap: Theme.spacing.xl,
@@ -96,5 +94,5 @@ function makeStyles(C: AppColors) {
       alignItems: 'center', borderWidth: 0.5, borderColor: C.border2,
     },
     secondaryBtnText: { color: C.text2, fontSize: Theme.fontSize.base, fontWeight: '500' },
-  });
+  }));
 }

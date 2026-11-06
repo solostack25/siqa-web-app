@@ -7,6 +7,8 @@ import { Theme } from '../constants/theme';
 import { Icon } from './Icon';
 import { useIsDesktopWeb } from './DesktopShell';
 import { formatPrice } from '../lib/money';
+import { brandStyles } from '../lib/ds';
+import { Button } from './ui';
 
 export type AddedItem = {
   id: string;
@@ -97,8 +99,10 @@ export function AddedToCartDrawer({ item, onClose }: { item: AddedItem | null; o
           </View>
 
           <View style={[styles.footer, isDesktopWeb && styles.footerDesktop]}>
-            <TouchableOpacity
-              style={styles.outlineBtn}
+            <Button
+              label="Find more like this"
+              variant="secondary"
+              iconRight="arrow-forward"
               onPress={() =>
                 close(() =>
                   router.push(
@@ -108,13 +112,8 @@ export function AddedToCartDrawer({ item, onClose }: { item: AddedItem | null; o
                   ),
                 )
               }
-            >
-              <Text style={styles.outlineBtnText}>Find more like this</Text>
-              <Icon name="arrow-forward" size={18} color={C.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.solidBtn} onPress={() => close(() => router.push('/cart' as any))}>
-              <Text style={styles.solidBtnText}>View cart & check out</Text>
-            </TouchableOpacity>
+            />
+            <Button label="View cart & check out" onPress={() => close(() => router.push('/cart' as any))} />
           </View>
         </Animated.View>
       )}
@@ -123,7 +122,7 @@ export function AddedToCartDrawer({ item, onClose }: { item: AddedItem | null; o
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
     sidePanel: {
       position: 'absolute', top: 0, right: 0, bottom: 0,
@@ -167,5 +166,5 @@ function makeStyles(C: AppColors) {
     outlineBtnText: { fontSize: 16, fontWeight: '700', color: C.text },
     solidBtn: { paddingVertical: 16, borderRadius: 999, backgroundColor: C.gold, alignItems: 'center' },
     solidBtnText: { fontSize: 16, fontWeight: '800', color: C.black },
-  });
+  }));
 }

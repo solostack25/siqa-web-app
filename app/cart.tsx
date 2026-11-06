@@ -17,6 +17,8 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { formatPrice } from '../lib/money';
 import { addToCart, notifyCartChanged } from '../lib/cart';
+import { brandStyles, font } from '../lib/ds';
+import { Button } from '../components/ui';
 
 // Cart laid out like Etsy's: one card per shop (shop avatar, name and star
 // rating), each item with its photo, title, price on the right, quantity,
@@ -334,9 +336,7 @@ export default function CartScreen() {
                 <Text style={styles.savedTitle} numberOfLines={1}>{p.title}</Text>
                 <Text style={styles.savedPrice}>{formatPrice(p.price_cents, p.currency)}</Text>
               </View>
-              <TouchableOpacity style={styles.moveBtn} onPress={() => moveToCart(entry)} disabled={busyId === entry.id}>
-                <Text style={styles.moveBtnText}>Move to cart</Text>
-              </TouchableOpacity>
+              <Button label="Move to cart" variant="secondary" size="sm" onPress={() => moveToCart(entry)} disabled={busyId === entry.id} />
             </View>
           );
         })}
@@ -377,9 +377,7 @@ export default function CartScreen() {
         <Text style={styles.totalLabel}>Subtotal</Text>
         <Text style={styles.totalValue}>{formatPrice(subtotal + shippingTotal)}</Text>
       </View>
-      <TouchableOpacity style={styles.checkoutBtn} onPress={() => router.push('/checkout' as any)}>
-        <Text style={styles.checkoutBtnText}>Proceed to checkout</Text>
-      </TouchableOpacity>
+      <Button label="Proceed to checkout" iconRight="arrow-forward" onPress={() => router.push('/checkout' as any)} style={{ marginTop: 4 }} />
       <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)} style={{ alignItems: 'center' }}>
         <Text style={styles.continueText}>Continue shopping</Text>
       </TouchableOpacity>
@@ -393,13 +391,13 @@ export default function CartScreen() {
           <View style={styles.centered}>
             <Text style={styles.emptyText}>Sign in to view your cart.</Text>
             <TouchableOpacity onPress={() => router.push('/(auth)/sign-in' as any)} style={{ marginTop: 10 }}>
-              <Text style={{ color: C.gold, fontWeight: '700' }}>Sign In</Text>
+              <Text style={{ color: C.gold, ...font(700) }}>Sign In</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, isDesktopWeb && styles.scrollDesktop]}>
             <View style={styles.header}>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()} accessibilityLabel="Back">
+              <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()} accessibilityLabel="Back" accessibilityRole="button">
                 <Icon name="arrow-back" size={20} color={C.text} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>
@@ -412,9 +410,7 @@ export default function CartScreen() {
                 <View style={styles.emptyCard}>
                   <Glyph name="cart-outline" style={styles.emptyEmoji} />
                   <Text style={styles.emptyTitle}>Your cart is empty</Text>
-                  <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)} style={styles.emptyBtn}>
-                    <Text style={styles.emptyBtnText}>Browse the Marketplace</Text>
-                  </TouchableOpacity>
+                  <Button label="Browse the Marketplace" size="md" onPress={() => router.push('/(tabs)/marketplace' as any)} style={{ marginTop: 6 }} />
                 </View>
                 {savedSection}
               </>
@@ -443,7 +439,7 @@ export default function CartScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 8, paddingHorizontal: 40 },
     emptyText: { color: C.text3, fontSize: 14, textAlign: 'center' },
@@ -542,5 +538,5 @@ function makeStyles(C: AppColors) {
     emptyTitle: { fontSize: 16, fontWeight: '700', color: C.text },
     emptyBtn: { marginTop: 6, paddingHorizontal: 20, paddingVertical: 11, borderRadius: 999, backgroundColor: C.gold },
     emptyBtnText: { color: C.black, fontWeight: '800', fontSize: 14 },
-  });
+  }));
 }

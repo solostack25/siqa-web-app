@@ -24,6 +24,7 @@ import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartD
 import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
+import { brandStyles } from '../../lib/ds';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
@@ -461,7 +462,7 @@ export default function MarketplaceScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
 
@@ -559,5 +560,5 @@ function makeStyles(C: AppColors) {
     emptyEmoji: { fontSize: 40, color: C.text3 },
     emptyTitle: { fontSize: 16, fontWeight: '600', color: C.text2 },
     emptySub: { fontSize: 13, color: C.text3 },
-  });
+  }));
 }

@@ -22,6 +22,8 @@ import { formatPrice } from '../../lib/money';
 import { shareProduct } from '../../lib/share';
 import { addToCart as addItemToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
+import { brandStyles, font } from '../../lib/ds';
+import { Button, IconButton, Stepper } from '../../components/ui';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -320,7 +322,7 @@ export default function ProductDetailScreen() {
         <View style={styles.centered}>
           <Text style={styles.emptyText}>This product couldn't be found.</Text>
           <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 12 }}>
-            <Text style={{ color: C.gold, fontWeight: '600' }}>← Go Back</Text>
+            <Text style={{ color: C.gold, ...font(600) }}>← Go Back</Text>
           </TouchableOpacity>
         </View>
       </DesktopShell>
@@ -478,45 +480,16 @@ export default function ProductDetailScreen() {
       {!soldOut && (
         <View style={styles.qtyBlock}>
           <Text style={styles.fieldLabel}>Quantity</Text>
-          <View style={styles.qtyStepper}>
-            <TouchableOpacity
-              style={styles.qtyBtn}
-              onPress={() => setQuantity(q => Math.max(1, q - 1))}
-              disabled={quantity <= 1}
-              accessibilityLabel="Decrease quantity"
-            >
-              <Icon name="remove" size={16} color={quantity <= 1 ? C.text3 : C.text} />
-            </TouchableOpacity>
-            <Text style={styles.qtyValue}>{quantity}</Text>
-            <TouchableOpacity
-              style={styles.qtyBtn}
-              onPress={() => setQuantity(q => Math.min(maxQty, q + 1))}
-              disabled={quantity >= maxQty}
-              accessibilityLabel="Increase quantity"
-            >
-              <Icon name="add" size={16} color={quantity >= maxQty ? C.text3 : C.text} />
-            </TouchableOpacity>
+          <View style={{ alignSelf: 'flex-start' }}>
+            <Stepper label="quantity" value={quantity} min={1} max={maxQty} onChange={setQuantity} />
           </View>
         </View>
       )}
 
-      <TouchableOpacity
-        style={[styles.primaryBtn, (soldOut || addingToCart) && styles.btnDisabled]}
-        onPress={addToCart}
-        disabled={soldOut || addingToCart}
-      >
-        {addingToCart ? (
-          <ActivityIndicator color={C.black} size="small" />
-        ) : (
-          <Text style={styles.primaryBtnText}>{soldOut ? 'Sold out' : 'Add to cart'}</Text>
-        )}
-      </TouchableOpacity>
-
-      {!soldOut && (
-        <TouchableOpacity style={styles.secondaryBtn} onPress={buyNow}>
-          <Text style={styles.secondaryBtnText}>Buy it now</Text>
-        </TouchableOpacity>
-      )}
+      <View style={{ gap: 10, marginTop: 4 }}>
+        <Button label={soldOut ? 'Sold out' : 'Add to cart'} icon={soldOut ? undefined : 'bag-add-outline'} onPress={addToCart} loading={addingToCart} disabled={soldOut} />
+        {!soldOut && <Button label="Buy it now" variant="secondary" onPress={buyNow} />}
+      </View>
 
       {/* Item details */}
       <TouchableOpacity style={styles.accordionHead} onPress={() => setOpen(o => ({ ...o, details: !o.details }))}>
@@ -586,16 +559,7 @@ export default function ProductDetailScreen() {
           </View>
           {seller.bio ? <Text style={styles.sellerBio} numberOfLines={4}>{seller.bio}</Text> : null}
           {!isOwnListing && (
-            <TouchableOpacity style={styles.messageBtn} onPress={messageSeller} disabled={messagingBusy}>
-              {messagingBusy ? (
-                <ActivityIndicator size="small" color={C.text} />
-              ) : (
-                <>
-                  <Icon name="chatbubble-outline" size={15} color={C.text} />
-                  <Text style={styles.messageBtnText}>Message seller</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <Button label="Message seller" icon="chatbubble-outline" variant="secondary" size="md" onPress={messageSeller} loading={messagingBusy} style={{ alignSelf: 'flex-start' }} />
           )}
         </View>
       )}
@@ -673,9 +637,7 @@ export default function ProductDetailScreen() {
           <View style={[styles.inner, isDesktopWeb && { maxWidth: contentWidth, paddingHorizontal: Theme.spacing.xxxl }]}>
             {/* Back + breadcrumb */}
             <View style={styles.topBar}>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()} accessibilityLabel="Back">
-                <Icon name="arrow-back" size={20} color={C.text} />
-              </TouchableOpacity>
+              <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => router.back()} />
               <View style={styles.breadcrumb}>
                 <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)}>
                   <Text style={styles.crumbLink}>Marketplace</Text>
@@ -717,7 +679,7 @@ export default function ProductDetailScreen() {
 }
 
 function makeStyles(C: AppColors) {
-  return StyleSheet.create({
+  return StyleSheet.create(brandStyles({
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
     emptyText: { color: C.text3, fontSize: 14 },
@@ -863,5 +825,5 @@ function makeStyles(C: AppColors) {
     },
     gridTitle: { fontSize: 13, color: C.text, lineHeight: 18 },
     gridPrice: { fontSize: 14, fontWeight: '800', color: C.text, marginTop: 3 },
-  });
+  }));
 }
