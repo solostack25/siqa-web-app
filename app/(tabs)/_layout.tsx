@@ -8,6 +8,7 @@ import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb, InDesktopShell } from '../../components/DesktopShell';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
+import { useTabSwipe } from '../../components/useTabSwipe';
 
 type TabIconProps = {
   focused: boolean;
@@ -32,6 +33,8 @@ export default function TabsLayout() {
   const isDesktopWeb = useIsDesktopWeb();
   // Local & services lives under the Shop tab.
   const onLocal = usePathname().startsWith('/local');
+  // Swipe sideways between the main tabs (phone web/PWA).
+  useTabSwipe(!isDesktopWeb && !IS_MARKETPLACE_SITE);
 
   const tabs = (
     <Tabs

@@ -67,6 +67,13 @@ function SeedsScreenInner() {
   // lighter card could support, or the cards themselves get cramped.
   const numColumns = isDesktopWeb ? (windowWidth > 1500 ? 3 : 2) : 1;
   const styles = makeStyles(C);
+  // Fixed card width on desktop so a leftover card on the last row sits
+  // centered at normal size instead of stretching across the whole row.
+  const [listWidth, setListWidth] = useState(0);
+  const contentWidth = Math.min(listWidth, 1400) - Theme.spacing.lg * 2;
+  const cardWidth = numColumns > 1 && listWidth
+    ? Math.floor((contentWidth - Theme.spacing.lg * (numColumns - 1)) / numColumns)
+    : undefined;
 
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
   const [filtered, setFiltered] = useState<Fundraiser[]>([]);
@@ -248,7 +255,7 @@ function SeedsScreenInner() {
     const coverUrl = item.cover_image_url || item.image_url || null;
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, cardWidth ? { flex: 0, width: cardWidth } : null]}>
         <View style={styles.orgRow}>
           <View style={styles.orgAvatar}>
             <Glyph name={categoryIcon} size={20} color={C.emerald} />
@@ -410,7 +417,8 @@ function SeedsScreenInner() {
           keyExtractor={(item) => item.id}
           renderItem={renderCard}
           numColumns={numColumns}
-          columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.lg } : undefined}
+          columnWrapperStyle={numColumns > 1 ? { gap: Theme.spacing.lg, justifyContent: 'center' } : undefined}
+          onLayout={(e) => setListWidth(e.nativeEvent.layout.width)}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
