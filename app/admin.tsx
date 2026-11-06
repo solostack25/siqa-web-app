@@ -17,6 +17,7 @@ import { Icon } from '../components/Icon';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialogs';
 import { brandStyles, font, buttonStyles, dsStatic } from '../lib/ds';
+import { BlockedTermsSection } from '../components/admin/BlockedTermsSection';
 
 type ProfileClaimRow = {
   id: string;
@@ -585,6 +586,8 @@ export default function AdminScreen() {
           <SimpleRow key={r.id} title={r.reason || 'Reported content'} sub={r.target_type === 'comment' ? `Comment: “${(r.details || '').slice(0, 140)}”` : `Video: ${r.video_id || 'unknown'}`} action="Close" busy={busyId === r.id} onPress={() => closeReport(r.id)} C={C} />
         ))}
       </QueueSection>
+
+      <BlockedTermsSection C={C} />
 
       <View style={{ height: 80 }} />
     </ScrollView>
