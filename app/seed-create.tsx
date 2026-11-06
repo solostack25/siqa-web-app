@@ -6,6 +6,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -24,6 +25,8 @@ import { Glyph } from '../components/Glyph';
 import { Icon } from '../components/Icon';
 import { showToast } from '../components/Toast';
 import { DesktopShell } from '../components/DesktopShell';
+import { BottomSheet, Button, Chip, IconButton, ListRow, OptionRow, SectionLabel, SegmentedControl, Switch as DSSwitch, TextField } from '../components/ui';
+import { font, radius, space, type as T, useDS } from '../lib/ds';
 import {
   Avatar,
   PrimaryButton,
@@ -129,6 +132,8 @@ function SeedCreateScreenContent() {
   const [cover, setCover] = useState<PickedImage | null>(null);
   const [video, setVideo] = useState<PickedVideo | null>(null);
   const [form, setForm] = useState(DEFAULT_FORM);
+  const ds = useDS();
+  const [seedSheet, setSeedSheet] = useState<null | 'org' | 'cause' | 'ends'>(null);
 
   const selectedOrg = orgs.find(org => org.id === selectedOrgId) || null;
   const canSubmitActive = Boolean(selectedOrg?.is_verified || isPrivilegedRole(profileRole));
@@ -627,6 +632,320 @@ function SeedCreateScreenContent() {
       <Text style={styles.muted}>This card appears on your profile and in the Seeds feed.</Text>
     </View>
   );
+
+  // ── Phone layout (brand kit v2) ──────────────────────────────────────
+  function renderPhone() {
+    const { c, shadow } = ds;
+    const SEED_BAND = '#14382A';
+    const stepLabel = `Step ${step + 1} of ${STEPS.length} · ${['Basics', 'Story', 'Endorsements', 'Publish'][step]}`;
+    const goalNum = form.goal.replace(/[^0-9.]/g, '');
+    const goalDisplay = goalNum ? Number(goalNum.split('.')[0]).toLocaleString('en-US') + (goalNum.includes('.') ? '.' + goalNum.split('.')[1] : '') : '';
+    const bottomPad = Platform.OS === 'ios' ? 34 : 24;
+
+    const progress = (dark: boolean) => (
+      <View style={{ flexDirection: 'row', gap: 4, paddingHorizontal: 12 }} importantForAccessibility="no-hide-descendants">
+        {STEPS.map((_, i) => (
+          <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= step ? (dark ? '#ffffff' : c.ink) : dark ? 'rgba(255,255,255,0.22)' : c.surfaceStrong }} />
+        ))}
+      </View>
+    );
+
+    const topBar = (dark: boolean, left: React.ReactNode) => (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 }}>
+        {left}
+        <Text style={[T.caption, font(600), { color: dark ? 'rgba(255,255,255,0.8)' : c.ink2 }]}>{stepLabel}</Text>
+        <Pressable onPress={() => saveDraft(true)} disabled={saving} hitSlop={6} style={{ height: 44, paddingHorizontal: 12, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="Save draft">
+          <Text style={[T.buttonMd, font(600), { color: dark ? 'rgba(255,255,255,0.75)' : c.ink2 }]}>Save</Text>
+        </Pressable>
+      </View>
+    );
+
+    const footer = (
+      <View style={{ paddingHorizontal: space[5], paddingTop: 14, paddingBottom: bottomPad, gap: 12 }}>
+        {saving && step === STEPS.length - 1 ? (
+          <View style={{ gap: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
+              <Text style={[T.caption, font(700), { color: c.ink }]}>{progressPct}%</Text>
+              <Text style={[T.caption, { color: c.ink2, flex: 1, textAlign: 'right' }]} numberOfLines={1}>{progressLabel}</Text>
+            </View>
+            <View style={{ height: 6, borderRadius: 3, backgroundColor: c.surfaceStrong, overflow: 'hidden' }}>
+              <View style={{ height: 6, width: `${progressPct}%`, backgroundColor: c.seed }} />
+            </View>
+          </View>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {step > 0 ? <Button label="Back" variant="secondary" onPress={() => setStep((s) => s - 1)} disabled={saving} style={{ flex: 1 }} /> : null}
+          {step < STEPS.length - 1 ? (
+            <Button label={step === 2 && form.invited.length === 0 ? 'Skip for now' : 'Continue'} iconRight="arrow-forward" onPress={next} style={{ flex: 1.6 }} />
+          ) : (
+            <Button label={form.visibility === 'submit' && canSubmitActive ? 'Publish Seed' : 'Save Seed'} onPress={createSeed} loading={saving} style={{ flex: 1.6 }} />
+          )}
+        </View>
+        {step === 0 ? (
+          <Pressable onPress={discardDraft} hitSlop={6} style={{ alignSelf: 'center', paddingVertical: 4 }} accessibilityRole="button">
+            <Text style={[T.caption, font(600), { color: c.danger }]}>Discard draft</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+
+    const toggle = (title: string, sub: string, key: 'zakatEligible' | 'sadaqahJariyah' | 'emergency' | 'allowReviews' | 'allowAnonymousReviews' | 'showEndorsementsOnDonate', last?: boolean, disabled?: boolean) => (
+      <ListRow
+        label={title}
+        sub={sub}
+        last={last}
+        right={<DSSwitch label={title} tone="seed" value={form[key] as boolean} disabled={disabled} onValueChange={(v) => update(key, v)} />}
+      />
+    );
+
+    // Basics
+    const basicsPhone = (
+      <>
+        <View style={{ backgroundColor: SEED_BAND, paddingTop: Platform.OS === 'web' ? 8 : 52, paddingBottom: 46, gap: 14 }}>
+          {topBar(true, <IconButton icon="close" label="Close" color="#ffffff" onPress={() => router.back()} disabled={saving} />)}
+          {progress(true)}
+          <View style={{ paddingHorizontal: space[5], paddingTop: 8, gap: 6 }}>
+            <Text style={[T.display, { fontSize: 30, lineHeight: 34, color: '#ffffff' }]} accessibilityRole="header">Start a Seed</Text>
+            <Text style={[T.callout, { color: 'rgba(255,255,255,0.72)' }]}>One focused campaign with a clear goal.</Text>
+          </View>
+        </View>
+
+        <View style={[{ marginTop: -30, marginHorizontal: space[5], padding: 18, borderRadius: radius.xl, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, gap: 10 }, shadow('raised')]}>
+          <Text style={[T.micro, { color: c.ink2 }]}>Goal</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: -6 }}>
+            <Text style={[T.amount, { fontSize: 40, lineHeight: 46, color: goalNum ? c.ink3 : c.ghost }]}>$</Text>
+            <TextInput
+              value={goalDisplay}
+              onChangeText={(v) => update('goal', v.replace(/[^0-9.]/g, ''))}
+              placeholder="25,000"
+              placeholderTextColor={c.ghost}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Goal in dollars"
+              editable={!saving}
+              style={[T.amount, { fontSize: 40, lineHeight: 46, flex: 1, minWidth: 0, color: c.ink, padding: 0, outlineStyle: 'none' } as any]}
+            />
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[5000, 10000, 25000, 50000].map((g) => (
+              <Chip key={g} label={`$${g / 1000}k`} selected={goalNum === String(g)} onPress={() => update('goal', String(g))} style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 0 }} />
+            ))}
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: space[5], paddingTop: 22, gap: 2 }}>
+          <TextField variant="bare" textStyle="title2" value={form.title} onChangeText={(v) => update('title', v)} placeholder="Name your Seed" accessibilityLabel="Seed title" maxLength={90} editable={!saving} />
+          <TextField variant="bare" textStyle="callout" value={form.subtitle} onChangeText={(v) => update('subtitle', v)} placeholder="Add a one-line subtitle (optional)" accessibilityLabel="Subtitle" maxLength={130} editable={!saving} />
+        </View>
+
+        <View style={{ paddingHorizontal: space[5], paddingTop: 8 }}>
+          <ListRow icon="business-outline" label="Raising for" value={selectedOrg?.org_name || 'Choose'} onPress={() => setSeedSheet('org')} disabled={saving} />
+          <ListRow icon="pricetag-outline" label="Cause" value={form.category} onPress={() => setSeedSheet('cause')} disabled={saving} />
+          <ListRow icon="calendar-outline" label="Ends" value={form.endDate.trim() || 'No end date'} onPress={() => setSeedSheet('ends')} disabled={saving} last />
+        </View>
+
+        <View style={{ paddingHorizontal: space[5], paddingTop: 18 }}>
+          <SectionLabel>Donation type</SectionLabel>
+          {toggle('Zakat eligible', 'Only if the funds go to zakat-eligible recipients.', 'zakatEligible')}
+          {toggle('Sadaqah jariyah', 'For appeals with ongoing benefit.', 'sadaqahJariyah')}
+          {toggle('Emergency appeal', 'Shows this Seed as urgent.', 'emergency', true)}
+        </View>
+      </>
+    );
+
+    // Story
+    const storyPrompts = [
+      { label: 'The need', text: 'The need: ' },
+      { label: 'Who benefits', text: 'Who benefits: ' },
+      { label: 'Where it goes', text: 'Where the money goes: ' },
+      { label: 'Reporting back', text: "How we'll report back: " },
+    ];
+    const storyPhone = (
+      <>
+        <View style={{ height: 300 + (Platform.OS === 'web' ? 0 : 44), backgroundColor: '#1E2A24' }}>
+          {cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+          {cover ? <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.25)' }]} /> : null}
+          <View style={{ paddingTop: Platform.OS === 'web' ? 8 : 52 }}>
+            {topBar(true, <IconButton icon="chevron-back" label="Back" variant="scrim" onPress={() => setStep(0)} />)}
+          </View>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingBottom: 30 }}>
+            <Button label={cover ? 'Change cover photo' : 'Add cover photo'} icon="image-outline" variant="light" size="md" onPress={pickCover} disabled={saving} />
+            {!cover ? <Text style={[T.caption, font(400), { color: 'rgba(255,255,255,0.7)' }]}>Optional · wide photos (16:9) look best</Text> : null}
+          </View>
+        </View>
+        <View style={{ marginTop: -26, backgroundColor: c.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, paddingTop: 24 }}>
+          <View style={{ paddingHorizontal: space[5], gap: 6 }}>
+            <Text style={[T.title1, { color: c.ink }]} accessibilityRole="header">Tell the story</Text>
+            <Text style={[T.callout, { color: c.ink2 }]}>The need, what each gift buys, and how you'll report back.</Text>
+          </View>
+
+          <Pressable
+            onPress={pickVideo}
+            disabled={saving}
+            accessibilityRole="button"
+            style={({ pressed }) => [{ marginHorizontal: space[5], marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: c.surface, opacity: pressed ? 0.8 : 1 }, shadow('card')]}
+          >
+            <View style={[{ width: 56, height: 56, borderRadius: 14, backgroundColor: video ? c.seed : c.primary, alignItems: 'center', justifyContent: 'center' }, shadow('primary')]}>
+              <Icon name={video ? 'checkmark' : 'videocam'} size={24} color={video ? '#ffffff' : c.onPrimary} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={[T.callout, font(700), { color: c.ink }]}>{video ? 'Video appeal added' : 'Add your video appeal'}</Text>
+              <Text style={[T.caption, font(400), { color: c.ink2 }]} numberOfLines={1}>{video ? video.fileName : 'Required · every Seed leads with a short video'}</Text>
+            </View>
+            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c.surfaceSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={video ? 'swap-horizontal' : 'add'} size={18} color={c.ink} />
+            </View>
+          </Pressable>
+
+          <View style={{ paddingHorizontal: space[5], paddingTop: 22, gap: 10 }}>
+            <SectionLabel>The story</SectionLabel>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              {storyPrompts.map((p) => (
+                <Chip
+                  key={p.label}
+                  label={`+ ${p.label}`}
+                  disabled={saving}
+                  onPress={() => update('story', (form.story.trim() ? form.story.replace(/\s+$/, '') + '\n\n' : '') + p.text)}
+                />
+              ))}
+            </ScrollView>
+            <TextField
+              variant="bare"
+              textStyle="story"
+              value={form.story}
+              onChangeText={(v) => update('story', v)}
+              placeholder="Start with the people this helps…"
+              accessibilityLabel="The story"
+              multiline
+              editable={!saving}
+              style={{ minHeight: 260 }}
+              help={form.story.trim().length < 30 ? 'A few short paragraphs is plenty.' : undefined}
+            />
+          </View>
+        </View>
+      </>
+    );
+
+    // Endorsements + Publish share a plain white header
+    const plainHeader = (title: string, sub: string) => (
+      <View style={{ paddingTop: Platform.OS === 'web' ? 8 : 52, gap: 14 }}>
+        {topBar(false, <IconButton icon="chevron-back" label="Back" onPress={() => setStep((s) => s - 1)} />)}
+        {progress(false)}
+        <View style={{ paddingHorizontal: space[5], paddingTop: 10, gap: 6 }}>
+          <Text style={[T.title1, { color: c.ink }]} accessibilityRole="header">{title}</Text>
+          <Text style={[T.callout, { color: c.ink2 }]}>{sub}</Text>
+        </View>
+      </View>
+    );
+
+    const endorsePhone = (
+      <>
+        {plainHeader('Ask for endorsements', "Optional. Verified speakers get a request and decide whether to endorse. You can't write or edit what they say.")}
+        <View style={{ paddingHorizontal: space[5], paddingTop: 18, gap: 16 }}>
+          {form.invited.length > 0 ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {form.invited.map((sp) => (
+                <Chip key={sp.id} label={sp.display_name} icon="close" selected onPress={() => update('invited', form.invited.filter((x) => x.id !== sp.id))} />
+              ))}
+            </View>
+          ) : null}
+          <SpeakerPicker
+            selected={Object.fromEntries(form.invited.map((s) => [s.id, true]))}
+            onToggle={(sp) => update('invited', form.invited.some((x) => x.id === sp.id) ? form.invited.filter((x) => x.id !== sp.id) : [...form.invited, sp])}
+          />
+          <TextField
+            label="Note to speakers (optional)"
+            value={form.endorsementNote}
+            onChangeText={(v) => update('endorsementNote', v)}
+            placeholder="Assalamu alaikum, we'd be honored if you'd look at this Seed…"
+            maxLength={500}
+            multiline
+            style={{ minHeight: 96 }}
+          />
+        </View>
+      </>
+    );
+
+    const publishPhone = (
+      <>
+        {plainHeader('Reviews & publish', 'After giving, donors can say why they gave. Reviews show on the Seed and your profile.')}
+        <View style={{ paddingHorizontal: space[5], paddingTop: 14 }}>
+          {toggle('Let donors leave a review', 'Asked right after checkout.', 'allowReviews')}
+          {toggle('Allow anonymous reviews', 'Name hidden; the amount is never shown.', 'allowAnonymousReviews', false, !form.allowReviews)}
+          {toggle('Show endorsements on the donate screen', 'A speaker quote appears above the amounts.', 'showEndorsementsOnDonate', true)}
+        </View>
+        <View style={{ paddingHorizontal: space[5], paddingTop: 16, gap: 18 }}>
+          {form.allowReviews ? (
+            <TextField label="Question donors see" value={form.reviewPrompt} onChangeText={(v) => update('reviewPrompt', v)} maxLength={120} />
+          ) : null}
+          <View style={{ gap: 8 }}>
+            <SectionLabel>When you finish</SectionLabel>
+            <SegmentedControl
+              label="When you finish"
+              value={form.visibility}
+              onChange={(v) => update('visibility', v)}
+              options={[{ value: 'draft', label: 'Save as draft' }, { value: 'submit', label: canSubmitActive ? 'Publish now' : 'Submit' }]}
+            />
+          </View>
+          {!canSubmitActive ? (
+            <View style={{ padding: 12, borderRadius: radius.md, backgroundColor: c.goldTint, flexDirection: 'row', gap: 10 }}>
+              <Icon name="shield-checkmark-outline" size={18} color={c.goldInk} />
+              <Text style={[T.caption, font(500), { color: c.goldInk, flex: 1 }]}>Siqa verifies every organization. Until yours is verified, Seeds are saved as drafts.</Text>
+            </View>
+          ) : null}
+        </View>
+      </>
+    );
+
+    return (
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: c.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} onLayout={onLayout}>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          {step === 0 && basicsPhone}
+          {step === 1 && storyPhone}
+          {step === 2 && endorsePhone}
+          {step === 3 && publishPhone}
+          <View style={{ flex: 1, minHeight: 12 }} />
+          {footer}
+        </ScrollView>
+
+        <BottomSheet visible={seedSheet === 'org'} onClose={() => setSeedSheet(null)} title="Raising for">
+          {orgs.length === 0 ? (
+            <Text style={[T.callout, { color: c.ink2, paddingVertical: 8 }]}>Register a nonprofit or masjid before starting a Seed.</Text>
+          ) : null}
+          {orgs.map((org, i) => (
+            <OptionRow
+              key={org.id}
+              label={org.org_name}
+              sub={org.is_verified ? 'Verified' : org.approval_status === 'approved' ? 'Approved' : 'Waiting for review'}
+              selected={selectedOrgId === org.id}
+              onPress={() => { setSelectedOrgId(org.id); setSeedSheet(null); }}
+              last={i === orgs.length - 1}
+            />
+          ))}
+        </BottomSheet>
+
+        <BottomSheet visible={seedSheet === 'cause'} onClose={() => setSeedSheet(null)} title="Cause">
+          {CATEGORIES.map((cat, i) => (
+            <OptionRow key={cat} label={cat} selected={form.category === cat} onPress={() => { update('category', cat); setSeedSheet(null); }} last={i === CATEGORIES.length - 1} />
+          ))}
+        </BottomSheet>
+
+        <BottomSheet visible={seedSheet === 'ends'} onClose={() => setSeedSheet(null)} title="Ends" footer={<Button label="Done" onPress={() => setSeedSheet(null)} />}>
+          <OptionRow label="No end date" selected={!form.endDate.trim()} onPress={() => update('endDate', '')} />
+          <TextField
+            label="End date"
+            value={form.endDate}
+            onChangeText={(v) => update('endDate', v)}
+            placeholder="2026-12-31"
+            help="Year-month-day"
+            error={form.endDate.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(form.endDate.trim()) ? 'Use the format 2026-12-31' : null}
+            containerStyle={{ marginTop: 14 }}
+          />
+        </BottomSheet>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  if (!wide) return renderPhone();
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
