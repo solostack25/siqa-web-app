@@ -1,6 +1,7 @@
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Image, Platform, Switch,
 } from 'react-native';
+import { ORDER_CATEGORIES, ORDER_PLATFORMS, normalizeOrderUrl, orderUrlError } from '../../lib/orderLinks';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +22,7 @@ type Form = {
   city: string; state: string; zip: string; service_area: string; address: string;
   is_online: boolean; is_home_based: boolean; women_owned: boolean; sisters_only: boolean;
   phone: string; whatsapp: string; website: string; booking_url: string;
+  ubereats_url: string; doordash_url: string; grubhub_url: string; order_url: string;
   price_text: string; hours_text: string; languages: string;
   services: BusinessService[]; logo_url: string | null; cover_url: string | null; publish: boolean;
 };
@@ -28,7 +30,8 @@ type Form = {
 const EMPTY: Form = {
   name: '', category: '', tagline: '', description: '', city: '', state: '', zip: '', service_area: '', address: '',
   is_online: false, is_home_based: false, women_owned: false, sisters_only: false,
-  phone: '', whatsapp: '', website: '', booking_url: '', price_text: '', hours_text: '', languages: '',
+  phone: '', whatsapp: '', website: '', booking_url: '',
+  ubereats_url: '', doordash_url: '', grubhub_url: '', order_url: '', price_text: '', hours_text: '', languages: '',
   services: [], logo_url: null, cover_url: null, publish: true,
 };
 
@@ -63,6 +66,7 @@ export default function LocalEditScreen() {
         city: l.city ?? '', state: l.state ?? '', zip: (l as any).zip ?? '', service_area: l.service_area ?? '', address: l.address ?? '',
         is_online: l.is_online, is_home_based: l.is_home_based, women_owned: l.women_owned, sisters_only: l.sisters_only,
         phone: l.phone ?? '', whatsapp: l.whatsapp ?? '', website: l.website ?? '', booking_url: l.booking_url ?? '',
+        ubereats_url: l.ubereats_url ?? '', doordash_url: l.doordash_url ?? '', grubhub_url: l.grubhub_url ?? '', order_url: l.order_url ?? '',
         price_text: l.price_text ?? '', hours_text: l.hours_text ?? '', languages: (l.languages ?? []).join(', '),
         services: Array.isArray(l.services) ? l.services : [], logo_url: l.logo_url, cover_url: l.cover_url,
         publish: l.status !== 'draft',
@@ -101,7 +105,11 @@ export default function LocalEditScreen() {
 
   const nameOk = f.name.trim().length >= 2;
   const placeOk = f.is_online || f.city.trim().length > 0 || f.service_area.trim().length > 0 || /^\d{5}$/.test(f.zip.trim());
-  const canSave = nameOk && f.category !== '' && placeOk && !saving && !uploading;
+  const showOrder = ORDER_CATEGORIES.has(f.category);
+  const orderErrors = showOrder
+    ? ORDER_PLATFORMS.map(p => ({ key: p.key, err: orderUrlError(p.key, f[p.column]) })).filter(x => x.err)
+    : [];
+  const canSave = nameOk && f.category !== '' && placeOk && orderErrors.length === 0 && !saving && !uploading;
 
   async function save() {
     if (!uid || !canSave) return;
@@ -117,7 +125,12 @@ export default function LocalEditScreen() {
       service_area: f.service_area.trim() || null, address: f.address.trim() || null,
       is_online: f.is_online, is_home_based: f.is_home_based, women_owned: f.women_owned, sisters_only: f.sisters_only,
       phone: f.phone.trim() || null, whatsapp: f.whatsapp.trim() || null, website: f.website.trim() || null,
-      booking_url: f.booking_url.trim() || null, price_text: f.price_text.trim() || null, hours_text: f.hours_text.trim() || null,
+      booking_url: f.booking_url.trim() || null,
+      ubereats_url: showOrder ? normalizeOrderUrl(f.ubereats_url) || null : null,
+      doordash_url: showOrder ? normalizeOrderUrl(f.doordash_url) || null : null,
+      grubhub_url: showOrder ? normalizeOrderUrl(f.grubhub_url) || null : null,
+      order_url: showOrder ? normalizeOrderUrl(f.order_url) || null : null,
+      price_text: f.price_text.trim() || null, hours_text: f.hours_text.trim() || null,
       languages: f.languages.split(',').map(s => s.trim()).filter(Boolean).slice(0, 10),
       services: f.services.filter(s => s.name.trim()).map(s => ({
         name: s.name.trim(), ...(s.description?.trim() ? { description: s.description.trim() } : {}), ...(s.price?.trim() ? { price: s.price.trim() } : {}),
@@ -285,6 +298,21 @@ export default function LocalEditScreen() {
         <Field label="Booking link" placeholder="Calendly, Square, etc." keyboardType="url" value={f.booking_url} onChange={t => set('booking_url', t)} styles={styles} C={C} />
       </View>
 
+      {showOrder && (
+        <View style={styles.card}>
+          <Text style={styles.h2}>Order delivery (optional)</Text>
+          <Text style={styles.small}>
+            On Uber Eats, DoorDash or Grubhub? Open your store page there, copy the link, and paste it here. Customers get an Order button that opens your menu in that app.
+          </Text>
+          {ORDER_PLATFORMS.map(p => (
+            <View key={p.key} style={{ gap: 4 }}>
+              <Field label={p.label} placeholder={p.placeholder} keyboardType="url" value={f[p.column]} onChange={t => set(p.column, t)} styles={styles} C={C} />
+              {orderUrlError(p.key, f[p.column]) ? <Text style={styles.error}>{orderUrlError(p.key, f[p.column])}</Text> : null}
+            </View>
+          ))}
+        </View>
+      )}
+
       <View style={styles.card}>
         <Toggle label="Publish now" hint="Turn off to save a draft only you can see" value={f.publish} onChange={v => set('publish', v)} styles={styles} C={C} />
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -338,7 +366,7 @@ function Toggle({ label, value, onChange, hint, styles, C }: {
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ true: C.emerald, false: C.surface3 }}
+        trackColor={{ true: C.gold, false: C.surface3 }}
         thumbColor="#FFFFFF"
         accessibilityLabel={label}
       />
@@ -351,12 +379,12 @@ function makeStyles(C: AppColors, desktop: boolean) {
     page: { width: '100%', maxWidth: 760, alignSelf: 'center', gap: 16, paddingHorizontal: desktop ? 24 : 16, paddingTop: desktop ? 24 : HEADER_TOP_PADDING },
     back: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', minHeight: 40 },
     backText: { fontSize: 14, fontWeight: '600', color: C.text },
-    eyebrow: { fontSize: 12, fontWeight: '700', color: C.emerald, letterSpacing: 1 },
+    eyebrow: { fontSize: 12, fontWeight: '700', color: C.gold, letterSpacing: 1 },
     h1: { fontSize: desktop ? 28 : 24, fontWeight: '700', color: C.text, letterSpacing: -0.3 },
     h2: { fontSize: 17, fontWeight: '700', color: C.text },
     body: { fontSize: 15, lineHeight: 22, color: C.text2 },
     small: { fontSize: 12, lineHeight: 17, color: C.text2 },
-    link: { fontSize: 14, fontWeight: '600', color: C.emerald },
+    link: { fontSize: 14, fontWeight: '600', color: C.gold },
     error: { fontSize: 13, color: C.danger },
     card: { gap: 14, padding: desktop ? 20 : 16, borderRadius: 18, borderWidth: 1, borderColor: C.border2, backgroundColor: C.surface },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
@@ -364,7 +392,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     label: { fontSize: 13, fontWeight: '700', color: C.text },
     input: {
       minHeight: 46, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 12,
-      fontSize: 15, color: C.text, backgroundColor: C.bg, ...(Platform.OS === 'web' ? { outlineColor: C.emerald } as any : {}),
+      fontSize: 15, color: C.text, backgroundColor: C.bg, ...(Platform.OS === 'web' ? { outlineColor: C.gold } as any : {}),
     },
     chip: { minHeight: 38, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: C.border, justifyContent: 'center' },
     chipOn: { backgroundColor: C.text, borderColor: C.text },
@@ -378,7 +406,7 @@ function makeStyles(C: AppColors, desktop: boolean) {
     logoPick: { width: 72, height: 72, borderRadius: 18, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
     logoText: { fontSize: 22, fontWeight: '800' },
     serviceEdit: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border2 },
-    primaryBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.emerald, alignItems: 'center', justifyContent: 'center' },
+    primaryBtn: { minHeight: 44, paddingHorizontal: 18, borderRadius: 999, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
     primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
     ghostBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
