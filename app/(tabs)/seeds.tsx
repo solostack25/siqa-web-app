@@ -13,7 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { SeedVideo } from "../../components/SeedVideo";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { useTheme, type AppColors } from "../../lib/theme";
@@ -48,14 +48,9 @@ type Fundraiser = {
   } | null;
 };
 
-const CATEGORIES = [
-  "All",
-  "Water",
-  "Education",
-  "Medical",
-  "Masjid",
-  "Emergency",
-];
+// Filter chips come from the causes of the Seeds actually live, so a new
+// cause (Food, Refugees, Community...) gets a chip without a code change.
+const PREFERRED_ORDER = ["Emergency", "Food", "Water", "Medical", "Education", "Refugees", "Masjid", "Community"];
 
 function SeedsScreenInner() {
   const { colors: C } = useTheme();
@@ -76,6 +71,14 @@ function SeedsScreenInner() {
     : undefined;
 
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
+  const categories = useMemo(() => {
+    const present = [...new Set(fundraisers.map((f) => f.cause_category).filter(Boolean) as string[])];
+    present.sort((a, b) => {
+      const ia = PREFERRED_ORDER.indexOf(a), ib = PREFERRED_ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+    });
+    return ["All", ...present];
+  }, [fundraisers]);
   const [filtered, setFiltered] = useState<Fundraiser[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
@@ -255,7 +258,12 @@ function SeedsScreenInner() {
     const coverUrl = item.cover_image_url || item.image_url || null;
 
     return (
-      <View style={[styles.card, cardWidth ? { flex: 0, width: cardWidth } : null]}>
+      <View
+        // Fixed width on the desktop grid. Must be flexBasis, not
+        // `flex: 0` + width: on web `flex: 0` becomes "0 1 0%", which
+        // ignores the width and collapses cards that have no photo/video.
+        style={[styles.card, cardWidth ? { flexGrow: 0, flexShrink: 0, flexBasis: cardWidth, width: cardWidth } : null]}
+      >
         <View style={styles.orgRow}>
           <View style={styles.orgAvatar}>
             <Glyph name={categoryIcon} size={20} color={C.emerald} />
@@ -379,7 +387,7 @@ function SeedsScreenInner() {
       </View>
 
       <FlatList
-        data={CATEGORIES}
+        data={categories}
         keyExtractor={(c) => c}
         horizontal
         showsHorizontalScrollIndicator={false}
