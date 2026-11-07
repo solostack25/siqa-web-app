@@ -73,13 +73,13 @@ class CheckoutError extends Error {
   constructor(message: string, public status = 400, public code?: string) { super(message); }
 }
 
-async function priceCart(buyerId: string, items: { productId: string; quantity: number }[], address: Address) {
+async function priceCart(buyerId: string, items: { productId: string; quantity: number; variantKey?: string }[], address: Address) {
   const productIds = items.map(i => i.productId).filter(Boolean);
   const { data: products, error: productsError } = await supabase
     .from('marketplace_products')
     // marketplace_sellers has its own FK back to marketplace_products
     // (featured_product_id), so the embed must name the real FK.
-    .select('id, title, price_cents, currency, inventory_count, is_digital, status, category, seller_id, marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, shipping_cents, approval_status)')
+    .select('id, title, price_cents, currency, inventory_count, is_digital, status, category, seller_id, variations, marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, shipping_cents, approval_status)')
     .in('id', productIds);
   if (productsError || !products || products.length === 0) throw new CheckoutError('Products not found', 404);
 
@@ -87,6 +87,7 @@ async function priceCart(buyerId: string, items: { productId: string; quantity: 
     product: any;
     quantity: number;
     total_cents: number;
+    variantKey: string | null;
   }[] = [];
   for (const item of items) {
     const product = products.find((p: any) => p.id === item.productId);
@@ -95,8 +96,23 @@ async function priceCart(buyerId: string, items: { productId: string; quantity: 
     if (product.status !== 'active') throw new CheckoutError(`"${product.title}" is no longer available`);
     if ((product as any).marketplace_sellers?.approval_status !== 'approved') throw new CheckoutError(`"${product.title}" isn't available yet`);
     if (quantity < 1) throw new CheckoutError('Invalid quantity');
-    if (!product.is_digital && quantity > product.inventory_count) throw new CheckoutError(`Not enough stock for "${product.title}"`);
-    lines.push({ product, quantity, total_cents: product.price_cents * quantity });
+    // Products with variations (size, color…): the buyer must have picked an
+    // option, and its price/stock (when they vary) come from that option.
+    const variations = (product as any).variations as
+      | { attributes?: unknown[]; price_varies?: boolean; quantity_varies?: boolean; variants?: { key: string; price_cents: number; inventory: number }[] }
+      | null;
+    let unit = product.price_cents;
+    let stock = product.inventory_count;
+    let variantKey: string | null = null;
+    if (variations?.attributes?.length) {
+      const variant = variations.variants?.find(v => v.key === item.variantKey);
+      if (!variant) throw new CheckoutError(`Choose options for "${product.title}"`);
+      variantKey = variant.key;
+      if (variations.price_varies) unit = variant.price_cents;
+      if (variations.quantity_varies) stock = variant.inventory;
+    }
+    if (!product.is_digital && quantity > stock) throw new CheckoutError(`Not enough stock for "${product.title}"${variantKey ? ` (${variantKey})` : ''}`);
+    lines.push({ product, quantity, total_cents: unit * quantity, variantKey });
   }
 
   // Flat shipping once per shop, only if that shop has a physical item here.
@@ -215,7 +231,7 @@ Deno.serve(async (req: Request) => {
     const buyerId = user.id;
 
     const { items, address, mode } = await req.json();
-    // items: [{ productId: string, quantity: number }]
+    // items: [{ productId: string, quantity: number, variantKey?: string }]
 
     if (!Array.isArray(items) || items.length === 0) return json({ error: 'Cart is empty' }, 400);
 
@@ -267,6 +283,8 @@ Deno.serve(async (req: Request) => {
       seller_id: l.product.seller_id,
       quantity: l.quantity,
       total_cents: l.total_cents,
+      variant_key: l.variantKey,
+      variant_label: l.variantKey,
       status: 'pending',
       checkout_id: checkout.id,
       tax_cents: priced.lineTax[i],

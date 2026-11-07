@@ -27,7 +27,7 @@ type Order = {
   cancel_reason?: string | null;
   refunded_cents?: number | null;
   total_cents: number;
-  quantity: number;
+  quantity: number; variant_label?: string | null;
   created_at: string;
   product_id: string;
   marketplace_products: { title: string; images: string[] | null } | null;
@@ -67,7 +67,7 @@ export default function OrdersScreen() {
 
     const { data } = await supabase
       .from('marketplace_orders')
-      .select('id, status, total_cents, quantity, created_at, product_id, cancel_reason, refunded_cents, marketplace_products(title, images)')
+      .select('id, status, total_cents, quantity, variant_label, created_at, product_id, cancel_reason, refunded_cents, marketplace_products(title, images)')
       .eq('buyer_id', session.user.id)
       .order('created_at', { ascending: false });
 
@@ -152,7 +152,7 @@ export default function OrdersScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle} numberOfLines={1}>{product?.title ?? 'Product'}</Text>
-                      <Text style={styles.cardMeta}>Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
+                      <Text style={styles.cardMeta}>{order.variant_label ? `${order.variant_label} · ` : ''}Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
                       <Text style={[styles.cardStatus, { color: statusColor(order.status, C) }]}>{order.status.toUpperCase()}</Text>
                       {order.status === 'cancelled' && ((order.refunded_cents ?? 0) > 0 || order.cancel_reason) ? (
                         <Text style={styles.cancelNote}>

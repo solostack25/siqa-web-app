@@ -26,6 +26,7 @@ import { brandStyles, font } from '../../../lib/ds';
 import { Button, IconButton, Stepper } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 import { goBack } from '../../../lib/goBack';
+import { categoryPath, priceRange, variantKey, type Variations } from '../../../lib/productTaxonomy';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -44,6 +45,10 @@ type ProductDetail = {
   inventory_count: number;
   is_digital: boolean;
   category: string | null;
+  subcategory: string | null;
+  item_type: string | null;
+  attributes: Record<string, string> | null;
+  variations: Variations | null;
 };
 
 type SellerPolicies = { shipping?: string; returns?: string; message?: string } | null;
@@ -102,6 +107,9 @@ function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  // Chosen option per variation, e.g. { Size: 'M', Color: 'Black' }
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [pickError, setPickError] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
@@ -116,6 +124,8 @@ function ProductDetailScreen() {
     setLoading(true);
     setActiveImage(0);
     setQuantity(1);
+    setPicked({});
+    setPickError(false);
     setAdded(null);
     load(id);
   }, [id]);
@@ -123,7 +133,7 @@ function ProductDetailScreen() {
   async function load(productId: string) {
     const { data: productData } = await supabase
       .from('marketplace_products')
-      .select('id, seller_id, title, description, price_cents, currency, images, inventory_count, is_digital, category')
+      .select('id, seller_id, title, description, price_cents, currency, images, inventory_count, is_digital, category, subcategory, item_type, attributes, variations')
       .eq('id', productId)
       .single();
     if (!productData) { setProduct(null); setLoading(false); return; }
@@ -221,21 +231,23 @@ function ProductDetailScreen() {
 
   async function addToCart() {
     if (!product) return;
+    if (needsPick) { setPickError(true); return; }
     const userId = await requireSignedIn();
     if (!userId) return;
 
     setAddingToCart(true);
-    const result = await addItemToCart(product, quantity);
+    const result = await addItemToCart(product, quantity, selectedKey);
     setAddingToCart(false);
     if (!result.ok) {
-      if (result.reason !== 'signed_out') notify('Error', "Couldn't add this to your cart. Please try again.");
+      if (result.reason === 'sold_out') notify('Sold out', 'That option is sold out.');
+      else if (result.reason !== 'signed_out') notify('Error', "Couldn't add this to your cart. Please try again.");
       return;
     }
     // Etsy-style "added to cart" drawer (Alert.alert never showed on web).
     setAdded({
       id: product.id,
-      title: product.title,
-      price_cents: product.price_cents,
+      title: selectedKey ? `${product.title} (${selectedKey})` : product.title,
+      price_cents: unitPrice,
       currency: product.currency,
       image: product.images?.[0] ?? null,
       category: product.category,
@@ -281,11 +293,12 @@ function ProductDetailScreen() {
 
   async function buyNow() {
     if (!product) return;
+    if (needsPick) { setPickError(true); return; }
     const userId = await requireSignedIn();
     if (!userId) return;
     router.push({
       pathname: '/checkout',
-      params: { productId: product.id, quantity: String(quantity) },
+      params: { productId: product.id, quantity: String(quantity), ...(selectedKey ? { variantKey: selectedKey } : {}) },
     } as any);
   }
 
@@ -333,8 +346,26 @@ function ProductDetailScreen() {
 
   const images = product.images?.length ? product.images : [];
   const avgRating = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
-  const soldOut = !product.is_digital && product.inventory_count <= 0;
-  const maxQty = product.is_digital ? MAX_QTY : Math.max(1, Math.min(product.inventory_count, MAX_QTY));
+  // Variations: buyers pick one option per variation (e.g. Size and Color).
+  const vars = product.variations?.attributes?.length ? product.variations : null;
+  const allPicked = !vars || vars.attributes.every((a) => picked[a.name]);
+  const selectedKey = vars && allPicked ? variantKey(vars.attributes.map((a) => picked[a.name])) : '';
+  const selectedVariant = vars && selectedKey ? vars.variants.find((v) => v.key === selectedKey) ?? null : null;
+  const needsPick = Boolean(vars) && !selectedVariant;
+  const range = priceRange(product);
+  const unitPrice = selectedVariant && vars?.price_varies ? selectedVariant.price_cents : range.min;
+  const stockNow = vars?.quantity_varies
+    ? (selectedVariant ? selectedVariant.inventory : vars.variants.reduce((n, v) => n + Math.max(0, v.inventory), 0))
+    : product.inventory_count;
+  const soldOut = !product.is_digital && stockNow <= 0;
+  const maxQty = product.is_digital ? MAX_QTY : Math.max(1, Math.min(stockNow, MAX_QTY));
+  // With one variation and per-option stock, grey out options that are sold out.
+  const optionSoldOut = (attr: string, opt: string) =>
+    !!vars?.quantity_varies && !product.is_digital && vars.attributes.length === 1 &&
+    (vars.variants.find((v) => v.key === opt)?.inventory ?? 0) <= 0;
+  const priceLabel = selectedVariant || range.min === range.max
+    ? formatPrice(unitPrice, product.currency)
+    : `${formatPrice(range.min, product.currency)} – ${formatPrice(range.max, product.currency)}`;
   const isOwnListing = Boolean(viewerId && seller && viewerId === seller.user_id);
   const shippingText = seller?.policies?.shipping?.trim() || null;
   const returnsText = seller?.policies?.returns?.trim() || null;
@@ -427,15 +458,15 @@ function ProductDetailScreen() {
     ? null
     : soldOut
       ? 'Sold out'
-      : product.inventory_count <= LOW_STOCK
-        ? `Only ${product.inventory_count} left`
+      : (!vars?.quantity_varies || selectedVariant) && stockNow <= LOW_STOCK
+        ? `Only ${stockNow} left`
         : null;
 
   const purchasePanel = (
     <View style={styles.panel}>
       {stockNote && <Text style={styles.stockNote}>{stockNote}</Text>}
 
-      <Text style={styles.price}>{formatPrice(product.price_cents, product.currency)}</Text>
+      <Text style={styles.price}>{priceLabel}</Text>
       <Text style={styles.title}>{product.title}</Text>
 
       {seller && (
@@ -479,6 +510,40 @@ function ProductDetailScreen() {
         </View>
       </View>
 
+      {vars ? (
+        <View style={{ gap: 14, marginBottom: 4 }}>
+          {vars.attributes.map((a) => (
+            <View key={a.name} style={{ gap: 8 }}>
+              <Text style={[styles.fieldLabel, pickError && !picked[a.name] && { color: C.danger }]}>
+                {a.name}{picked[a.name] ? `: ${picked[a.name]}` : pickError ? ` – please choose` : ''}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {a.options.map((o) => {
+                  const on = picked[a.name] === o;
+                  const out = optionSoldOut(a.name, o);
+                  return (
+                    <TouchableOpacity
+                      key={o}
+                      disabled={out}
+                      onPress={() => { setPicked((p) => ({ ...p, [a.name]: on ? '' : o })); setPickError(false); setQuantity(1); }}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: on, disabled: out }}
+                      accessibilityLabel={`${a.name} ${o}${out ? ', sold out' : ''}`}
+                      style={{
+                        minHeight: 40, minWidth: 44, paddingHorizontal: 14, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
+                        borderWidth: on ? 2 : 1, borderColor: on ? C.text : C.border, backgroundColor: C.bg, opacity: out ? 0.4 : 1,
+                      }}
+                    >
+                      <Text style={[{ fontSize: 14, color: C.text, textDecorationLine: out ? 'line-through' : 'none' }, font(on ? 700 : 500)]}>{o}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       {!soldOut && (
         <View style={styles.qtyBlock}>
           <Text style={styles.fieldLabel}>Quantity</Text>
@@ -512,6 +577,19 @@ function ProductDetailScreen() {
               <Text style={styles.detailTagText}>{product.is_digital ? 'Digital item' : 'Physical item'}</Text>
             </View>
           </View>
+          {product.subcategory ? (
+            <Text style={[styles.mutedText, { marginBottom: 10 }]}>{categoryPath(product.category, product.subcategory, product.item_type)}</Text>
+          ) : null}
+          {product.attributes && Object.keys(product.attributes).length ? (
+            <View style={{ gap: 6, marginBottom: 10 }}>
+              {Object.entries(product.attributes).map(([k, v]) => (
+                <View key={k} style={{ flexDirection: 'row', gap: 8 }}>
+                  <Text style={[styles.description, { color: C.text2, minWidth: 120 }]}>{k}</Text>
+                  <Text style={[styles.description, { flex: 1 }]}>{v}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           {product.description ? (
             <Text style={styles.description}>{product.description}</Text>
           ) : (

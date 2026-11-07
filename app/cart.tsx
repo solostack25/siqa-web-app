@@ -1,3 +1,4 @@
+import { unitPriceFor, stockFor, type Variations } from '../lib/productTaxonomy';
 import {
   View,
   Text,
@@ -38,14 +39,15 @@ type Product = {
   status: string;
   category: string | null;
   seller_id: string;
+  variations: Variations | null;
   marketplace_sellers: Shop | null;
 };
-type CartItem = { id: string; quantity: number; product_id: string; marketplace_products: Product | null };
+type CartItem = { id: string; quantity: number; product_id: string; variant_key: string; marketplace_products: Product | null };
 type SavedItem = { id: string; product_id: string; marketplace_products: Product | null };
 type ShopRating = { avg: number; count: number };
 
 const PRODUCT_FIELDS =
-  'id, title, price_cents, currency, images, inventory_count, is_digital, status, category, seller_id, ' +
+  'id, title, price_cents, currency, images, inventory_count, is_digital, status, category, seller_id, variations, ' +
   'marketplace_sellers!marketplace_products_seller_id_fkey(id, shop_name, avatar_url, shipping_cents)';
 
 export default function CartScreen() {
@@ -79,7 +81,7 @@ export default function CartScreen() {
     const [{ data: cartData }, { data: savedData }] = await Promise.all([
       supabase
         .from('marketplace_cart_items')
-        .select(`id, quantity, product_id, marketplace_products(${PRODUCT_FIELDS})`)
+        .select(`id, quantity, product_id, variant_key, marketplace_products(${PRODUCT_FIELDS})`)
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false }),
       supabase
@@ -170,6 +172,8 @@ export default function CartScreen() {
 
   async function moveToCart(entry: SavedItem) {
     if (!entry.marketplace_products) return;
+    // Items with sizes/colors need a choice first: open the product page.
+    if (entry.marketplace_products.variations?.attributes?.length) { openProduct(entry.product_id); return; }
     setBusyId(entry.id);
     const result = await addToCart(entry.marketplace_products, 1);
     if (result.ok) {
@@ -182,7 +186,7 @@ export default function CartScreen() {
 
   const validItems = items.filter(i => i.marketplace_products && i.marketplace_products.status === 'active');
   const itemCount = validItems.reduce((n, i) => n + i.quantity, 0);
-  const subtotal = validItems.reduce((sum, i) => sum + (i.marketplace_products?.price_cents ?? 0) * i.quantity, 0);
+  const subtotal = validItems.reduce((sum, i) => sum + (i.marketplace_products ? unitPriceFor(i.marketplace_products, i.variant_key) : 0) * i.quantity, 0);
 
   // Group items by shop, keeping the order shops first appear in.
   const groups: { shop: Shop; items: CartItem[] }[] = [];
@@ -247,7 +251,8 @@ export default function CartScreen() {
         {shopItems.map((item, idx) => {
           const p = item.marketplace_products!;
           const busy = busyId === item.id;
-          const max = p.is_digital ? 99 : p.inventory_count;
+          const max = p.is_digital ? 99 : stockFor(p, item.variant_key);
+          const each = unitPriceFor(p, item.variant_key);
           return (
             <View key={item.id} style={[styles.itemRow, idx > 0 && styles.itemDivider, busy && { opacity: 0.6 }]}>
               <TouchableOpacity onPress={() => openProduct(p.id)}>
@@ -264,17 +269,18 @@ export default function CartScreen() {
                 <View style={styles.itemTop}>
                   <TouchableOpacity style={{ flex: 1, minWidth: 0 }} onPress={() => openProduct(p.id)}>
                     <Text style={styles.itemTitle} numberOfLines={2}>{p.title}</Text>
+                    {item.variant_key ? <Text style={styles.itemNote}>{item.variant_key}</Text> : null}
                   </TouchableOpacity>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.itemPrice}>{formatPrice(p.price_cents * item.quantity, p.currency)}</Text>
+                    <Text style={styles.itemPrice}>{formatPrice(each * item.quantity, p.currency)}</Text>
                     {item.quantity > 1 && (
-                      <Text style={styles.itemEach}>{formatPrice(p.price_cents, p.currency)} each</Text>
+                      <Text style={styles.itemEach}>{formatPrice(each, p.currency)} each</Text>
                     )}
                   </View>
                 </View>
 
-                {!p.is_digital && p.inventory_count <= 5 && (
-                  <Text style={styles.stockNote}>Only {p.inventory_count} left</Text>
+                {!p.is_digital && max <= 5 && (
+                  <Text style={styles.stockNote}>{max <= 0 ? 'Sold out' : `Only ${max} left`}</Text>
                 )}
                 {p.is_digital && <Text style={styles.itemNote}>Digital download</Text>}
 

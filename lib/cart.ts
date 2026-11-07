@@ -29,28 +29,39 @@ export type AddToCartResult =
  * the product's inventory.
  */
 export async function addToCart(
-  product: { id: string; is_digital?: boolean | null; inventory_count?: number | null },
+  product: {
+    id: string;
+    is_digital?: boolean | null;
+    inventory_count?: number | null;
+    variations?: { quantity_varies?: boolean; variants?: { key: string; inventory: number }[] } | null;
+  },
   quantity = 1,
+  variantKey = '',
 ): Promise<AddToCartResult> {
   const { data: { session } } = await supabase.auth.getSession();
   const userId = session?.user?.id;
   if (!userId) return { ok: false, reason: 'signed_out' };
 
-  const cap = product.is_digital ? Infinity : Math.max(0, product.inventory_count ?? Infinity);
+  // Stock: the chosen option's when stock varies by option, else the product's.
+  const variant = variantKey ? product.variations?.variants?.find((v) => v.key === variantKey) : null;
+  const stock = product.variations?.quantity_varies && variant ? variant.inventory : product.inventory_count;
+  const cap = product.is_digital ? Infinity : Math.max(0, stock ?? Infinity);
   if (cap <= 0) return { ok: false, reason: 'sold_out' };
 
+  // One row per (user, product, option), so the same shirt in S and M are two lines.
   const { data: existing, error: readError } = await supabase
     .from('marketplace_cart_items')
     .select('id, quantity')
     .eq('user_id', userId)
     .eq('product_id', product.id)
+    .eq('variant_key', variantKey)
     .maybeSingle();
   if (readError) return { ok: false, reason: 'error' };
 
   const next = Math.min((existing?.quantity ?? 0) + quantity, cap);
   const { error } = existing
     ? await supabase.from('marketplace_cart_items').update({ quantity: next }).eq('id', existing.id)
-    : await supabase.from('marketplace_cart_items').insert({ user_id: userId, product_id: product.id, quantity: next });
+    : await supabase.from('marketplace_cart_items').insert({ user_id: userId, product_id: product.id, quantity: next, variant_key: variantKey });
   if (error) return { ok: false, reason: 'error' };
 
   notifyCartChanged();

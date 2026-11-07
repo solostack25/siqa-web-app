@@ -373,29 +373,44 @@ Deno.serve(async (req) => {
             .update({ status: 'paid' })
             .in('id', orderIds)
             .eq('status', 'pending')
-            .select('id, product_id, quantity');
+            .select('id, product_id, quantity, variant_key');
 
           for (const order of newlyPaid ?? []) {
             const { data: product } = await supabase
               .from('marketplace_products')
-              .select('inventory_count, is_digital')
+              .select('inventory_count, is_digital, variations')
               .eq('id', order.product_id)
               .single();
 
             if (product && !product.is_digital) {
+              const update: Record<string, unknown> = {
+                inventory_count: Math.max(0, (product.inventory_count || 0) - order.quantity),
+              };
+              // Stock tracked per option (size, color…): take it off that option too.
+              const v = product.variations as { quantity_varies?: boolean; variants?: { key: string; inventory: number }[] } | null;
+              if (v?.quantity_varies && order.variant_key && v.variants?.length) {
+                update.variations = {
+                  ...v,
+                  variants: v.variants.map(x => (x.key === order.variant_key ? { ...x, inventory: Math.max(0, (x.inventory || 0) - order.quantity) } : x)),
+                };
+              }
               await supabase
                 .from('marketplace_products')
-                .update({ inventory_count: Math.max(0, (product.inventory_count || 0) - order.quantity) })
+                .update(update)
                 .eq('id', order.product_id);
             }
           }
 
           if (meta.buyer_id && newlyPaid && newlyPaid.length > 0) {
-            await supabase
-              .from('marketplace_cart_items')
-              .delete()
-              .eq('user_id', meta.buyer_id)
-              .in('product_id', newlyPaid.map(o => o.product_id));
+            // Remove exactly what was bought (same product in another size stays).
+            for (const o of newlyPaid) {
+              await supabase
+                .from('marketplace_cart_items')
+                .delete()
+                .eq('user_id', meta.buyer_id)
+                .eq('product_id', o.product_id)
+                .eq('variant_key', o.variant_key ?? '');
+            }
           }
 
           await settleCheckout(supabase, intent, orderIds);

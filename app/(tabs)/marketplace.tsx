@@ -26,21 +26,12 @@ import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
 import { brandStyles } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
+import { CATEGORY_NAMES } from '../../lib/productTaxonomy';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
 // from when listing a product.
-export const CATEGORIES = [
-  'All',
-  'Home Decor',
-  'Books & Media',
-  'Clothing & Accessories',
-  'Art & Prints',
-  'Jewelry',
-  'Digital Downloads',
-  'Gifts',
-  'Other',
-];
+export const CATEGORIES = ['All', ...CATEGORY_NAMES];
 
 type Product = {
   id: string;
@@ -143,7 +134,7 @@ export default function MarketplaceScreen() {
       // explicit hint here, and silently 300s the whole request
       // instead of just dropping the embed. Naming the real FK
       // (marketplace_products.seller_id) resolves it.
-      .select('id, title, price_cents, currency, images, category, inventory_count, is_digital, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
+      .select('id, title, price_cents, currency, images, category, inventory_count, is_digital, variations, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
       .eq('status', 'active')
       .eq('marketplace_sellers.approval_status', 'approved')
       .order('created_at', { ascending: false })
@@ -165,7 +156,7 @@ export default function MarketplaceScreen() {
   async function loadSponsored(): Promise<Product[]> {
     const { data, error } = await supabase
       .from('marketplace_products')
-      .select('id, title, price_cents, currency, images, category, inventory_count, is_digital, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
+      .select('id, title, price_cents, currency, images, category, inventory_count, is_digital, variations, marketplace_sellers!marketplace_products_seller_id_fkey!inner(shop_name, approval_status)')
       .eq('status', 'active')
       .eq('is_sponsored', true)
       .eq('marketplace_sellers.approval_status', 'approved')
@@ -192,6 +183,11 @@ export default function MarketplaceScreen() {
   }
 
   async function handleAddToCart(item: Product) {
+    // Sizes/colors to choose: send them to the product page to pick.
+    if ((item as any).variations?.attributes?.length) {
+      router.push({ pathname: '/product/[id]', params: { id: item.id } } as any);
+      return;
+    }
     setAddingId(item.id);
     const result = await addToCart(item, 1);
     setAddingId(null);

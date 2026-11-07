@@ -25,7 +25,7 @@ import { goBack } from '../lib/goBack';
 type Seller = { id: string; shop_name: string; approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null };
 type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
 type Order = {
-  id: string; status: string; total_cents: number; quantity: number; created_at: string;
+  id: string; status: string; total_cents: number; quantity: number; variant_label?: string | null; created_at: string;
   siqa_fee_cents: number | null; processing_fee_cents: number | null; seller_payout_cents: number | null;
   shipping_cents: number | null; tax_fee_cents: number | null; tax_cents: number | null;
   cancel_reason: string | null; refunded_cents: number | null;
@@ -87,7 +87,7 @@ export default function SellerDashboardScreen() {
 
     const [{ data: productsData }, { data: ordersData }] = await Promise.all([
       supabase.from('marketplace_products').select('id, title, price_cents, images, status, inventory_count').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
-      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, shipping_cents, tax_fee_cents, tax_cents, cancel_reason, refunded_cents, shipping_name, shipping_address, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
+      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, variant_label, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, shipping_cents, tax_fee_cents, tax_cents, cancel_reason, refunded_cents, shipping_name, shipping_address, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
     ]);
 
     if (productsData) setProducts(productsData as any);
@@ -271,7 +271,7 @@ export default function SellerDashboardScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.orderTitle} numberOfLines={1}>{order.marketplace_products?.title ?? 'Product'}</Text>
-                      <Text style={styles.orderMeta}>Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
+                      <Text style={styles.orderMeta}>{order.variant_label ? `${order.variant_label} · ` : ''}Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
                       {(order.shipping_cents ?? 0) > 0 && (
                         <Text style={styles.orderMeta}>+ {formatMoney(order.shipping_cents)} shipping</Text>
                       )}

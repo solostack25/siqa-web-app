@@ -1,3 +1,4 @@
+import { unitPriceFor } from '../lib/productTaxonomy';
 import {
   View,
   Text,
@@ -39,6 +40,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
 
 type LineItem = {
   productId: string;
+  variantKey: string;
   title: string;
   price_cents: number;
   quantity: number;
@@ -84,7 +86,7 @@ async function callCheckout(body: Record<string, unknown>) {
 }
 
 export default function CheckoutScreen() {
-  const { productId, quantity } = useLocalSearchParams<{ productId?: string; quantity?: string }>();
+  const { productId, quantity, variantKey: variantKeyParam } = useLocalSearchParams<{ productId?: string; quantity?: string; variantKey?: string }>();
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { colors: C, isDark } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
@@ -124,14 +126,15 @@ export default function CheckoutScreen() {
       // Buy-now: single product, quantity from params.
       const { data } = await supabase
         .from('marketplace_products')
-        .select('id, title, price_cents, images, is_digital')
+        .select('id, title, price_cents, inventory_count, images, is_digital, variations')
         .eq('id', productId)
         .single();
       if (data) {
         setLineItems([{
           productId: data.id,
-          title: data.title,
-          price_cents: data.price_cents,
+          variantKey: variantKeyParam ?? '',
+          title: variantKeyParam ? `${data.title} (${variantKeyParam})` : data.title,
+          price_cents: unitPriceFor(data as any, variantKeyParam),
           quantity: Number(quantity) || 1,
           image: data.images?.[0] ?? null,
           is_digital: Boolean(data.is_digital),
@@ -141,7 +144,7 @@ export default function CheckoutScreen() {
       // Cart checkout.
       const { data } = await supabase
         .from('marketplace_cart_items')
-        .select('quantity, marketplace_products(id, title, price_cents, images, status, is_digital)')
+        .select('quantity, variant_key, marketplace_products(id, title, price_cents, inventory_count, images, status, is_digital, variations)')
         .eq('user_id', session.user.id);
       if (data) {
         setLineItems(
@@ -149,8 +152,9 @@ export default function CheckoutScreen() {
             .filter((row: any) => row.marketplace_products?.status === 'active')
             .map((row: any) => ({
               productId: row.marketplace_products.id,
-              title: row.marketplace_products.title,
-              price_cents: row.marketplace_products.price_cents,
+              variantKey: row.variant_key ?? '',
+              title: row.variant_key ? `${row.marketplace_products.title} (${row.variant_key})` : row.marketplace_products.title,
+              price_cents: unitPriceFor(row.marketplace_products, row.variant_key),
               quantity: row.quantity,
               image: row.marketplace_products.images?.[0] ?? null,
               is_digital: Boolean(row.marketplace_products.is_digital),
@@ -200,7 +204,7 @@ export default function CheckoutScreen() {
     return {
       mode,
       buyerId,
-      items: lineItems.map(i => ({ productId: i.productId, quantity: i.quantity })),
+      items: lineItems.map(i => ({ productId: i.productId, quantity: i.quantity, variantKey: i.variantKey || undefined })),
       address: {
         name: address.name.trim(),
         line1: address.line1.trim(),
