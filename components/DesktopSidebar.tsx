@@ -123,7 +123,7 @@ export function DesktopSidebar() {
     { key: 'messages', label: 'Messages', path: '/messages', matchPrefixes: ['/messages'], icon: 'chatbubble-outline' },
     ...(hasBusiness ? [{ key: 'mybusiness', label: 'My business listing', path: '/local/inbox', matchPrefixes: ['/local/inbox', '/local/edit'], icon: 'briefcase-outline' }] : []),
     isSeller
-      ? { key: 'sellerdash', label: 'Seller Dashboard', path: '/seller-dashboard', matchPrefixes: ['/seller-dashboard', '/listing-create'], icon: 'storefront-outline' }
+      ? { key: 'sellerdash', label: 'My store', path: '/seller-dashboard', matchPrefixes: ['/seller-dashboard', '/listing-create'], icon: 'storefront-outline' }
       : { key: 'sell', label: 'Sell on Siqa', path: '/sell', matchPrefixes: ['/sell'], icon: 'storefront-outline' },
     ...(profile && isAdminRole(profile.role) ? [{ key: 'admin', label: 'Admin', path: '/admin', matchPrefixes: ['/admin'], icon: 'shield-checkmark-outline' }] : []),
   ];

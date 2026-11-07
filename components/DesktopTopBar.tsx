@@ -206,7 +206,7 @@ export function DesktopTopBar() {
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.menuItem} onPress={() => goTo(isSeller ? '/seller-dashboard' : '/sell')}>
                     <Icon name="storefront-outline" size={16} color={C.text2} />
-                    <Text style={styles.menuItemText}>{isSeller ? 'Seller Dashboard' : 'Sell on Siqa'}</Text>
+                    <Text style={styles.menuItemText}>{isSeller ? 'My store' : 'Sell on Siqa'}</Text>
                   </TouchableOpacity>
                   {profile && isAdminRole(profile.role) && (
                     <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/admin')}>
