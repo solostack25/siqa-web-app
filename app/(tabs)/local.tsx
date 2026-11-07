@@ -12,6 +12,7 @@ import { MobileBrandBar } from '../../components/MobileBrandBar';
 import { directionsUrl } from '../../lib/directions';
 import { Icon } from '../../components/Icon';
 import { ShopSwitcher } from '../../components/ShopSwitcher';
+import { ShopTabsHeader } from '../../components/ShopTabsHeader';
 import { LocationPicker } from '../../components/LocationPicker';
 import {
   ANYWHERE, getSavedLocation, hasAskedBefore, locateDevice, locationPermission, saveLocation, type SavedLocation,
@@ -248,9 +249,9 @@ export default function LocalDirectoryScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
         <ScrollView contentContainerStyle={{ paddingBottom: 72 }} keyboardShouldPersistTaps="handled">
-          <MobileBrandBar />
+          {!isDesktopWeb ? <ShopTabsHeader active="local" /> : null}
           <View style={[styles.page, { paddingHorizontal: pad }]}>
-            <ShopSwitcher active="local" stretch={!isDesktopWeb} />
+            {isDesktopWeb ? <ShopSwitcher active="local" /> : null}
 
             <View style={styles.header}>
               <View style={styles.headerText}>
