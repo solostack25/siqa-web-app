@@ -17,8 +17,8 @@ import {
   TextInput,
   useWindowDimensions,
 } from 'react-native';
-import { useCallback, useMemo, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
@@ -118,6 +118,12 @@ export default function MyStoreScreen() {
   const [menuProduct, setMenuProduct] = useState<Product | null>(null);
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ edit?: string }>();
+  const [editOpen, setEditOpen] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [bioInput, setBioInput] = useState('');
+  const [savingStore, setSavingStore] = useState(false);
+  const [storeError, setStoreError] = useState<string | null>(null);
   const [shippingOpen, setShippingOpen] = useState(false);
   const [shippingInput, setShippingInput] = useState('');
   const [savingShipping, setSavingShipping] = useState(false);
@@ -130,6 +136,16 @@ export default function MyStoreScreen() {
       load();
     }, [])
   );
+
+  // The storefront's "Edit store" button links here with ?edit=1.
+  const editParam = params.edit;
+  const sellerReady = !!seller;
+  useEffect(() => {
+    if (editParam === '1' && sellerReady) {
+      openEditStore();
+      router.setParams({ edit: undefined } as any);
+    }
+  }, [editParam, sellerReady]);
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -257,6 +273,27 @@ export default function MyStoreScreen() {
     const { error } = await supabase.from('marketplace_sellers').update({ featured_product_id: productId }).eq('id', seller.id);
     if (error) return showError('Error', error.message);
     setSeller({ ...seller, featured_product_id: productId });
+  }
+
+  function openEditStore(s: Seller | null = seller) {
+    if (!s) return;
+    setNameInput(s.shop_name);
+    setBioInput(s.bio ?? '');
+    setStoreError(null);
+    setEditOpen(true);
+  }
+
+  async function saveStore() {
+    if (!seller) return;
+    const name = nameInput.trim();
+    if (!name) { setStoreError('Your shop needs a name.'); return; }
+    setSavingStore(true);
+    const { error } = await supabase.from('marketplace_sellers')
+      .update({ shop_name: name, bio: bioInput.trim() || null }).eq('id', seller.id);
+    setSavingStore(false);
+    if (error) { setStoreError(error.message); return; }
+    setSeller({ ...seller, shop_name: name, bio: bioInput.trim() || null });
+    setEditOpen(false);
   }
 
   function openShipping() {
@@ -545,7 +582,7 @@ export default function MyStoreScreen() {
       <ListRow icon="card-outline" label="Payouts" value={seller.stripe_onboarded ? 'Stripe connected' : 'Set up'} onPress={() => router.push('/sell' as any)} />
       <ListRow icon="cube-outline" label="Shipping" value={shippingValue} onPress={openShipping} />
       <ListRow icon="chatbubble-outline" label="Messages" value={unread > 0 ? `${unread} new` : undefined} onPress={() => router.push('/messages' as any)} />
-      <ListRow icon="create-outline" label="Store name and bio" onPress={() => router.push('/sell' as any)} last />
+      <ListRow icon="create-outline" label="Store name and bio" onPress={() => openEditStore()} last />
     </View>
   );
 
@@ -587,7 +624,7 @@ export default function MyStoreScreen() {
           {metaLine}
         </View>
         <View style={{ flexDirection: 'row', gap: space[2], marginTop: space[4] }}>
-          <Button label="Edit store" variant="soft" size="md" grow onPress={() => router.push('/sell' as any)} />
+          <Button label="Edit store" variant="soft" size="md" grow onPress={() => openEditStore()} />
           <Button label="View as buyer" variant="secondary" size="md" icon="eye-outline" grow onPress={viewAsBuyer} />
         </View>
       </View>
@@ -625,7 +662,7 @@ export default function MyStoreScreen() {
             {seller.bio ? <Text style={[type.subhead, { color: c.ink2 }]} numberOfLines={2}>{seller.bio}</Text> : null}
             {metaLine}
           </View>
-          <Button label="Edit store" variant="soft" size="md" onPress={() => router.push('/sell' as any)} />
+          <Button label="Edit store" variant="soft" size="md" onPress={() => openEditStore()} />
         </View>
       </View>
 
@@ -741,6 +778,34 @@ export default function MyStoreScreen() {
             />
           </>
         ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="Edit store"
+        footer={<Button label="Save changes" loading={savingStore} onPress={saveStore} />}
+      >
+        <View style={{ gap: space[4] }}>
+          <TextField
+            label="Shop name"
+            value={nameInput}
+            onChangeText={(v) => { setNameInput(v); setStoreError(null); }}
+            placeholder="e.g. Nour Handmade"
+            maxLength={60}
+            error={storeError}
+          />
+          <TextField
+            label="About your shop"
+            value={bioInput}
+            onChangeText={setBioInput}
+            placeholder="What you make and what makes it special"
+            help="Shows under your shop name on your storefront."
+            multiline
+            maxLength={500}
+            style={{ minHeight: 110 }}
+          />
+        </View>
       </BottomSheet>
 
       <BottomSheet
