@@ -24,7 +24,7 @@ import { shareSpeaker } from '../../../lib/share';
 import ImageCropModal from '../../../components/ImageCropModal';
 import { ClaimNotice, UnclaimedBadge } from '../../../components/ClaimNotice';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../../lib/ds';
-import { Button } from '../../../components/ui';
+import { Button, BottomSheet, TextField } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
@@ -46,7 +46,6 @@ type Speaker = {
   total_raised: number | null;
   follower_count: number | null;
   events_count: number | null;
-  is_available: boolean;
   profile_id: string | null;
   is_verified: boolean;
   is_claimed: boolean;
@@ -55,7 +54,6 @@ type Speaker = {
   website: string | null;
   youtube_url: string | null;
   instagram_url: string | null;
-  booking_email: string | null;
 };
 
 type Video = {
@@ -127,6 +125,10 @@ function SpeakerProfileScreen() {
   const contentWidth = Math.min(availableWidth, MAX_CONTENT);
 
   const [speaker, setSpeaker] = useState<Speaker | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [edit, setEdit] = useState({ bio: '', languages: '', website: '', youtube_url: '', instagram_url: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
@@ -161,9 +163,9 @@ function SpeakerProfileScreen() {
       .from('speakers')
       .select(`
         id, display_name, denomination, state, country, topics, languages,
-        bio, total_raised, follower_count, events_count, is_available,
+        bio, total_raised, follower_count, events_count,
         profile_id, is_verified, is_claimed, avatar_url, banner_url,
-        website, youtube_url, instagram_url, booking_email
+        website, youtube_url, instagram_url
       `)
       .eq('id', speakerId)
       .maybeSingle();
@@ -395,6 +397,39 @@ function SpeakerProfileScreen() {
   const initial = speakerInitial(speaker.display_name);
   const location = [speaker.denomination, speaker.state, speaker.country !== 'US' ? speaker.country : null]
     .filter(Boolean).join(' · ');
+  // "Based in" is the place only (the header line also shows the denomination).
+  const basedIn = [speaker.state, speaker.country !== 'US' ? speaker.country : null].filter(Boolean).join(' · ');
+
+  function openEdit() {
+    if (!speaker) return;
+    setEdit({
+      bio: speaker.bio ?? '',
+      languages: (speaker.languages ?? []).join(', '),
+      website: speaker.website ?? '',
+      youtube_url: speaker.youtube_url ?? '',
+      instagram_url: speaker.instagram_url ?? '',
+    });
+    setEditError(null);
+    setEditOpen(true);
+  }
+
+  async function saveEdit() {
+    if (!speaker) return;
+    setSavingEdit(true);
+    setEditError(null);
+    const patch = {
+      bio: edit.bio.trim() || null,
+      languages: edit.languages.split(',').map(x => x.trim()).filter(Boolean),
+      website: edit.website.trim() || null,
+      youtube_url: edit.youtube_url.trim() || null,
+      instagram_url: edit.instagram_url.trim() || null,
+    };
+    const { error } = await supabase.from('speakers').update(patch).eq('id', speaker.id);
+    setSavingEdit(false);
+    if (error) { setEditError(error.message); return; }
+    setSpeaker({ ...speaker, ...patch });
+    setEditOpen(false);
+  }
   const pad = isDesktopWeb ? 32 : 16;
   const innerWidth = contentWidth - pad * 2;
 
@@ -616,14 +651,27 @@ function SpeakerProfileScreen() {
     ].filter(Boolean) as { label: string; icon: any; url: string }[];
     tabContent = (
       <View style={styles.aboutCard}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <Text style={styles.aboutBio}>
-          {speaker.bio || (isOwner ? 'Add a bio so people know who you are and what you teach.' : 'No bio yet.')}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={styles.sectionTitle}>About</Text>
+          {isOwner && (
+            <TouchableOpacity style={styles.ghostBtn} onPress={openEdit} accessibilityLabel="Edit your profile">
+              <Icon name="create-outline" size={16} color={C.text} />
+              <Text style={styles.ghostBtnText}>Edit</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {speaker.bio ? (
+          <Text style={styles.aboutBio}>{speaker.bio}</Text>
+        ) : isOwner ? (
+          <TouchableOpacity onPress={openEdit} accessibilityRole="button">
+            <Text style={[styles.aboutBio, { textDecorationLine: 'underline' }]}>Add a bio so people know who you are and what you teach.</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.aboutBio}>No bio yet.</Text>
+        )}
         <View style={styles.aboutGrid}>
-          {location ? <AboutRow styles={styles} label="Based in" value={location} /> : null}
+          {basedIn ? <AboutRow styles={styles} label="Based in" value={basedIn} /> : null}
           {speaker.languages?.length ? <AboutRow styles={styles} label="Languages" value={speaker.languages.join(', ')} /> : null}
-          {!unclaimed && <AboutRow styles={styles} label="Speaking requests" value={speaker.is_available ? 'Open to bookings' : 'Not taking bookings right now'} />}
         </View>
         {speaker.topics?.length ? (
           <View style={{ gap: 8 }}>
@@ -635,17 +683,8 @@ function SpeakerProfileScreen() {
             </View>
           </View>
         ) : null}
-        {(links.length > 0 || (!unclaimed && speaker.is_available && speaker.booking_email)) && (
+        {links.length > 0 && (
           <View style={styles.pillRow}>
-            {!unclaimed && speaker.is_available && speaker.booking_email && (
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => Linking.openURL(`mailto:${speaker.booking_email}?subject=${encodeURIComponent('Speaking request via Siqa')}`)}
-              >
-                <Icon name="mail-outline" size={16} color={dsStatic().c.onPrimary} />
-                <Text style={styles.primaryBtnText}>Request a talk</Text>
-              </TouchableOpacity>
-            )}
             {links.map(l => (
               <TouchableOpacity key={l.label} style={styles.ghostBtn} onPress={() => Linking.openURL(l.url)}>
                 <Icon name={l.icon} size={16} color={C.text} />
@@ -758,6 +797,37 @@ function SpeakerProfileScreen() {
           <View style={{ height: 48 }} />
         </ScrollView>
       </View>
+
+      <BottomSheet
+        visible={editOpen}
+        onClose={() => setEditOpen(false)}
+        title="Edit profile"
+        footer={<Button label="Save changes" loading={savingEdit} onPress={saveEdit} />}
+      >
+        <View style={{ gap: 16 }}>
+          <TextField
+            label="About you"
+            value={edit.bio}
+            onChangeText={(v) => setEdit(e => ({ ...e, bio: v }))}
+            placeholder="Who you are, what you teach, where you studied"
+            multiline
+            maxLength={1000}
+            style={{ minHeight: 120 }}
+            error={editError}
+          />
+          <TextField
+            label="Languages"
+            value={edit.languages}
+            onChangeText={(v) => setEdit(e => ({ ...e, languages: v }))}
+            placeholder="English, Arabic, Urdu"
+            help="Separate with commas."
+          />
+          <TextField label="Website" value={edit.website} onChangeText={(v) => setEdit(e => ({ ...e, website: v }))} placeholder="yoursite.com" keyboardType="url" autoCapitalize="none" />
+          <TextField label="YouTube" value={edit.youtube_url} onChangeText={(v) => setEdit(e => ({ ...e, youtube_url: v }))} placeholder="youtube.com/@yourchannel" keyboardType="url" autoCapitalize="none" />
+          <TextField label="Instagram" value={edit.instagram_url} onChangeText={(v) => setEdit(e => ({ ...e, instagram_url: v }))} placeholder="instagram.com/yourname" keyboardType="url" autoCapitalize="none" />
+          <Text style={{ fontSize: 13, color: C.text3, lineHeight: 18 }}>Your name is set by Siqa when you're verified. To change it, ask the Siqa team.</Text>
+        </View>
+      </BottomSheet>
 
       {Platform.OS === 'web' && (
         <ImageCropModal
