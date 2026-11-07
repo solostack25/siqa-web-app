@@ -145,6 +145,7 @@ function AppContent() {
         <Stack.Screen name="local/inbox" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="claim" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="studio" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="welcome" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="apply-speaker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
       <ToastHost />
