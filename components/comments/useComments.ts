@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useBlocked } from '../../lib/blocks';
 
 export type Reaction = { emoji: string; label: string };
 // One reaction per person per comment (enforced by a unique constraint).
@@ -117,10 +118,13 @@ export function useComments(videoId: string | null | undefined, opts: { enabled?
   const canModerate = !!me && (me.admin || (!!speakerProfileId && me.id === speakerProfileId));
 
   // Top-level comments in display order, each with its replies (oldest first).
+  // People you've blocked are hidden, along with their replies.
+  const blocked = useBlocked();
+  const visible = useMemo(() => all.filter((c) => !blocked.has(c.profile_id)), [all, blocked, blocked.size]);
   const threads = useMemo(() => {
-    const tops = all.filter((c) => !c.parent_id);
+    const tops = visible.filter((c) => !c.parent_id);
     const replies = new Map<string, SiqaComment[]>();
-    for (const c of all) {
+    for (const c of visible) {
       if (!c.parent_id) continue;
       const arr = replies.get(c.parent_id) ?? [];
       arr.push(c);
@@ -136,10 +140,10 @@ export function useComments(videoId: string | null | undefined, opts: { enabled?
       return b.created_at.localeCompare(a.created_at);
     });
     return sorted.map((c) => ({ comment: c, replies: replies.get(c.id) ?? [] }));
-  }, [all, sort]);
+  }, [visible, sort]);
 
   const pinned = threads.find((t) => t.comment.pinned_at)?.comment ?? null;
-  const count = all.length;
+  const count = visible.length;
 
   function patch(id: string, fn: (c: SiqaComment) => SiqaComment) {
     setAll((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));

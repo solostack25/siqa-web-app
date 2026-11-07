@@ -69,6 +69,8 @@ type OrgRow = {
   created_at?: string | null;
 };
 
+const REPORT_KIND: Record<string, string> = { comment: 'Video comment', chai_comment: 'Chai comment', thread: 'Conversation', message: 'Message', gem: 'Gem', profile: 'Profile' };
+
 type ReportRow = {
   id: string;
   reason: string | null;
@@ -421,6 +423,18 @@ export default function AdminScreen() {
     if (result.error) return Alert.alert('Could not close report', result.error.message);
     setReports((prev) => prev.filter((r) => r.id !== id));
   }
+  async function removeReported(r: ReportRow) {
+    const ok = await confirmDialog('Remove this comment?', 'It will be deleted for everyone and the report closed.', 'Remove');
+    if (!ok || !r.target_id) return;
+    setBusyId(r.id);
+    const table = r.target_type === 'chai_comment' ? 'chai_comments' : 'comments';
+    const del = await supabase.from(table).delete().eq('id', r.target_id);
+    if (del.error) { setBusyId(null); Alert.alert('Could not remove', del.error.message); return; }
+    await supabase.from('content_reports').update({ status: 'closed' }).eq('id', r.id);
+    setBusyId(null);
+    setReports((prev) => prev.filter((x) => x.id !== r.id));
+  }
+
 
   if (loading) {
     return (
@@ -598,7 +612,21 @@ export default function AdminScreen() {
 
       <QueueSection title="Reports" count={reports.length} C={C}>
         {reports.length === 0 ? <Empty text="No open reports." C={C} /> : reports.map((r) => (
-          <SimpleRow key={r.id} title={r.reason || 'Reported content'} sub={r.target_type === 'comment' ? `Comment: “${(r.details || '').slice(0, 140)}”` : `Video: ${r.video_id || 'unknown'}`} action="Close" busy={busyId === r.id} onPress={() => closeReport(r.id)} C={C} />
+          <View key={r.id}>
+            <SimpleRow
+              title={r.reason || 'Reported content'}
+              sub={`${REPORT_KIND[r.target_type || 'gem'] ?? 'Content'}${r.details ? `: “${r.details.slice(0, 140)}”` : r.video_id ? `: video ${r.video_id}` : ''} · ${r.created_at ? new Date(r.created_at).toLocaleString() : ''}`}
+              action="Close"
+              busy={busyId === r.id}
+              onPress={() => closeReport(r.id)}
+              C={C}
+            />
+            {(r.target_type === 'comment' || r.target_type === 'chai_comment') && r.target_id ? (
+              <TouchableOpacity style={{ alignSelf: 'flex-end', paddingHorizontal: 12, paddingBottom: 10 }} disabled={busyId === r.id} onPress={() => removeReported(r)}>
+                <Text style={{ color: C.danger, fontWeight: '700', fontSize: 13 }}>Remove comment and close</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ))}
       </QueueSection>
 

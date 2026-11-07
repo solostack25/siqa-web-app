@@ -36,6 +36,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [agreed, setAgreed] = useState(false);
 
   async function handleSignIn() {
     if (!email || !password) { setError('Please fill in all fields'); return; }
@@ -49,6 +50,7 @@ export default function LoginScreen() {
   async function handleSignUp() {
     if (!fullName || !email || !password) { setError('Please fill in all fields'); return; }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    if (!agreed) { setError('Please agree to the Terms of use and community rules to continue'); return; }
     setLoading(true);
     setError('');
     const { data, error } = await supabase.auth.signUp({
@@ -56,7 +58,7 @@ export default function LoginScreen() {
       password,
       // No role in metadata: every new account starts as a viewer. Speakers
       // and organizations apply and are approved by Siqa (enforced in the DB).
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName, terms_accepted_at: new Date().toISOString(), terms_version: '2026-11-07' } },
     });
     if (error) { setError(error.message); setLoading(false); return; }
     if (data.session) {
@@ -186,6 +188,26 @@ export default function LoginScreen() {
               onPress={() => router.push('/(auth)/forgot-password' as any)}
             >
               <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+          )}
+
+          {mode === 'signup' && (
+            // Apple Guideline 1.2: people agree to the community rules before they can post.
+            <TouchableOpacity
+              onPress={() => { setAgreed(a => !a); setError(''); }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: agreed }}
+              style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4, marginBottom: 4 }}
+            >
+              <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: agreed ? Colors.text : Colors.text3, backgroundColor: agreed ? Colors.text : 'transparent', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                {agreed ? <Text style={{ color: Colors.bg, fontSize: 14, fontWeight: '800', lineHeight: 16 }}>✓</Text> : null}
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, lineHeight: 19, color: Colors.text2 }}>
+                I agree to the{' '}
+                <Text style={{ color: Colors.text, textDecorationLine: 'underline' }} onPress={() => router.push('/terms' as any)}>Terms of use</Text>
+                , including the community rules (no abusive or objectionable content), and the{' '}
+                <Text style={{ color: Colors.text, textDecorationLine: 'underline' }} onPress={() => router.push('/privacy' as any)}>Privacy policy</Text>.
+              </Text>
             </TouchableOpacity>
           )}
 

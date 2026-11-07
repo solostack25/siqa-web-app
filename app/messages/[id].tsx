@@ -21,6 +21,9 @@ import { Icon } from '../../components/Icon';
 import { formatPrice } from '../../lib/money';
 import { brandStyles } from '../../lib/ds';
 import { goBack } from '../../lib/goBack';
+import { BottomSheet, OptionRow } from '../../components/ui';
+import { useBlocked, blockUser, unblockUser, reportContent, REPORT_REASONS } from '../../lib/blocks';
+import { showToast } from '../../components/Toast';
 
 type Thread = {
   id: string;
@@ -48,6 +51,9 @@ export default function ThreadScreen() {
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const blocked = useBlocked();
 
   useFocusEffect(
     useCallback(() => {
@@ -94,6 +100,7 @@ export default function ThreadScreen() {
       .select('id, sender_id, body, created_at, read_at')
       .single();
     if (data) setMessages(prev => [...prev, data]);
+    else { setBody(text); showToast("Couldn't send. You can't message someone you've blocked or who has blocked you."); }
     setSending(false);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
   }
@@ -110,6 +117,16 @@ export default function ThreadScreen() {
 
   const isSeller = thread.marketplace_sellers?.user_id === userId;
   const product = thread.marketplace_products;
+  const otherId = isSeller ? thread.buyer_id : thread.marketplace_sellers?.user_id ?? null;
+  const otherName = isSeller ? 'this buyer' : thread.marketplace_sellers?.shop_name ?? 'this seller';
+  const iBlocked = !!otherId && blocked.has(otherId);
+
+  async function sendReport(reason: string) {
+    setReportOpen(false);
+    const last = [...messages].reverse().find(m => m.sender_id !== userId);
+    const err = await reportContent({ targetType: 'thread', targetId: thread!.id, reportedUserId: otherId, reason, details: last?.body ?? null });
+    showToast(err ? `Couldn't send report: ${err}` : 'Thanks. Siqa will review this conversation.');
+  }
 
   return (
     <DesktopShell>
@@ -124,7 +141,9 @@ export default function ThreadScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>
             {isSeller ? 'Buyer inquiry' : thread.marketplace_sellers?.shop_name ?? 'Seller'}
           </Text>
-          <View style={{ width: 38 }} />
+          <TouchableOpacity style={styles.roundBtn} onPress={() => setMenuOpen(true)} accessibilityLabel="Conversation options">
+            <Icon name="ellipsis-horizontal" size={20} color={C.text} />
+          </TouchableOpacity>
         </View>
 
         {product && (
@@ -168,6 +187,14 @@ export default function ThreadScreen() {
           )}
         </ScrollView>
 
+        {iBlocked ? (
+          <View style={[styles.inputRow, { alignItems: 'center', gap: 8 }]}>
+            <Text style={styles.emptyText}>You blocked {otherName}. Neither of you can send messages.</Text>
+            <TouchableOpacity onPress={() => otherId && unblockUser(otherId)} accessibilityRole="button">
+              <Text style={{ color: C.text, fontWeight: '700', textDecorationLine: 'underline' }}>Unblock</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={styles.inputRow}>
           {/* The divider/background spans full width intentionally (a
               footer bar reads fine edge-to-edge), but the actual input
@@ -191,6 +218,19 @@ export default function ThreadScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        )}
+        <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)} title="Conversation">
+          <OptionRow action icon="flag-outline" label="Report conversation" onPress={() => { setMenuOpen(false); setReportOpen(true); }} />
+          {otherId ? (
+            iBlocked
+              ? <OptionRow action icon="ban-outline" label={`Unblock ${otherName}`} last onPress={() => { setMenuOpen(false); unblockUser(otherId); }} />
+              : <OptionRow action icon="ban-outline" label={`Block ${otherName}`} last onPress={() => { setMenuOpen(false); blockUser(otherId, otherName); }} />
+          ) : null}
+        </BottomSheet>
+        <BottomSheet visible={reportOpen} onClose={() => setReportOpen(false)} title="Report conversation">
+          <Text style={[styles.emptyText, { textAlign: 'left', marginBottom: 6 }]}>What's wrong? Siqa reviews every report and can read this conversation to check it.</Text>
+          {REPORT_REASONS.map((r, i) => <OptionRow key={r} action label={r} last={i === REPORT_REASONS.length - 1} onPress={() => sendReport(r)} />)}
+        </BottomSheet>
       </KeyboardAvoidingView>
     </DesktopShell>
   );

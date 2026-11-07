@@ -24,6 +24,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [agreed, setAgreed] = useState(false);
 
   async function handleSignUp() {
     if (!fullName.trim() || !email.trim() || !password) {
@@ -34,13 +35,17 @@ export default function SignUpScreen() {
       setError('Password must be at least 6 characters');
       return;
     }
+    if (!agreed) {
+      setError('Please agree to the Terms of use and community rules to continue');
+      return;
+    }
     setLoading(true);
     setError('');
     const { error: authError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
-        data: { full_name: fullName.trim() },
+        data: { full_name: fullName.trim(), terms_accepted_at: new Date().toISOString(), terms_version: '2026-11-07' },
       },
     });
     if (authError) {
@@ -117,13 +122,27 @@ export default function SignUpScreen() {
             />
           </View>
 
+          {/* Apple Guideline 1.2: people agree to the community rules before they can post. */}
+          <TouchableOpacity
+            onPress={() => { setAgreed(a => !a); setError(''); }}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: agreed }}
+            style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 }}
+          >
+            <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: agreed ? Colors.text : Colors.text3, backgroundColor: agreed ? Colors.text : 'transparent', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+              {agreed ? <Text style={{ color: Colors.bg, fontSize: 14, fontWeight: '800', lineHeight: 16 }}>✓</Text> : null}
+            </View>
+            <Text style={[styles.disclaimer, { flex: 1, textAlign: 'left', marginTop: 0, fontSize: 13, lineHeight: 19, color: Colors.text2 ?? Colors.text3 }]}>
+              I agree to the{' '}
+              <Text style={{ color: Colors.text, textDecorationLine: 'underline' }} onPress={() => router.push('/terms' as any)}>Terms of use</Text>
+              , including the community rules (no abusive or objectionable content), and the{' '}
+              <Text style={{ color: Colors.text, textDecorationLine: 'underline' }} onPress={() => router.push('/privacy' as any)}>Privacy policy</Text>.
+            </Text>
+          </TouchableOpacity>
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Button label={'Create Account'} onPress={handleSignUp} loading={loading} style={{ marginTop: 8 }} />
-
-          <Text style={styles.disclaimer}>
-            By creating an account you agree to our Terms of Service.
-          </Text>
         </View>
 
         <View style={styles.footer}>
