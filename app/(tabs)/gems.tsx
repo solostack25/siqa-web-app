@@ -76,7 +76,6 @@ type VideoItem = {
   speakers: {
     id: string;
     display_name: string;
-    denomination: string | null;
     state: string | null;
     profile_id?: string | null;
     avatar_url?: string | null;
@@ -614,7 +613,7 @@ function GemClip({
               ) : null}
             </View>
             <Text style={styles.speakerSub}>
-              {[speaker?.denomination, speaker?.state]
+              {[speaker?.state]
                 .filter(Boolean)
                 .join(" · ")}
             </Text>
@@ -805,7 +804,7 @@ function GemsScreenInner() {
           `
           id, title, video_url, thumbnail_url, platform, platform_video_id,
           like_count, comment_count, view_count, topics, comments_enabled,
-          speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
+          speakers(id, display_name, state, profile_id, avatar_url, is_verified, is_claimed)
         `,
         )
         .eq("id", target)
@@ -847,7 +846,7 @@ function GemsScreenInner() {
         `
         id, title, video_url, thumbnail_url, platform, platform_video_id,
         like_count, comment_count, view_count, topics, comments_enabled,
-        speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
+        speakers(id, display_name, state, profile_id, avatar_url, is_verified, is_claimed)
       `,
       )
       .eq("is_published", true)
@@ -869,7 +868,7 @@ function GemsScreenInner() {
             `
             id, title, video_url, thumbnail_url, platform, platform_video_id,
             like_count, comment_count, view_count, topics, comments_enabled,
-            speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
+            speakers(id, display_name, state, profile_id, avatar_url, is_verified, is_claimed)
           `,
           )
           .eq("id", targetVideoId)
@@ -900,7 +899,7 @@ function GemsScreenInner() {
         `
         id, title, video_url, thumbnail_url, platform, platform_video_id,
         like_count, comment_count, view_count, topics, comments_enabled,
-        speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
+        speakers(id, display_name, state, profile_id, avatar_url, is_verified, is_claimed)
       `,
       )
       .eq("is_published", true)
