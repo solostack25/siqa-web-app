@@ -28,10 +28,11 @@ import { formatPrice as formatMoney } from '../lib/money';
 import { font, radius, space, type, useDS, type DS } from '../lib/ds';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { goBack } from '../lib/goBack';
+import { shareShop } from '../lib/share';
 
 type Seller = {
   id: string; shop_name: string; bio: string | null; avatar_url: string | null; banner_url: string | null;
-  approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null;
+  approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null; featured_product_id: string | null;
 };
 type Product = {
   id: string; title: string; price_cents: number; images: string[] | null; status: string;
@@ -137,7 +138,7 @@ export default function MyStoreScreen() {
 
     const { data: sellerData } = await supabase
       .from('marketplace_sellers')
-      .select('id, shop_name, bio, avatar_url, banner_url, approval_status, stripe_onboarded, shipping_cents')
+      .select('id, shop_name, bio, avatar_url, banner_url, approval_status, stripe_onboarded, shipping_cents, featured_product_id')
       .eq('user_id', uid)
       .maybeSingle();
 
@@ -250,6 +251,14 @@ export default function MyStoreScreen() {
     setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, status: newStatus } : p)));
   }
 
+  // The featured item gets the big card at the top of the storefront.
+  async function setFeatured(productId: string | null) {
+    if (!seller) return;
+    const { error } = await supabase.from('marketplace_sellers').update({ featured_product_id: productId }).eq('id', seller.id);
+    if (error) return showError('Error', error.message);
+    setSeller({ ...seller, featured_product_id: productId });
+  }
+
   function openShipping() {
     setShippingInput(((seller?.shipping_cents ?? 0) / 100).toFixed(2));
     setShippingOpen(true);
@@ -301,6 +310,7 @@ export default function MyStoreScreen() {
 
   const pad = isDesktop ? space[10] : space[5];
   const card = [{ backgroundColor: c.surface, borderRadius: radius.lg }, shadow('card')];
+  const viewAsBuyer = () => router.push({ pathname: '/shop/[id]', params: { id: seller.id } } as any);
   const shippingValue = (seller.shipping_cents ?? 0) > 0 ? `Flat ${formatMoney(seller.shipping_cents)}` : 'Free';
 
   // ── Pieces ─────────────────────────────────────────────────────────
@@ -432,7 +442,7 @@ export default function MyStoreScreen() {
     const look = s === 'active'
       ? (overImage ? { bg: 'rgba(255,255,255,0.92)', fg: '#111111' } : { bg: c.seedTint, fg: c.seed })
       : s === 'soldout' ? { bg: c.dangerTint, fg: c.danger } : { bg: c.surfaceSoft, fg: c.ink2 };
-    const label = s === 'active' ? 'Active' : s === 'soldout' ? 'Sold out' : 'Hidden';
+    const label = s === 'active' ? (seller.featured_product_id === p.id ? 'Featured' : 'Active') : s === 'soldout' ? 'Sold out' : 'Hidden';
     return (
       <View style={{ height: 22, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: look.bg, justifyContent: 'center', alignSelf: 'flex-start' }}>
         <Text style={[type.micro, { color: look.fg }]}>{label}</Text>
@@ -578,7 +588,7 @@ export default function MyStoreScreen() {
         </View>
         <View style={{ flexDirection: 'row', gap: space[2], marginTop: space[4] }}>
           <Button label="Edit store" variant="soft" size="md" grow onPress={() => router.push('/sell' as any)} />
-          <Button label={unread > 0 ? `Messages · ${unread}` : 'Messages'} variant="secondary" size="md" icon="chatbubble-outline" grow onPress={() => router.push('/messages' as any)} />
+          <Button label="View as buyer" variant="secondary" size="md" icon="eye-outline" grow onPress={viewAsBuyer} />
         </View>
       </View>
       {stripeNotice ?? mobilePayout}
@@ -597,7 +607,8 @@ export default function MyStoreScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[4] }}>
         <Text style={[type.display, { color: c.ink }]} accessibilityRole="header">My store</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
-          <Button label={unread > 0 ? `Messages · ${unread}` : 'Messages'} variant="secondary" size="md" icon="chatbubble-outline" onPress={() => router.push('/messages' as any)} />
+          <Button label="View as buyer" variant="secondary" size="md" icon="eye-outline" onPress={viewAsBuyer} />
+          <Button label="Share" variant="secondary" size="md" icon="share-outline" onPress={() => shareShop(seller.id, seller.shop_name)} />
           <Button label="Add product" variant="primary" size="md" icon="add" onPress={() => router.push('/listing-create' as any)} />
         </View>
       </View>
@@ -682,7 +693,7 @@ export default function MyStoreScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[3], paddingTop: Math.max(insets.top, HEADER_TOP_PADDING - 16), paddingBottom: 4 }}>
             <IconButton icon="chevron-back" label="Back" onPress={() => goBack('/marketplace')} />
             <Text style={[type.headline, font(700, 'display'), { color: c.ink }]}>My store</Text>
-            <View style={{ width: 44 }} />
+            <IconButton icon="share-outline" label="Share your shop" onPress={() => shareShop(seller.id, seller.shop_name)} />
           </View>
         ) : null}
 
@@ -711,6 +722,15 @@ export default function MyStoreScreen() {
           <>
             <OptionRow action icon="eye-outline" label="View listing" onPress={() => { const id = menuProduct.id; setMenuProduct(null); router.push({ pathname: '/product/[id]', params: { id } } as any); }} />
             <OptionRow action icon="create-outline" label="Edit listing" onPress={() => { const p = menuProduct; setMenuProduct(null); editListing(p); }} />
+            {menuProduct.status === 'active' ? (
+              <OptionRow
+                action
+                icon={seller.featured_product_id === menuProduct.id ? 'star' : 'star-outline'}
+                label={seller.featured_product_id === menuProduct.id ? 'Stop featuring' : 'Feature on your storefront'}
+                sub={seller.featured_product_id === menuProduct.id ? undefined : 'Shows as the big card at the top of your shop.'}
+                onPress={() => { const p = menuProduct; setMenuProduct(null); setFeatured(seller.featured_product_id === p.id ? null : p.id); }}
+              />
+            ) : null}
             <OptionRow
               action
               last
