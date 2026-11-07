@@ -144,6 +144,20 @@ export function GemIcon({ size = 24, color = '#a8843f', strokeWidth = 1.9 }: Ico
   );
 }
 
+/** Chai: a cup of tea with steam (polls, quizzes and discussion). */
+export function ChaiIcon({ size = 24, color = '#a8843f', strokeWidth = 1.9 }: IconProps & { strokeWidth?: number }) {
+  const p = { stroke: color, strokeWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M5 10h11v4.5A4.5 4.5 0 0 1 11.5 19h-2A4.5 4.5 0 0 1 5 14.5z" {...p} />
+      <Path d="M16 11.5h1.2a2.3 2.3 0 0 1 0 4.6H16" {...p} />
+      <Path d="M8.5 3.8c-.9 1.1.9 1.9 0 3.2" {...p} />
+      <Path d="M12.2 3.8c-.9 1.1.9 1.9 0 3.2" {...p} />
+      <Path d="M3.5 21.5h14" {...p} />
+    </Svg>
+  );
+}
+
 export function PlayIcon({ size = 14, color = '#1A1612' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 14 14" fill={color}>

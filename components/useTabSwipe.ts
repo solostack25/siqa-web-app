@@ -17,7 +17,7 @@ import { router, usePathname } from 'expo-router';
  * carousels), a form field, an embedded player, a video's own controls, an
  * open modal, or anything marked data-no-tab-swipe.
  */
-const TAB_ORDER = ['/home', '/marketplace', '/gems', '/seeds', '/orgs'];
+const TAB_ORDER = ['/home', '/marketplace', '/gems', '/seeds', '/chai'];
 
 const MIN_DX = 70;          // px of sideways travel
 const MAX_SLOPE = 0.5;      // |dy| must be under half of |dx|

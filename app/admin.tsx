@@ -19,6 +19,7 @@ import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialo
 import { brandStyles, font, buttonStyles, dsStatic } from '../lib/ds';
 import { BlockedTermsSection } from '../components/admin/BlockedTermsSection';
 import { goBack } from '../lib/goBack';
+import { ChaiIcon } from '../components/Siqa';
 
 type ProfileClaimRow = {
   id: string;
@@ -464,6 +465,22 @@ export default function AdminScreen() {
           <Text style={styles.headerTitle}>Moderation</Text>
         </View>
       </View>
+
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Open the Chai builder"
+        onPress={() => router.push('/chai-admin' as any)}
+        style={[styles.queueCard, { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }]}
+      >
+        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#ffcf3d', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#22163a' }}>
+          <ChaiIcon size={24} color="#22163a" strokeWidth={2.2} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>Chai builder</Text>
+          <Text style={styles.cardMeta}>Create, schedule and publish polls and quizzes</Text>
+        </View>
+        <Icon name="chevron-forward" size={20} color={C.gold} />
+      </TouchableOpacity>
 
       <QueueSection title="Profile Claims" count={claims.length} C={C}>
         {claims.length === 0 ? <Empty text="No claims waiting for review." C={C} /> : claims.map((c) => (

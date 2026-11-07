@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { router, usePathname, useFocusEffect, useGlobalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import { HomeIcon, DiscoverIcon, OrgsIcon, GemIcon, SeedsIcon, SiqaWordmark } from './Siqa';
+import { HomeIcon, DiscoverIcon, ChaiIcon, GemIcon, SeedsIcon, SiqaWordmark } from './Siqa';
 import { Icon } from './Icon';
 import { IS_MARKETPLACE_SITE, SITE_HOME } from '../lib/site';
 import { brandStyles } from '../lib/ds';
@@ -101,15 +101,16 @@ export function DesktopSidebar() {
       key: 'seeds',
       label: 'Seeds',
       path: '/(tabs)/seeds',
-      matchPrefixes: ['/seeds'],
+      // Organizations live inside Seeds now (Seeds | Organizations).
+      matchPrefixes: ['/seeds', '/orgs', '/seed/', '/org-profile', '/org-listing'],
       icon: (color) => <SeedsIcon color={color} />,
     },
     {
-      key: 'orgs',
-      label: 'Orgs',
-      path: '/(tabs)/orgs',
-      matchPrefixes: ['/orgs'],
-      icon: (color) => <OrgsIcon color={color} />,
+      key: 'chai',
+      label: 'Chai',
+      path: '/(tabs)/chai',
+      matchPrefixes: ['/chai'],
+      icon: (color) => <ChaiIcon color={color} size={22} />,
     },
   ];
   // Marketplace site: Shop only - no videos, Seeds or Orgs.
