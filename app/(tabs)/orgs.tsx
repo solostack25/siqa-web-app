@@ -25,6 +25,7 @@ import {
 } from '../../lib/orgCategories';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
+import { guardTabSwipe } from '../../components/useTabSwipe';
 
 /**
  * Organizations directory.
@@ -237,7 +238,7 @@ function OrgsScreenInner() {
   const Chip = ({ active, label, onPress, icon }: { active: boolean; label: string; onPress: () => void; icon?: any }) => (
     <TouchableOpacity
       style={[styles.chip, active && styles.chipActive]}
-      onPress={onPress}
+      onPress={guardTabSwipe(onPress)}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
     >
@@ -371,7 +372,7 @@ function OrgsScreenInner() {
                 <View style={styles.section}>
                   <View style={styles.sectionHead}>
                     <Text style={styles.h2}>Seeds happening now</Text>
-                    <TouchableOpacity onPress={() => router.push('/(tabs)/seeds' as any)}>
+                    <TouchableOpacity onPress={guardTabSwipe(() => router.push('/(tabs)/seeds' as any))}>
                       <Text style={styles.link}>See all {seeds.length} Seeds</Text>
                     </TouchableOpacity>
                   </View>
@@ -379,7 +380,7 @@ function OrgsScreenInner() {
                     {seeds.slice(0, seedCols === 1 ? 2 : 3).map(s => {
                       const pct = s.goal_amount ? Math.min(100, Math.round(((s.raised_amount ?? 0) / s.goal_amount) * 100)) : 0;
                       return (
-                        <TouchableOpacity key={s.id} style={[styles.seedCard, { width: seedW }]} onPress={() => router.push(`/seed/${s.id}` as any)}>
+                        <TouchableOpacity key={s.id} style={[styles.seedCard, { width: seedW }]} onPress={guardTabSwipe(() => router.push(`/seed/${s.id}` as any))}>
                           <View style={styles.seedMeta}>
                             {s.cause_category ? <Text style={styles.causePill}>{s.cause_category}</Text> : null}
                             {s.organizations?.org_name ? <Text style={styles.small} numberOfLines={1}>by {s.organizations.org_name}</Text> : null}
@@ -423,7 +424,7 @@ function OrgsScreenInner() {
                         const place = [o.city, o.state].filter(Boolean).join(', ');
                         return (
                           <View key={o.id} style={[styles.orgCard, { width: cardW }]}>
-                            <TouchableOpacity activeOpacity={0.9} onPress={() => openOrg(o)} accessibilityLabel={`${o.org_name} profile`}>
+                            <TouchableOpacity activeOpacity={0.9} onPress={guardTabSwipe(() => openOrg(o))} accessibilityLabel={`${o.org_name} profile`}>
                               <View style={[styles.banner, { backgroundColor: tint }]}>
                                 {o.banner_url ? <Image source={{ uri: o.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
                                 {o.is_verified ? (
@@ -452,10 +453,10 @@ function OrgsScreenInner() {
                               </View>
                             </TouchableOpacity>
                             <View style={styles.orgActions}>
-                              <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={() => openOrg(o, 'seeds')}>
+                              <TouchableOpacity style={[styles.primaryBtn, { flex: 1 }]} onPress={guardTabSwipe(() => openOrg(o, 'seeds'))}>
                                 <Text style={styles.primaryBtnText}>Donate</Text>
                               </TouchableOpacity>
-                              <TouchableOpacity style={[styles.ghostBtn, { flex: 1 }]} onPress={() => openOrg(o)}>
+                              <TouchableOpacity style={[styles.ghostBtn, { flex: 1 }]} onPress={guardTabSwipe(() => openOrg(o))}>
                                 <Text style={styles.ghostBtnText}>View</Text>
                               </TouchableOpacity>
                             </View>
@@ -503,7 +504,7 @@ function OrgsScreenInner() {
                         </View>
                       ) : listed.map(l => (
                         <View key={l.id} style={styles.listRow}>
-                          <TouchableOpacity style={styles.listMain} onPress={() => router.push(`/org-listing/${l.id}` as any)}>
+                          <TouchableOpacity style={styles.listMain} onPress={guardTabSwipe(() => router.push(`/org-listing/${l.id}` as any))}>
                             <View style={styles.listIcon}>
                               <Icon name={l.category === 'masjid' ? 'moon-outline' : l.category === 'education' ? 'school-outline' : 'business-outline'} size={19} color={C.text2} />
                             </View>
@@ -519,7 +520,7 @@ function OrgsScreenInner() {
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.claimLink}
-                            onPress={() => router.push({ pathname: '/claim', params: { type: 'organization', id: l.id } } as any)}
+                            onPress={guardTabSwipe(() => router.push({ pathname: '/claim', params: { type: 'organization', id: l.id } } as any))}
                             accessibilityLabel={`Claim ${l.name}`}
                           >
                             <Text style={styles.claimLinkText}>Claim</Text>

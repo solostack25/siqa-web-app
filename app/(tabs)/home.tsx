@@ -24,6 +24,7 @@ import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { SearchIcon, ClearIcon } from "../../components/Siqa";
 import { useSearchContext } from "../../contexts/SearchContext";
 import { brandStyles } from '../../lib/ds';
+import { guardTabSwipe } from '../../components/useTabSwipe';
 
 type LongVideo = {
   id: string;
@@ -283,9 +284,9 @@ function HomeScreenInner() {
               </View>
               <TouchableOpacity
                 style={styles.authBtn}
-                onPress={() =>
+                onPress={guardTabSwipe(() =>
                   router.push(userName ? "/(tabs)/dashboard" : ("/(auth)/login" as any))
-                }
+                )}
               >
                 <Text style={[styles.authBtnText, userName && styles.authBtnTextActive]}>
                   {userName ?? "Sign In"}
@@ -326,9 +327,9 @@ function HomeScreenInner() {
               <TouchableOpacity
                 style={[styles.chip, item === "All" && styles.chipActive]}
                 {...({ dataSet: item === "All" ? undefined : { hover: 'row' } } as any)}
-                onPress={() => {
+                onPress={guardTabSwipe(() => {
                   if (item !== "All") router.push(`/browse?category=${encodeURIComponent(item)}` as any);
-                }}
+                })}
               >
                 <Text style={[styles.chipText, item === "All" && styles.chipTextActive]}>{item}</Text>
               </TouchableOpacity>
@@ -350,7 +351,7 @@ function HomeScreenInner() {
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[styles.shortCard, isDesktopWeb && styles.shortCardDesktop]}
-                    onPress={() => router.push(`/(tabs)/gems?videoId=${item.id}` as any)}
+                    onPress={guardTabSwipe(() => router.push(`/(tabs)/gems?videoId=${item.id}` as any))}
                     {...({ dataSet: { hover: 'card' } } as any)}
                   >
                     <View style={[styles.shortThumb, isDesktopWeb && styles.shortThumbDesktop, styles.shortThumbClip]}>
@@ -382,7 +383,7 @@ function HomeScreenInner() {
         // CSS in public/index.html, which works on every web card.
         <Pressable
           style={[styles.videoCard, numColumns > 1 && { paddingHorizontal: 0, width: cardWidth }]}
-          onPress={() => router.push(`/watch/${item.id}` as any)}
+          onPress={guardTabSwipe(() => router.push(`/watch/${item.id}` as any))}
           {...({ dataSet: { hover: 'card' } } as any)}
         >
           <View style={styles.thumbWrap}>

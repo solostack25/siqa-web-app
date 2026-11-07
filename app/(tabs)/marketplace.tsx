@@ -25,6 +25,7 @@ import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
 import { brandStyles } from '../../lib/ds';
+import { guardTabSwipe } from '../../components/useTabSwipe';
 
 // Mirrors types/marketplace.ts PRODUCT_CATEGORIES from the original
 // Next.js marketplace app, so filters match what sellers actually pick
@@ -232,7 +233,7 @@ export default function MarketplaceScreen() {
             <View key={item.id} style={[styles.sponsoredCard, isDesktopWeb && styles.sponsoredCardDesktop]}>
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any)}
+                onPress={guardTabSwipe(() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any))}
                 {...({ dataSet: { hover: 'card' } } as any)}
               >
                 <View style={[styles.sponsoredImage, isDesktopWeb ? styles.sponsoredImageDesktop : styles.sponsoredImagePhone]}>
@@ -250,7 +251,7 @@ export default function MarketplaceScreen() {
                   <Icon name="sparkles" size={11} color={C.gold} />
                   <Text style={styles.sponsoredChipText}>Sponsored</Text>
                 </View>
-                <TouchableOpacity onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any)}>
+                <TouchableOpacity onPress={guardTabSwipe(() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any))}>
                   <Text style={styles.sponsoredTitle} numberOfLines={2}>{item.title}</Text>
                 </TouchableOpacity>
                 <View style={styles.metaRow}>
@@ -269,7 +270,7 @@ export default function MarketplaceScreen() {
                 <Text style={styles.sponsoredPrice}>{formatPrice(item.price_cents, item.currency)}</Text>
                 <TouchableOpacity
                   style={[styles.addBtn, { alignSelf: 'flex-start', marginTop: 10 }, (soldOut || addingId === item.id) && { opacity: 0.5 }]}
-                  onPress={() => handleAddToCart(item)}
+                  onPress={guardTabSwipe(() => handleAddToCart(item))}
                   disabled={soldOut || addingId === item.id}
                   accessibilityLabel={`Add ${item.title} to cart`}
                 >
@@ -356,7 +357,7 @@ export default function MarketplaceScreen() {
         renderItem={({ item: cat }) => (
           <TouchableOpacity
             style={[styles.catPill, category === cat && styles.catPillActive]}
-            onPress={() => setCategory(cat)}
+            onPress={guardTabSwipe(() => setCategory(cat))}
             {...({ dataSet: category === cat ? undefined : { hover: 'row' } } as any)}
           >
             <Text style={[styles.catText, category === cat && styles.catTextActive]}>{cat}</Text>
@@ -395,7 +396,7 @@ export default function MarketplaceScreen() {
             const openProduct = () => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any);
             return (
               <View style={styles.card}>
-                <TouchableOpacity activeOpacity={0.85} onPress={openProduct} {...({ dataSet: { hover: 'card' } } as any)}>
+                <TouchableOpacity activeOpacity={0.85} onPress={guardTabSwipe(openProduct)} {...({ dataSet: { hover: 'card' } } as any)}>
                   <View style={styles.cardImage}>
                     {item.images?.[0] ? (
                       <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
@@ -430,7 +431,7 @@ export default function MarketplaceScreen() {
                 <View style={styles.cardActions}>
                   <TouchableOpacity
                     style={[styles.addBtn, (soldOut || addingId === item.id) && { opacity: 0.5 }]}
-                    onPress={() => handleAddToCart(item)}
+                    onPress={guardTabSwipe(() => handleAddToCart(item))}
                     disabled={soldOut || addingId === item.id}
                     accessibilityLabel={`Add ${item.title} to cart`}
                   >
@@ -444,7 +445,7 @@ export default function MarketplaceScreen() {
                     )}
                   </TouchableOpacity>
                   {isDesktopWeb && item.category && (
-                    <TouchableOpacity style={styles.moreBtn} onPress={() => moreLikeThis(item)}>
+                    <TouchableOpacity style={styles.moreBtn} onPress={guardTabSwipe(() => moreLikeThis(item))}>
                       <Text style={styles.moreBtnText}>More like this</Text>
                       <Icon name="arrow-forward" size={14} color={C.text} />
                     </TouchableOpacity>

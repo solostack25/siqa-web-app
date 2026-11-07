@@ -39,6 +39,7 @@ import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
 import { CommentsSheet } from '../../components/comments/Comments';
 import { Icon } from '../../components/Icon';
+import { guardTabSwipe } from '../../components/useTabSwipe';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const TAB_BAR_HEIGHT = 80;
@@ -505,7 +506,7 @@ function GemClip({
       <TouchableOpacity
         style={StyleSheet.absoluteFill}
         activeOpacity={1}
-        onPress={() => setPaused((p) => !p)}
+        onPress={guardTabSwipe(() => setPaused((p) => !p))}
       >
         {isPreloaded ? (
           item.platform === 'youtube' && item.platform_video_id ? (
@@ -590,9 +591,9 @@ function GemClip({
         <View style={styles.speakerRow}>
           <TouchableOpacity
             style={styles.avatar}
-            onPress={() =>
+            onPress={guardTabSwipe(() =>
               speaker?.id && router.push(`/speaker/${speaker.id}` as any)
-            }
+            )}
           >
             {speaker?.avatar_url ? (
               <Image source={{ uri: speaker.avatar_url }} style={StyleSheet.absoluteFill} />
@@ -602,9 +603,9 @@ function GemClip({
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.speakerMeta}
-            onPress={() =>
+            onPress={guardTabSwipe(() =>
               speaker?.id && router.push(`/speaker/${speaker.id}` as any)
-            }
+            )}
           >
             <View style={styles.speakerNameRow}>
               <Text style={styles.speakerName}>{speaker?.display_name}</Text>
@@ -653,7 +654,7 @@ function GemClip({
             icon="leaf"
             label="Plant a Seed"
             style={{ alignSelf: "flex-start", marginTop: 4 }}
-            onPress={() => {
+            onPress={guardTabSwipe(() => {
               const fundraiserId = (item as any).fundraiser_id;
               if (fundraiserId) {
                 // Only the id: the donate screen looks up the org's payment
@@ -662,7 +663,7 @@ function GemClip({
               } else {
                 router.push("/(tabs)/seeds" as any);
               }
-            }}
+            })}
           />
         )}
       </Animated.View>
@@ -677,7 +678,7 @@ function GemClip({
           },
         ]}
       >
-        <TouchableOpacity style={styles.action} onPress={handleLike}>
+        <TouchableOpacity style={styles.action} onPress={guardTabSwipe(handleLike)}>
           <Animated.View style={{ transform: [{ scale: likeScale }] }}>
             <Glyph
               name={liked ? "heart" : "heart-outline"}
@@ -689,29 +690,29 @@ function GemClip({
 
         <TouchableOpacity
           style={styles.action}
-          onPress={() =>
+          onPress={guardTabSwipe(() =>
             onCommentOpen(item.id, item.comments_enabled !== false)
-          }
+          )}
         >
           <Glyph name="chatbubble-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>{formatCount(commentCount)}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.action} onPress={handleShare}>
+        <TouchableOpacity style={styles.action} onPress={guardTabSwipe(handleShare)}>
           <Glyph name="arrow-redo-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>Share</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.action}
-          onPress={handleSave}
+          onPress={guardTabSwipe(handleSave)}
           disabled={savingVideo}
         >
           <Glyph name={saved ? "bookmark" : "bookmark-outline"} style={[styles.actionIcon, saved && styles.actionIconSaved]} />
           <Text style={styles.actionCount}>{saved ? "Saved" : "Save"}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.action} onPress={handleReport}>
+        <TouchableOpacity style={styles.action} onPress={guardTabSwipe(handleReport)}>
           <Glyph name="flag-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>Report</Text>
         </TouchableOpacity>
@@ -719,7 +720,7 @@ function GemClip({
         {plantSeedEnabled && (
           <TouchableOpacity
             style={styles.actionCta}
-            onPress={() => router.push("/(tabs)/seeds" as any)}
+            onPress={guardTabSwipe(() => router.push("/(tabs)/seeds" as any))}
           >
             <Text style={styles.actionCtaText}>Seed</Text>
           </TouchableOpacity>

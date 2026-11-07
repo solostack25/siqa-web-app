@@ -23,6 +23,7 @@ import { useIsDesktopWeb } from "../../components/DesktopShell";
 import { MobileBrandBar } from "../../components/MobileBrandBar";
 import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
+import { guardTabSwipe } from '../../components/useTabSwipe';
 
 type Fundraiser = {
   id: string;
@@ -294,7 +295,7 @@ function SeedsScreenInner() {
           <TouchableOpacity
             activeOpacity={0.9}
             style={styles.videoCard}
-            onPress={() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any)}
+            onPress={guardTabSwipe(() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any))}
           >
             {coverUrl ? <Image source={{ uri: coverUrl }} style={styles.videoCover} /> : null}
             <View style={styles.videoScrim} />
@@ -303,7 +304,7 @@ function SeedsScreenInner() {
         )}
 
         <TouchableOpacity
-          onPress={() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any)}
+          onPress={guardTabSwipe(() => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any))}
         >
           <Text style={[styles.title, numColumns > 1 && styles.titleCompact]} numberOfLines={2}>
             {item.title}
@@ -359,12 +360,12 @@ function SeedsScreenInner() {
           icon="leaf-outline"
           label="Plant a Seed"
           style={{ marginTop: 4 }}
-          onPress={() =>
+          onPress={guardTabSwipe(() =>
             router.push({
               pathname: "/seed/[id]",
               params: { id: item.id },
             } as any)
-          }
+          )}
         />
         {(userRole === 'admin' || (item.org_id && userOrgIds.includes(item.org_id))) && (
           <Button variant="danger" size="md" label="Delete Seed" style={{ marginTop: 8 }} onPress={() => deleteSeed(item.id)} />
@@ -399,7 +400,7 @@ function SeedsScreenInner() {
               styles.catPill,
               activeCategory === cat && styles.catPillActive,
             ]}
-            onPress={() => setActiveCategory(cat)}
+            onPress={guardTabSwipe(() => setActiveCategory(cat))}
             {...({ dataSet: activeCategory === cat ? undefined : { hover: 'row' } } as any)}
           >
             <Text

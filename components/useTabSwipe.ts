@@ -23,6 +23,26 @@ const MIN_DX = 70;          // px of sideways travel
 const MAX_SLOPE = 0.5;      // |dy| must be under half of |dx|
 const MAX_MS = 700;         // slow drags are scrolling/reading, not swiping
 
+// While a tab swipe is under the finger (and for a moment after it ends),
+// taps don't count. On iOS the finger lifting at the end of a swipe also
+// "releases" whatever card it started on, and RN's Pressable/Touchable fire
+// onPress because the finger never left that card's bounds — so swiping left
+// over a video opened it. Wrap tap handlers on the main tabs in
+// guardTabSwipe() so they're ignored during a swipe.
+let swipeBlockUntil = 0;
+const AFTER_SWIPE_MS = 400;
+
+export function tabSwipeInProgress(): boolean {
+  return Date.now() < swipeBlockUntil;
+}
+
+export function guardTabSwipe<A extends any[]>(fn: (...args: A) => any) {
+  return (...args: A) => {
+    if (tabSwipeInProgress()) return;
+    return fn(...args);
+  };
+}
+
 function blocksSwipe(start: EventTarget | null): boolean {
   let el = start as HTMLElement | null;
   if (!el || typeof el.closest !== 'function') return true;
@@ -66,7 +86,10 @@ export function useTabSwipe(enabled: boolean) {
       if (Math.abs(dx) < MIN_DX || Math.abs(dy) > Math.abs(dx) * MAX_SLOPE || Date.now() - s.t > MAX_MS) return;
       const i = TAB_ORDER.indexOf(pathRef.current);
       const next = TAB_ORDER[i + (dx < 0 ? 1 : -1)];
-      if (next) router.navigate(next as any);
+      if (next) {
+        swipeBlockUntil = Date.now() + AFTER_SWIPE_MS;
+        router.navigate(next as any);
+      }
     }
 
     document.addEventListener('touchstart', onStart, { passive: true });
@@ -103,6 +126,13 @@ export function useNativeTabSwipeGesture(enabled: boolean) {
         .runOnJS(true)
         .activeOffsetX([-25, 25])
         .failOffsetY([-20, 20])
+        // Activated = this is a swipe, not a tap. Block taps until it's over.
+        .onStart(() => { swipeBlockUntil = Date.now() + 10_000; })
+        // Release the block shortly after any swipe that actually started
+        // (finished or cancelled), so the next real tap works.
+        .onFinalize(() => {
+          if (swipeBlockUntil > Date.now()) swipeBlockUntil = Date.now() + AFTER_SWIPE_MS;
+        })
         .onEnd((e) => {
           const i = TAB_ORDER.indexOf(pathRef.current);
           if (i < 0) return;
