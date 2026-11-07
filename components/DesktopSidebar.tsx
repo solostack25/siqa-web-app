@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { router, usePathname, useFocusEffect, useGlobalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../lib/theme';
-import { HomeIcon, DiscoverIcon, OrgsIcon, PlayIcon, SeedsIcon, SiqaWordmark } from './Siqa';
+import { HomeIcon, DiscoverIcon, OrgsIcon, GemIcon, SeedsIcon, SiqaWordmark } from './Siqa';
 import { Icon } from './Icon';
 import { IS_MARKETPLACE_SITE, SITE_HOME } from '../lib/site';
 import { brandStyles } from '../lib/ds';
@@ -88,7 +88,7 @@ export function DesktopSidebar() {
       label: 'Gems',
       path: '/(tabs)/gems',
       matchPrefixes: ['/gems'],
-      icon: (color) => <PlayIcon color={color} size={16} />,
+      icon: (color) => <GemIcon color={color} size={19} />,
     },
     {
       key: 'marketplace',

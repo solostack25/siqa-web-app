@@ -128,6 +128,22 @@ export function ClearIcon({ size = 16, color = '#fff' }: IconProps) {
   );
 }
 
+/**
+ * The Gems mark: a cut gem (Gems is named for Gemma). Outline only, so it
+ * works on its own beside the word "Gems" (gold) or inside the tab bar tile
+ * (gold on navy in Light, navy on gold in Night). See the Siqa brand kit,
+ * Components > Gems mark.
+ */
+export function GemIcon({ size = 24, color = '#a8843f', strokeWidth = 1.9 }: IconProps & { strokeWidth?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6.5 4h11l4 5.2L12 20.5 2.5 9.2z" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M2.5 9.2h19" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M9.3 4L7.6 9.2 12 20.5l4.4-11.3L14.7 4" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 export function PlayIcon({ size = 14, color = '#1A1612' }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 14 14" fill={color}>

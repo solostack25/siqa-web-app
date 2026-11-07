@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs, usePathname } from 'expo-router';
 import { View, Text, StyleSheet, Platform, Easing, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../lib/theme';
-import { DiscoverIcon, HomeIcon, OrgsIcon, PlayIcon, SeedsIcon } from '../../components/Siqa';
+import { DiscoverIcon, GemIcon, HomeIcon, OrgsIcon, SeedsIcon } from '../../components/Siqa';
 import { DesktopSidebar } from '../../components/DesktopSidebar';
 import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb, InDesktopShell } from '../../components/DesktopShell';
@@ -36,7 +36,7 @@ function TabIcon({ focused, label, icon }: TabIconProps) {
 const SLIDE_TABS = new Set(['home', 'marketplace', 'gems', 'seeds', 'orgs']);
 
 export default function TabsLayout() {
-  const { colors: C } = useTheme();
+  const { colors: C, isDark } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const { width } = useWindowDimensions();
   const slide = !isDesktopWeb && !IS_MARKETPLACE_SITE;
@@ -129,8 +129,10 @@ export default function TabsLayout() {
           ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Gems',
           tabBarIcon: () => (
-            <View style={[styles.gemsBtn, { backgroundColor: C.gold }]}> 
-              <PlayIcon color={C.bg} />
+            // Gems mark (brand kit): gold gem on navy in Light; colors flip
+            // in Night so the tile doesn't disappear into the dark bar.
+            <View style={[styles.gemsBtn, { backgroundColor: isDark ? '#d4ac73' : '#0a0f1c' }]} accessibilityLabel="Gems">
+              <GemIcon size={24} strokeWidth={2} color={isDark ? '#0a0f1c' : '#d4ac73'} />
             </View>
           ),
           tabBarLabel: () => null,
@@ -211,9 +213,9 @@ const styles = StyleSheet.create(brandStyles({
     textAlign: 'center',
   },
   gemsBtn: {
-    width: 46,
-    height: 32,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
