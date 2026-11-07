@@ -778,16 +778,50 @@ function GemsScreenInner() {
     if (targetVideoId) setPendingScrollVideoId(targetVideoId);
   }, [targetVideoId]);
 
+  // Open the exact Gem that was tapped (Home, a profile, a shared link).
+  // The feed is a random batch, so the Gem may not be in it, and the Gems tab
+  // stays loaded between visits; fetch it if needed and put it up next.
+  const fetchingTarget = useRef<string | null>(null);
   useEffect(() => {
-    if (!pendingScrollVideoId || !videos.length) return;
-    const targetIndex = videos.findIndex((video) => video.id === pendingScrollVideoId);
-    if (targetIndex < 0) return;
-
-    setActiveIndex(targetIndex);
-    requestAnimationFrame(() => {
-      listRef.current?.scrollToIndex({ index: targetIndex, animated: true });
+    const target = pendingScrollVideoId;
+    if (!target || !videos.length) return; // first load handles it itself
+    const targetIndex = videos.findIndex((video) => video.id === target);
+    if (targetIndex >= 0) {
+      setActiveIndex(targetIndex);
       setPendingScrollVideoId(null);
-    });
+      // Clear the param so tapping the same Gem again works next time.
+      router.setParams({ videoId: undefined } as any);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToIndex({ index: targetIndex, animated: false });
+      });
+      return;
+    }
+    if (fetchingTarget.current === target) return;
+    fetchingTarget.current = target;
+    (async () => {
+      const { data } = await supabase
+        .from("videos")
+        .select(
+          `
+          id, title, video_url, thumbnail_url, platform, platform_video_id,
+          like_count, comment_count, view_count, topics, comments_enabled,
+          speakers(id, display_name, denomination, state, profile_id, avatar_url, is_verified, is_claimed)
+        `,
+        )
+        .eq("id", target)
+        .eq("is_published", true)
+        .maybeSingle();
+      fetchingTarget.current = null;
+      if (!data) {
+        setPendingScrollVideoId(null);
+        return;
+      }
+      // Put it right where the viewer is, so it plays immediately.
+      setVideos((prev) => {
+        const at = Math.min(activeIndex, prev.length);
+        return [...prev.slice(0, at), data as any, ...prev.slice(at)];
+      });
+    })();
   }, [pendingScrollVideoId, videos]);
 
   useEffect(() => {

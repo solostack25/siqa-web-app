@@ -340,7 +340,7 @@ function HomeScreenInner() {
             <View style={styles.shortsSection}>
               <View style={styles.shortsLabelRow}>
                 <Glyph name="flash" size={16} color={C.gold} />
-                <Text style={styles.shortsLabel}>Shorts</Text>
+                <Text style={styles.shortsLabel}>Gems</Text>
               </View>
               <FlatList
                 horizontal
