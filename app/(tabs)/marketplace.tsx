@@ -2,15 +2,19 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
+  Pressable,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   TextInput,
   Platform,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
@@ -23,8 +27,8 @@ import { addToCart } from '../../lib/cart';
 import { AddedToCartDrawer, type AddedItem } from '../../components/AddedToCartDrawer';
 import { ShopSwitcher } from '../../components/ShopSwitcher';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
-import { MobileBrandBar } from '../../components/MobileBrandBar';
-import { brandStyles } from '../../lib/ds';
+import { ShopTabsHeader } from '../../components/ShopTabsHeader';
+import { brandStyles, font, radius, type, useDS } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
 import { CATEGORY_NAMES } from '../../lib/productTaxonomy';
 
@@ -46,13 +50,22 @@ type Product = {
 };
 
 type Rating = { avg: number; count: number };
-const LIMITED_STOCK = 5;
+/** "Only N left" shows at or below this many. */
+const LOW_STOCK = 5;
+/** The Sponsored strip goes after this many products. */
+const SPONSORED_AFTER = 4;
 
 
 export default function MarketplaceScreen() {
   const { colors: C } = useTheme();
+  const { c, shadow } = useDS();
+  const insets = useSafeAreaInsets();
   const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C);
+  // Phones: once you scroll, the Products / Local row tucks away and search,
+  // cart and categories stay pinned.
+  const [compact, setCompact] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,7 +158,9 @@ export default function MarketplaceScreen() {
     const [{ data, error }, sponsoredRows] = await Promise.all([q, loadSponsored()]);
     if (!error && data) {
       setProducts(data as any);
-      loadRatings([...(data as any[]).map(p => p.id), ...sponsoredRows.map(p => p.id)]);
+      const ids = [...(data as any[]).map(p => p.id), ...sponsoredRows.map(p => p.id)];
+      loadRatings(ids);
+      loadFavorites(ids);
     }
     setLoading(false);
   }
@@ -165,6 +180,29 @@ export default function MarketplaceScreen() {
     const rows = error || !data ? [] : (data as any as Product[]);
     setSponsored(rows);
     return rows;
+  }
+
+  async function loadFavorites(ids: string[]) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user || !ids.length) { setFavorites(new Set()); return; }
+    const { data } = await supabase.from('marketplace_favorites').select('product_id').eq('user_id', session.user.id).in('product_id', ids);
+    setFavorites(new Set((data ?? []).map((f: any) => f.product_id)));
+  }
+
+  async function toggleFavorite(productId: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { router.push('/(auth)/sign-in' as any); return; }
+    const on = favorites.has(productId);
+    const flip = (add: boolean) => setFavorites(prev => {
+      const next = new Set(prev);
+      if (add) next.add(productId); else next.delete(productId);
+      return next;
+    });
+    flip(!on);
+    const { error } = on
+      ? await supabase.from('marketplace_favorites').delete().eq('product_id', productId).eq('user_id', session.user.id)
+      : await supabase.from('marketplace_favorites').insert({ product_id: productId, user_id: session.user.id });
+    if (error) flip(on);
   }
 
   // Star rating + review count per card (reviews are public).
@@ -211,8 +249,8 @@ export default function MarketplaceScreen() {
     if (item.category) setCategory(item.category);
   }
 
-  // The Sponsored row shows on the unfiltered "All" view only; those items
-  // are then left out of the grid below so they don't appear twice.
+  // The Sponsored strip shows on the unfiltered "All" view only; those items
+  // are then left out of the grid so they don't appear twice.
   const showSponsored = sponsored.length > 0 && category === 'All' && !query.trim();
   const sponsoredIds = new Set(showSponsored ? sponsored.map(p => p.id) : []);
   const filtered = (query.trim()
@@ -221,253 +259,294 @@ export default function MarketplaceScreen() {
   ).filter(p => !sponsoredIds.has(p.id));
 
   const numColumns = isDesktopWeb ? 4 : 2;
-  // Pad the last row with empty slots so a short final row keeps normal
-  // card widths instead of stretching (cards are flex: 1 in each row).
-  const remainder = filtered.length % numColumns;
-  const gridData: (Product | null)[] =
-    remainder === 0 ? filtered : [...filtered, ...Array<null>(numColumns - remainder).fill(null)];
+  const colGap = isDesktopWeb ? 20 : 12;
+  const cardWidth = `calc((100% - ${colGap * (numColumns - 1)}px) / ${numColumns})`;
+  // Native has no calc(): percentages with the gap folded in.
+  const cardWidthNative = `${(100 - (numColumns - 1) * 3.4) / numColumns}%`;
 
-  const sponsoredRow = (
-    <View style={styles.sponsoredWrap}>
-      <View style={styles.sponsoredHead}>
-        <Text style={styles.sponsoredLabel}>Sponsored</Text>
-        <Text style={styles.sponsoredHint}>Highlighted shops on Siqa</Text>
+  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (isDesktopWeb) return;
+    const y = e.nativeEvent.contentOffset.y;
+    // Two thresholds so it doesn't flicker right at the edge.
+    if (!compact && y > 64) setCompact(true);
+    else if (compact && y < 12) setCompact(false);
+  }
+
+  const stockState = (item: Product) => {
+    if (item.is_digital) return { soldOut: false, low: null as number | null };
+    const n = item.inventory_count ?? 99;
+    return { soldOut: n <= 0, low: n > 0 && n <= LOW_STOCK ? n : null };
+  };
+
+  const openProduct = (id: string) => router.push({ pathname: '/product/[id]', params: { id } } as any);
+
+  const roundAdd = (item: Product, soldOut: boolean) => (
+    <Pressable
+      onPress={guardTabSwipe(() => handleAddToCart(item))}
+      disabled={soldOut || addingId === item.id}
+      accessibilityRole="button"
+      accessibilityLabel={soldOut ? `${item.title} is sold out` : `Add ${item.title} to cart`}
+      hitSlop={4}
+      style={({ pressed }) => [{
+        width: 36, height: 36, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: soldOut ? c.surfaceStrong : c.primary,
+        transform: [{ scale: pressed ? 0.94 : 1 }],
+      }, soldOut ? null : { boxShadow: '0px 4px 12px rgba(0,0,0,0.22)' } as any]}
+    >
+      {addingId === item.id
+        ? <ActivityIndicator size="small" color={c.onPrimary} />
+        : <Icon name="add" size={20} color={soldOut ? c.ink3 : c.onPrimary} />}
+    </Pressable>
+  );
+
+  const heart = (item: Product) => {
+    const on = favorites.has(item.id);
+    return (
+      <Pressable
+        onPress={guardTabSwipe(() => toggleFavorite(item.id))}
+        accessibilityRole="button"
+        accessibilityLabel={on ? `Remove ${item.title} from favorites` : `Save ${item.title} to favorites`}
+        hitSlop={5}
+        style={({ pressed }) => [{ width: 34, height: 34, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.92)', opacity: pressed ? 0.7 : 1 }, shadow('hairline')]}
+      >
+        <Icon name={on ? 'heart' : 'heart-outline'} size={17} color={on ? c.danger : '#111111'} />
+      </Pressable>
+    );
+  };
+
+  const metaLine = (item: Product) => {
+    const rating = ratings[item.id];
+    const shop = item.marketplace_sellers?.shop_name;
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+        {rating ? (
+          <>
+            <Icon name="star" size={11} color={c.gold} />
+            <Text style={[type.micro, { color: c.ink }]}>{rating.avg.toFixed(1)}</Text>
+            {shop ? <Text style={[type.micro, font(500), { color: c.ink2 }]}>·</Text> : null}
+          </>
+        ) : null}
+        {shop ? <Text style={[type.micro, font(500), { color: c.ink2, flexShrink: 1 }]} numberOfLines={1}>{shop}</Text> : null}
       </View>
-      <View style={[styles.sponsoredRow, !isDesktopWeb && { flexDirection: 'column' }]}>
-        {sponsored.map(item => {
-          const rating = ratings[item.id];
-          const soldOut = !item.is_digital && (item.inventory_count ?? 1) <= 0;
-          return (
-            <View key={item.id} style={[styles.sponsoredCard, isDesktopWeb && styles.sponsoredCardDesktop]}>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={guardTabSwipe(() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any))}
-                {...({ dataSet: { hover: 'card' } } as any)}
-              >
-                <View style={[styles.sponsoredImage, isDesktopWeb ? styles.sponsoredImageDesktop : styles.sponsoredImagePhone]}>
-                  {item.images?.[0] ? (
-                    <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
-                      <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
-                    </View>
-                  ) : (
-                    <Glyph name="bag-handle-outline" style={styles.cardImageEmoji} />
-                  )}
-                </View>
-              </TouchableOpacity>
-              <View style={styles.sponsoredInfo}>
-                <View style={styles.sponsoredChip}>
-                  <Icon name="sparkles" size={11} color={C.gold} />
-                  <Text style={styles.sponsoredChipText}>Sponsored</Text>
-                </View>
-                <TouchableOpacity onPress={guardTabSwipe(() => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any))}>
-                  <Text style={styles.sponsoredTitle} numberOfLines={2}>{item.title}</Text>
-                </TouchableOpacity>
-                <View style={styles.metaRow}>
-                  {rating && (
-                    <>
-                      <Text style={styles.metaStrong}>{rating.avg.toFixed(1)}</Text>
-                      <Icon name="star" size={12} color={C.text} />
-                      <Text style={styles.metaText}>({rating.count})</Text>
-                      {item.marketplace_sellers?.shop_name ? <Text style={styles.metaText}>·</Text> : null}
-                    </>
-                  )}
-                  {item.marketplace_sellers?.shop_name ? (
-                    <Text style={styles.metaText} numberOfLines={1}>By {item.marketplace_sellers.shop_name}</Text>
-                  ) : null}
-                </View>
-                <Text style={styles.sponsoredPrice}>{formatPrice(item.price_cents, item.currency)}</Text>
-                <TouchableOpacity
-                  style={[styles.addBtn, { alignSelf: 'flex-start', marginTop: 10 }, (soldOut || addingId === item.id) && { opacity: 0.5 }]}
-                  onPress={guardTabSwipe(() => handleAddToCart(item))}
-                  disabled={soldOut || addingId === item.id}
-                  accessibilityLabel={`Add ${item.title} to cart`}
-                >
-                  {addingId === item.id ? (
-                    <ActivityIndicator size="small" color={C.text} />
-                  ) : (
-                    <>
-                      <Icon name="add" size={16} color={C.text} />
-                      <Text style={styles.addBtnText}>{soldOut ? 'Sold out' : 'Add to cart'}</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+    );
+  };
+
+  const card = (item: Product) => {
+    const { soldOut, low } = stockState(item);
+    return (
+      <View key={item.id} style={{ width: (Platform.OS === 'web' ? cardWidth : cardWidthNative) as any, gap: 8 }}>
+        <View style={styles.cardImage}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={guardTabSwipe(() => openProduct(item.id))}
+            accessibilityRole="link"
+            accessibilityLabel={`${item.title}, ${formatPrice(item.price_cents, item.currency)}${soldOut ? ', sold out' : ''}`}
+            style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}
+            {...({ dataSet: { hover: 'card' } } as any)}
+          >
+            {item.images?.[0] ? (
+              <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
+                <Image source={{ uri: item.images[0] }} style={[styles.cardImageInner, soldOut && { opacity: 0.55 }]} resizeMode="cover" />
               </View>
+            ) : (
+              <Glyph name="bag-handle-outline" style={styles.cardImageEmoji} />
+            )}
+          </TouchableOpacity>
+          <View style={{ position: 'absolute', top: 8, right: 8 }}>{heart(item)}</View>
+          <View style={{ position: 'absolute', bottom: 8, right: 8 }}>{roundAdd(item, soldOut)}</View>
+          {soldOut ? (
+            <View pointerEvents="none" style={{ position: 'absolute', left: 8, bottom: 8, height: 22, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: c.scrim, justifyContent: 'center' }}>
+              <Text style={[type.micro, { color: '#ffffff' }]}>Sold out</Text>
             </View>
-          );
-        })}
-        {/* Keep a lone sponsored card at half width on desktop. */}
-        {isDesktopWeb && sponsored.length === 1 && <View style={{ flex: 1 }} />}
+          ) : null}
+        </View>
+        <Pressable onPress={guardTabSwipe(() => openProduct(item.id))} style={{ gap: 2 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Text style={[isDesktopWeb ? type.callout : type.subhead, font(500), { color: c.ink }]} numberOfLines={1}>{item.title}</Text>
+          {metaLine(item)}
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
+            <Text style={[isDesktopWeb ? type.headline : type.callout, font(800, 'display'), { color: c.ink, fontSize: isDesktopWeb ? 18 : 17 }]}>{formatPrice(item.price_cents, item.currency)}</Text>
+            {low ? <Text style={[type.micro, { color: c.danger }]}>Only {low} left</Text> : null}
+          </View>
+        </Pressable>
+        {isDesktopWeb && item.category ? (
+          <Pressable onPress={guardTabSwipe(() => moreLikeThis(item))} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
+            <Text style={[type.caption, font(600), { color: c.ink }]}>More like this</Text>
+            <Icon name="arrow-forward" size={13} color={c.ink} />
+          </Pressable>
+        ) : null}
       </View>
+    );
+  };
+
+  const sponsoredCard = (item: Product) => {
+    const { soldOut } = stockState(item);
+    return (
+      <View key={item.id} style={[{ flexDirection: 'row', gap: 12, padding: 12, borderRadius: radius.lg, backgroundColor: c.goldTint }, isDesktopWeb ? { flex: 1, minWidth: 0 } : { width: 300 }]}>
+        <TouchableOpacity activeOpacity={0.85} onPress={guardTabSwipe(() => openProduct(item.id))} accessibilityRole="link" accessibilityLabel={`Sponsored: ${item.title}`}>
+          <View style={{ width: isDesktopWeb ? 140 : 96, height: isDesktopWeb ? 140 : 96, borderRadius: radius.md, backgroundColor: c.surface, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+            {item.images?.[0]
+              ? <Image source={{ uri: item.images[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              : <Glyph name="bag-handle-outline" style={styles.cardImageEmoji} />}
+          </View>
+        </TouchableOpacity>
+        <View style={{ flex: 1, minWidth: 0, justifyContent: 'center', gap: 3 }}>
+          <Text style={[type.micro, { color: c.goldInk }]}>Sponsored</Text>
+          <Pressable onPress={guardTabSwipe(() => openProduct(item.id))}>
+            <Text style={[type.subhead, font(600), { color: c.ink }]} numberOfLines={2}>{item.title}</Text>
+          </Pressable>
+          {metaLine(item)}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+            <Text style={[type.callout, font(800, 'display'), { color: c.ink, fontSize: 17 }]}>{formatPrice(item.price_cents, item.currency)}</Text>
+            {roundAdd(item, soldOut)}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const sponsoredStrip = showSponsored ? (
+    isDesktopWeb ? (
+      <View style={{ flexDirection: 'row', gap: 20, marginVertical: 8 }}>
+        {sponsored.map(sponsoredCard)}
+        {sponsored.length === 1 ? <View style={{ flex: 1 }} /> : null}
+      </View>
+    ) : (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20, marginVertical: 4 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}>
+        {sponsored.map(sponsoredCard)}
+      </ScrollView>
+    )
+  ) : null;
+
+  const gridRow = (items: Product[]) => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: Platform.OS === 'web' ? colGap : '3.4%', rowGap: isDesktopWeb ? 28 : 20 } as any}>
+      {items.map(card)}
     </View>
   );
 
-  return (
-    <View style={styles.container}>
-      <MobileBrandBar />
-      <View style={{ paddingHorizontal: Theme.spacing.xl, paddingTop: isDesktopWeb ? HEADER_TOP_PADDING : 8 }}>
-        <ShopSwitcher active="products" stretch={!isDesktopWeb} />
+  const searchBox = (
+    <View style={styles.searchWrap}>
+      <Icon name="search-outline" size={18} color={c.ink2} />
+      <TextInput
+        style={[styles.searchInput, { outlineStyle: 'none' } as any]}
+        placeholder="Search the marketplace"
+        placeholderTextColor={c.ink3}
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="none"
+        returnKeyType="search"
+        accessibilityLabel="Search products"
+      />
+      {query ? (
+        <Pressable onPress={() => setQuery('')} accessibilityLabel="Clear search" hitSlop={8}>
+          <Icon name="close-circle" size={18} color={c.ink3} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  const categoryChips = (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.categories}>
+      {CATEGORIES.map(cat => {
+        const on = category === cat;
+        return (
+          <Pressable
+            key={cat}
+            onPress={guardTabSwipe(() => setCategory(cat))}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            style={[styles.catPill, on ? { backgroundColor: c.primary, borderColor: c.primary } : shadow('hairline')]}
+            {...({ dataSet: on ? undefined : { hover: 'row' } } as any)}
+          >
+            <Text style={[type.buttonSm, font(on ? 600 : 500), { color: on ? c.onPrimary : c.ink }]}>{cat}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+
+  // ── Header ─────────────────────────────────────────────────────────
+  const mobileHeader = (
+    <View style={[{ backgroundColor: c.bg, zIndex: 2 }, compact ? { boxShadow: `0px 1px 0px ${c.line}, 0px 6px 16px rgba(0,0,0,0.04)` } as any : null]}>
+      {compact ? (
+        <View style={{ height: Math.max(insets.top, HEADER_TOP_PADDING - 20) }} />
+      ) : (
+        <ShopTabsHeader active="products" cartCount={cartCount} />
+      )}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 20, paddingRight: compact ? 8 : 20, paddingTop: 8, gap: 4 }}>
+        <View style={{ flex: 1 }}>{searchBox}</View>
+        {compact ? (
+          <Pressable onPress={() => router.push('/cart' as any)} accessibilityRole="button" accessibilityLabel={cartCount ? `Cart, ${cartCount} items` : 'Cart'} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="bag-outline" size={23} color={c.ink} />
+            {cartCount > 0 ? (
+              <View style={{ position: 'absolute', top: 5, right: 3, minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={[type.micro, { fontSize: 11, lineHeight: 14, color: c.onPrimary }]}>{cartCount > 9 ? '9+' : cartCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        ) : null}
       </View>
-      <View style={[styles.header, { paddingTop: 12 }]}>
-        <View>
-          <Text style={styles.headerTitle}>Marketplace</Text>
-          <Text style={styles.headerSub}>Support Muslim-owned shops</Text>
+      {categoryChips}
+    </View>
+  );
+
+  const desktopHeader = (
+    <View style={{ width: '100%', maxWidth: 1480, alignSelf: 'center', paddingHorizontal: 40, paddingTop: 24, gap: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <Text style={[type.display, { color: c.ink }]} accessibilityRole="header">Marketplace</Text>
+          <ShopSwitcher active="products" />
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {isSeller && (
+          {isSeller ? (
             <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/listing-create' as any)} accessibilityLabel="Add a product">
-              <Icon name="add" size={22} color={C.text} />
+              <Icon name="add" size={22} color={c.ink} />
             </TouchableOpacity>
-          )}
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/messages' as any)}>
-            <Icon name="chatbubble-outline" size={19} color={C.text} />
+          ) : null}
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/messages' as any)} accessibilityLabel="Messages">
+            <Icon name="chatbubble-outline" size={19} color={c.ink} />
           </TouchableOpacity>
-          {/* The global DesktopTopBar already has a cart icon with a live
-              count, visible on every page — this page-level one was
-              built before that existed and is now a literal duplicate
-              on desktop. Mobile has no top bar at all, so it still
-              needs this as its only way to reach the cart from here. */}
-          {!isDesktopWeb && (
-            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/cart' as any)}>
-              <Icon name="cart-outline" size={20} color={C.text} />
-              {cartCount > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-          {/* Marketplace site on phones has no tab bar, so the account
-              (settings / sign in) lives here. */}
-          {!isDesktopWeb && IS_MARKETPLACE_SITE && (
-            <TouchableOpacity style={styles.iconBtn} onPress={openAccount} accessibilityLabel="Account">
-              <Icon name="person-circle-outline" size={21} color={C.text} />
-            </TouchableOpacity>
-          )}
         </View>
       </View>
+      <View style={{ marginHorizontal: -20 }}>{categoryChips}</View>
+    </View>
+  );
 
-      {!isDesktopWeb && (
-        <View style={styles.searchWrap}>
-          <Icon name="search-outline" size={16} color={C.text3} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search products..."
-            placeholderTextColor={C.text3}
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-          />
-        </View>
-      )}
+  const first = filtered.slice(0, SPONSORED_AFTER);
+  const rest = filtered.slice(SPONSORED_AFTER);
 
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesList}
-        contentContainerStyle={styles.categories}
-        data={CATEGORIES}
-        keyExtractor={c => c}
-        renderItem={({ item: cat }) => (
-          <TouchableOpacity
-            style={[styles.catPill, category === cat && styles.catPillActive]}
-            onPress={guardTabSwipe(() => setCategory(cat))}
-            {...({ dataSet: category === cat ? undefined : { hover: 'row' } } as any)}
-          >
-            <Text style={[styles.catText, category === cat && styles.catTextActive]}>{cat}</Text>
-          </TouchableOpacity>
-        )}
-      />
+  return (
+    <View style={styles.container}>
+      {isDesktopWeb ? desktopHeader : mobileHeader}
 
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator color={C.gold} size="large" />
         </View>
       ) : (
-        <FlatList
-          key={numColumns}
-          data={gridData}
-          keyExtractor={(p, i) => p?.id ?? `filler-${i}`}
-          numColumns={numColumns}
+        <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={[styles.grid, isDesktopWeb && styles.gridDesktop]}
-          columnWrapperStyle={{ gap: Theme.spacing.md }}
-          ListHeaderComponent={showSponsored ? sponsoredRow : null}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
+          onScroll={onScroll}
+          scrollEventThrottle={32}
+          keyboardShouldPersistTaps="handled"
+        >
+          {filtered.length === 0 && !showSponsored ? (
             <View style={styles.empty}>
               <Glyph name="bag-handle-outline" style={styles.emptyEmoji} />
-              <Text style={styles.emptyTitle}>No products yet</Text>
+              <Text style={styles.emptyTitle}>{query.trim() ? 'No products match that' : 'No products yet'}</Text>
               <Text style={styles.emptySub}>
-                {category === 'All' ? 'Check back soon.' : 'Try a different category.'}
+                {query.trim() ? 'Try a different word.' : category === 'All' ? 'Check back soon.' : 'Try a different category.'}
               </Text>
             </View>
-          }
-          renderItem={({ item }) => {
-            if (!item) return <View style={styles.card} />;
-            const rating = ratings[item.id];
-            const soldOut = !item.is_digital && (item.inventory_count ?? 1) <= 0;
-            const limited = !item.is_digital && !soldOut && (item.inventory_count ?? 99) <= LIMITED_STOCK;
-            const openProduct = () => router.push({ pathname: '/product/[id]', params: { id: item.id } } as any);
-            return (
-              <View style={styles.card}>
-                <TouchableOpacity activeOpacity={0.85} onPress={guardTabSwipe(openProduct)} {...({ dataSet: { hover: 'card' } } as any)}>
-                  <View style={styles.cardImage}>
-                    {item.images?.[0] ? (
-                      <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
-                        <Image source={{ uri: item.images[0] }} style={styles.cardImageInner} resizeMode="cover" />
-                      </View>
-                    ) : (
-                      <Glyph name="bag-handle-outline" style={styles.cardImageEmoji} />
-                    )}
-                  </View>
-                  <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                  <View style={styles.metaRow}>
-                    {rating && (
-                      <>
-                        <Text style={styles.metaStrong}>{rating.avg.toFixed(1)}</Text>
-                        <Icon name="star" size={12} color={C.text} />
-                        <Text style={styles.metaText}>({rating.count})</Text>
-                        {item.marketplace_sellers?.shop_name ? <Text style={styles.metaText}>·</Text> : null}
-                      </>
-                    )}
-                    {item.marketplace_sellers?.shop_name ? (
-                      <Text style={styles.metaText} numberOfLines={1}>By {item.marketplace_sellers.shop_name}</Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.cardPrice}>{formatPrice(item.price_cents, item.currency)}</Text>
-                  {soldOut ? (
-                    <Text style={styles.stockText}>Sold out</Text>
-                  ) : limited ? (
-                    <Text style={styles.stockText}>Limited stock</Text>
-                  ) : null}
-                </TouchableOpacity>
-
-                <View style={styles.cardActions}>
-                  <TouchableOpacity
-                    style={[styles.addBtn, (soldOut || addingId === item.id) && { opacity: 0.5 }]}
-                    onPress={guardTabSwipe(() => handleAddToCart(item))}
-                    disabled={soldOut || addingId === item.id}
-                    accessibilityLabel={`Add ${item.title} to cart`}
-                  >
-                    {addingId === item.id ? (
-                      <ActivityIndicator size="small" color={C.text} />
-                    ) : (
-                      <>
-                        <Icon name="add" size={16} color={C.text} />
-                        <Text style={styles.addBtnText}>{isDesktopWeb ? 'Add to cart' : 'Add'}</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                  {isDesktopWeb && item.category && (
-                    <TouchableOpacity style={styles.moreBtn} onPress={guardTabSwipe(() => moreLikeThis(item))}>
-                      <Text style={styles.moreBtnText}>More like this</Text>
-                      <Icon name="arrow-forward" size={14} color={C.text} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-            );
-          }}
-        />
+          ) : (
+            <View style={{ gap: isDesktopWeb ? 28 : 20 }}>
+              {first.length ? gridRow(first) : null}
+              {sponsoredStrip}
+              {rest.length ? gridRow(rest) : null}
+            </View>
+          )}
+        </ScrollView>
       )}
 
       <AddedToCartDrawer item={added} onClose={() => setAdded(null)} />
@@ -480,95 +559,33 @@ function makeStyles(C: AppColors) {
     container: { flex: 1, backgroundColor: C.bg },
     centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
 
-    header: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: Theme.spacing.xl, paddingTop: HEADER_TOP_PADDING, paddingBottom: Theme.spacing.md,
-    },
-    headerTitle: { fontSize: Theme.fontSize.xxl, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
-    headerSub: { fontSize: Theme.fontSize.sm, color: C.text3, marginTop: 2 },
     iconBtn: {
-      width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2, position: 'relative',
+      width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: C.surface, borderWidth: 1, borderColor: '#ecece9', position: 'relative',
     },
-    cartBadge: {
-      position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9,
-      backgroundColor: C.live, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
-    },
-    cartBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
 
     searchWrap: {
-      flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.sm,
-      marginHorizontal: Theme.spacing.xl, marginBottom: Theme.spacing.md,
-      paddingHorizontal: Theme.spacing.md, paddingVertical: 9,
-      borderRadius: Theme.radius.full, backgroundColor: C.surface,
-      borderWidth: 0.5, borderColor: C.border,
+      flexDirection: 'row', alignItems: 'center', gap: 10, height: 44,
+      paddingHorizontal: 14, borderRadius: 12, backgroundColor: '#f2f2f0',
     },
-    searchInput: { flex: 1, color: C.text, fontSize: Theme.fontSize.base, padding: 0 },
+    searchInput: { flex: 1, minWidth: 0, color: C.text, fontSize: 15, padding: 0 },
 
-    categoriesList: { flexGrow: 0, flexShrink: 0, minHeight: 32 + Theme.spacing.md },
-    categories: { paddingHorizontal: Theme.spacing.xl, gap: 8, paddingBottom: Theme.spacing.md, alignItems: 'center' },
-    // Same chip spec as Home and Seeds.
+    categories: { paddingHorizontal: 20, gap: 8, paddingTop: 10, paddingBottom: 10, alignItems: 'center' },
     catPill: {
-      paddingHorizontal: 14, paddingVertical: 7, minHeight: 32, flexShrink: 0,
-      borderRadius: Theme.radius.full, backgroundColor: C.surface2,
+      paddingHorizontal: 14, height: 34, flexShrink: 0, borderRadius: 999,
+      backgroundColor: C.surface, borderWidth: 1, borderColor: '#ecece9',
       alignItems: 'center', justifyContent: 'center',
     },
-    catPillActive: { backgroundColor: C.text },
-    catText: { fontSize: Theme.fontSize.sm, color: C.text2, fontWeight: '500' },
-    catTextActive: { color: C.bg, fontWeight: '600' },
 
-    grid: { paddingHorizontal: Theme.spacing.xl, paddingBottom: 100, gap: Theme.spacing.md },
+    grid: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100 },
     // Stop growing on very wide screens; 4 columns stay a comfortable size.
-    gridDesktop: { width: '100%', maxWidth: 1480, alignSelf: 'center', columnGap: 20 } as any,
-    // Etsy-style card: borderless, photo on top, then title, rating · shop,
-    // price, stock note, and the Add to cart / More like this actions.
-    card: { flex: 1, marginBottom: Theme.spacing.lg, minWidth: 0 },
+    gridDesktop: { width: '100%', maxWidth: 1480, alignSelf: 'center', paddingHorizontal: 40, paddingTop: 12 } as any,
     cardImage: {
       aspectRatio: 1, backgroundColor: C.surface2, alignItems: 'center', justifyContent: 'center',
-      overflow: 'hidden', borderRadius: Theme.radius.lg,
+      overflow: 'hidden', borderRadius: 16,
     },
     cardImageInner: { width: '100%', height: '100%' },
     cardImageEmoji: { fontSize: 32, color: C.text3, opacity: 0.6 },
-    cardTitle: { fontSize: 14, color: C.text, marginTop: 8, lineHeight: 19 },
-    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'nowrap', overflow: 'hidden' },
-    metaStrong: { fontSize: 12, fontWeight: '700', color: C.text },
-    metaText: { fontSize: 12, color: C.text3, flexShrink: 1 },
-    cardPrice: { fontSize: 16, fontWeight: '800', color: C.text, marginTop: 5 },
-    stockText: { fontSize: 12, fontWeight: '600', color: C.live, marginTop: 2 },
-    cardActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 10, flexWrap: 'wrap' },
-    addBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-      paddingHorizontal: 14, height: 36, minWidth: 80, borderRadius: 999, borderWidth: 1.5, borderColor: C.text,
-    },
-    addBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
-    moreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    moreBtnText: { fontSize: 13, fontWeight: '700', color: C.text },
-
-    // Sponsored row: two larger, gold-outlined cards above the grid.
-    sponsoredWrap: { marginBottom: Theme.spacing.xl },
-    sponsoredHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: Theme.spacing.md },
-    sponsoredLabel: { fontSize: 16, fontWeight: '800', color: C.text },
-    sponsoredHint: { fontSize: 12, color: C.text3 },
-    sponsoredRow: { flexDirection: 'row', gap: Theme.spacing.lg },
-    sponsoredCard: {
-      flexDirection: 'row', gap: Theme.spacing.lg, padding: Theme.spacing.md,
-      borderRadius: Theme.radius.lg, borderWidth: 1.5, borderColor: C.goldDim, backgroundColor: C.goldBg,
-    },
-    sponsoredCardDesktop: { flex: 1, minWidth: 0, padding: Theme.spacing.lg },
-    sponsoredImage: {
-      backgroundColor: C.surface2, borderRadius: Theme.radius.md, overflow: 'hidden',
-      alignItems: 'center', justifyContent: 'center',
-    },
-    sponsoredImageDesktop: { width: 220, height: 220 },
-    sponsoredImagePhone: { width: 120, height: 120 },
-    sponsoredInfo: { flex: 1, minWidth: 0, justifyContent: 'center' },
-    sponsoredChip: {
-      flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
-      paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: C.bg, marginBottom: 8,
-    },
-    sponsoredChipText: { fontSize: 11, fontWeight: '700', color: C.gold },
-    sponsoredTitle: { fontSize: 17, fontWeight: '600', color: C.text, lineHeight: 23 },
-    sponsoredPrice: { fontSize: 20, fontWeight: '800', color: C.text, marginTop: 6 },
 
     empty: { alignItems: 'center', paddingTop: 60, gap: 8, width: '100%' },
     emptyEmoji: { fontSize: 40, color: C.text3 },
