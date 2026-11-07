@@ -234,12 +234,13 @@ function DashboardScreenInner() {
         .order('created_at', { ascending: false })
         .limit(8);
       if (seedsRes.error && /cover_image_url|image_url/i.test(seedsRes.error.message)) {
-        seedsRes = await supabase
+        // Older databases without image columns: same rows, images left undefined.
+        seedsRes = (await supabase
           .from('fundraisers')
           .select('id, title, goal_amount, raised_amount, donor_count, status, cause_category')
           .eq('org_id', orgData.id)
           .order('created_at', { ascending: false })
-          .limit(8);
+          .limit(8)) as typeof seedsRes;
       }
       if (seedsRes.data) setOrgSeeds(seedsRes.data as SeedItem[]);
     } else {
