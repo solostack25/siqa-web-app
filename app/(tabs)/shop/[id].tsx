@@ -396,8 +396,8 @@ function ShopScreen() {
     </View>
   );
   const trust = [
-    trustLine('car-outline', shippingLine),
-    trustLine('shield-checkmark-outline', 'Muslim-owned · Checkout secured by Stripe'),
+    trustLine('cube-outline', shippingLine),
+    trustLine('shield-checkmark-outline', 'Checkout secured by Stripe'),
   ];
 
   const sectionTitle = (title: string, count?: number) => (
