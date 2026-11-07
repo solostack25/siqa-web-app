@@ -22,6 +22,7 @@ import { Avatar } from '../components/SeedSocial';
 import { DONATE_IN_BROWSER, donateUrl } from '../lib/donateLink';
 import { brandStyles, font, radius, type, useDS, type DS } from '../lib/ds';
 import { Button, IconButton, Switch as DSSwitch } from '../components/ui';
+import { goBack } from '../lib/goBack';
 
 // stripe-js touches browser globals (window/document) on use — only load it
 // on web, same pattern as the native-only @stripe/stripe-react-native import below.
@@ -292,7 +293,7 @@ if (fnError) throw new Error(fnError);
 
         {/* Header */}
         <View style={styles.header}>
-          <IconButton icon="arrow-back" label="Back" onPress={() => router.back()} />
+          <IconButton icon="arrow-back" label="Back" onPress={() => goBack('/home')} />
           <Text style={styles.headerTitle}>Donate</Text>
         </View>
 

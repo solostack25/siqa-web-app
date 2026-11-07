@@ -18,6 +18,7 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialogs';
 import { brandStyles, font, buttonStyles, dsStatic } from '../lib/ds';
 import { BlockedTermsSection } from '../components/admin/BlockedTermsSection';
+import { goBack } from '../lib/goBack';
 
 type ProfileClaimRow = {
   id: string;
@@ -442,7 +443,7 @@ export default function AdminScreen() {
           </View>
           <Text style={styles.title}>Admin access required</Text>
           <Text style={styles.sub}>This area is only for Siqa moderators and admins.</Text>
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => goBack('/home')}>
             <Text style={styles.primaryBtnText}>Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -458,7 +459,7 @@ export default function AdminScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAdmin(); }} tintColor={C.gold} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => goBack('/home')}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
         <View>

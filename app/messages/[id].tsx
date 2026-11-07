@@ -20,6 +20,7 @@ import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { formatPrice } from '../../lib/money';
 import { brandStyles } from '../../lib/ds';
+import { goBack } from '../../lib/goBack';
 
 type Thread = {
   id: string;
@@ -117,7 +118,7 @@ export default function ThreadScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/messages')}>
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>

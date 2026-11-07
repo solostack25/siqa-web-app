@@ -19,6 +19,7 @@ import { formatPrice } from '../lib/money';
 import { addToCart, notifyCartChanged } from '../lib/cart';
 import { brandStyles, font } from '../lib/ds';
 import { Button } from '../components/ui';
+import { goBack } from '../lib/goBack';
 
 // Cart laid out like Etsy's: one card per shop (shop avatar, name and star
 // rating), each item with its photo, title, price on the right, quantity,
@@ -397,7 +398,7 @@ export default function CartScreen() {
         ) : (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, isDesktopWeb && styles.scrollDesktop]}>
             <View style={styles.header}>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()} accessibilityLabel="Back" accessibilityRole="button">
+              <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/marketplace')} accessibilityLabel="Back" accessibilityRole="button">
                 <Icon name="arrow-back" size={20} color={C.text} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>

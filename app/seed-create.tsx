@@ -38,6 +38,7 @@ import {
   type SpeakerLite,
 } from '../components/SeedSocial';
 import { brandStyles } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -408,7 +409,7 @@ function SeedCreateScreenContent() {
     return (
       <View style={styles.screen}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}><Text style={styles.headerLink}>Back</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => goBack('/seeds')} style={styles.headerBtn}><Text style={styles.headerLink}>Back</Text></TouchableOpacity>
           <Text style={styles.headerTitle}>Start a seed</Text>
           <View style={{ width: 64 }} />
         </View>
@@ -703,7 +704,7 @@ function SeedCreateScreenContent() {
     const basicsPhone = (
       <>
         <View style={{ backgroundColor: SEED_BAND, paddingTop: Platform.OS === 'web' ? 8 : 52, paddingBottom: 46, gap: 14 }}>
-          {topBar(true, <IconButton icon="close" label="Close" color="#ffffff" onPress={() => router.back()} disabled={saving} />)}
+          {topBar(true, <IconButton icon="close" label="Close" color="#ffffff" onPress={() => goBack('/seeds')} disabled={saving} />)}
           {progress(true)}
           <View style={{ paddingHorizontal: space[5], paddingTop: 8, gap: 6 }}>
             <Text style={[T.display, { fontSize: 30, lineHeight: 34, color: '#ffffff' }]} accessibilityRole="header">Start a Seed</Text>
@@ -951,7 +952,7 @@ function SeedCreateScreenContent() {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} disabled={saving} style={styles.headerBtn}>
+        <TouchableOpacity onPress={() => goBack('/seeds')} disabled={saving} style={styles.headerBtn}>
           <Text style={styles.headerLink}>Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Start a seed</Text>

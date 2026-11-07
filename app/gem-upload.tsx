@@ -37,6 +37,7 @@ import { Icon } from '../components/Icon';
 import { BottomSheet, Button, IconButton, ListRow, OptionRow, Switch as DSSwitch, TextField, Chip } from '../components/ui';
 import { font, radius, space, type as T, useDS } from '../lib/ds';
 import { brandStyles } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -1067,7 +1068,7 @@ function GemUploadScreenContent() {
           <View style={styles.dtDialog}>
             <View style={styles.dtHeader}>
               <Text style={styles.dtTitle}>Upload video</Text>
-              <TouchableOpacity style={styles.dtIconBtn} onPress={() => router.back()}>
+              <TouchableOpacity style={styles.dtIconBtn} onPress={() => goBack('/home')}>
                 <Icon name="close" size={24} color={C.text} />
               </TouchableOpacity>
             </View>
@@ -1101,7 +1102,7 @@ function GemUploadScreenContent() {
               <TouchableOpacity onPress={() => saveDraft(true)} disabled={uploading || savingDraft}>
                 <Text style={styles.dtHeaderLink}>{savingDraft ? 'Saving…' : 'Save draft'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.dtIconBtn} onPress={() => router.back()} disabled={uploading}>
+              <TouchableOpacity style={styles.dtIconBtn} onPress={() => goBack('/home')} disabled={uploading}>
                 <Icon name="close" size={24} color={C.text} />
               </TouchableOpacity>
             </View>
@@ -1197,7 +1198,7 @@ function GemUploadScreenContent() {
           {/* Stage */}
           <View style={{ paddingTop: Platform.OS === 'web' ? 8 : 52, paddingBottom: 26 + 24 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 }}>
-              <IconButton icon="close" label="Close" color="#ffffff" onPress={() => router.back()} disabled={uploading} />
+              <IconButton icon="close" label="Close" color="#ffffff" onPress={() => goBack('/home')} disabled={uploading} />
               <Text style={[T.headline, { color: '#ffffff' }]} accessibilityRole="header">New Gem</Text>
               <Pressable onPress={discardDraft} disabled={uploading} hitSlop={6} style={{ height: 44, paddingHorizontal: 12, justifyContent: 'center' }} accessibilityRole="button">
                 <Text style={[T.buttonMd, font(600), { color: 'rgba(255,255,255,0.72)' }]}>Clear</Text>

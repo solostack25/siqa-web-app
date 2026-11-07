@@ -44,6 +44,7 @@ import {
 import { brandStyles } from '../../../lib/ds';
 import { Button, IconButton } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
+import { goBack } from '../../../lib/goBack';
 
 type SeedDetail = {
   id: string;
@@ -258,7 +259,7 @@ function SeedDetailScreen() {
       <DesktopShell>
         <View style={styles.centered}>
           <Text style={styles.muted}>This Seed couldn't be found.</Text>
-          <Button label="Go back" icon="arrow-back" variant="secondary" size="md" onPress={() => router.back()} />
+          <Button label="Go back" icon="arrow-back" variant="secondary" size="md" onPress={() => goBack('/seeds')} />
         </View>
       </DesktopShell>
     );
@@ -467,7 +468,7 @@ function SeedDetailScreen() {
     <DesktopShell>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => router.back()} />
+          <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => goBack('/seeds')} />
           <View style={{ flex: 1 }} />
           <IconButton icon="share-outline" label="Share" variant="soft" onPress={handleShare} />
         </View>

@@ -25,6 +25,7 @@ import { AddedToCartDrawer, type AddedItem } from '../../../components/AddedToCa
 import { brandStyles, font } from '../../../lib/ds';
 import { Button, IconButton, Stepper } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
+import { goBack } from '../../../lib/goBack';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -322,7 +323,7 @@ function ProductDetailScreen() {
       <DesktopShell>
         <View style={styles.centered}>
           <Text style={styles.emptyText}>This product couldn't be found.</Text>
-          <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 12 }}>
+          <TouchableOpacity onPress={() => goBack('/marketplace')} style={{ marginTop: 12 }}>
             <Text style={{ color: C.gold, ...font(600) }}>← Go Back</Text>
           </TouchableOpacity>
         </View>
@@ -638,7 +639,7 @@ function ProductDetailScreen() {
           <View style={[styles.inner, isDesktopWeb && { maxWidth: contentWidth, paddingHorizontal: Theme.spacing.xxxl }]}>
             {/* Back + breadcrumb */}
             <View style={styles.topBar}>
-              <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => router.back()} />
+              <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => goBack('/marketplace')} />
               <View style={styles.breadcrumb}>
                 <TouchableOpacity onPress={() => router.push('/(tabs)/marketplace' as any)}>
                   <Text style={styles.crumbLink}>Marketplace</Text>

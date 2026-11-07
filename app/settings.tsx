@@ -20,6 +20,7 @@ import { Icon, type SiqaIconName } from '../components/Icon';
 import { IS_MARKETPLACE_SITE } from '../lib/site';
 import { SettingsMobileView } from '../components/SettingsMobileView';
 import { brandStyles } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 type Profile = {
   id: string;
@@ -273,7 +274,7 @@ export default function SettingsScreen() {
     <DesktopShell>
       <ScrollView style={styles.container} contentContainerStyle={[styles.scroll, isDesktopWeb && { maxWidth: desktopContentWidth }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={12} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => goBack('/dashboard')} hitSlop={12} style={styles.backBtn}>
             <Icon name="arrow-back" size={22} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>

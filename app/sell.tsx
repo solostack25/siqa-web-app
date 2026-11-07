@@ -18,6 +18,7 @@ import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
 import { DesktopShell } from '../components/DesktopShell';
 import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
@@ -143,7 +144,7 @@ export default function SellScreen() {
     <DesktopShell>
     <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/marketplace')}>
           <Icon name="arrow-back" size={20} color={C.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sell on Siqa</Text>

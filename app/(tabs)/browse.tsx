@@ -17,6 +17,7 @@ import { Theme } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { SearchIcon, ClearIcon } from '../../components/Siqa';
 import { brandStyles } from '../../lib/ds';
+import { goBack } from '../../lib/goBack';
 
 const CATEGORIES = [
   'All',
@@ -156,7 +157,7 @@ export default function BrowseScreen() {
     <DesktopShell>
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+        <TouchableOpacity onPress={() => goBack('/home')} hitSlop={12}>
           <Text style={styles.backArrow}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Videos</Text>

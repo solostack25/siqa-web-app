@@ -18,6 +18,7 @@ import { Glyph } from '../components/Glyph';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Theme } from '../constants/theme';
 import { brandStyles } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 const ORG_TYPES = [
   { value: 'masjid', label: 'Masjid' },
@@ -209,7 +210,7 @@ export default function OrgRegisterScreen() {
       {/* Header */}
       <View style={[styles.header, isDesktopWeb && { paddingTop: 20 }]}>
         {step < 4 && (
-          <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => step > 1 ? setStep(s => s - 1) : goBack('/orgs')} style={styles.backBtn}>
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
         )}

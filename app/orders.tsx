@@ -19,6 +19,7 @@ import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { formatPrice as formatMoney } from '../lib/money';
 import { brandStyles, font } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 type Order = {
   id: string;
@@ -117,7 +118,7 @@ export default function OrdersScreen() {
     <DesktopShell>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/marketplace')}>
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>My Orders</Text>

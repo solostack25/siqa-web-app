@@ -27,6 +27,7 @@ import { Icon } from '../../../components/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brandStyles } from '../../../lib/ds';
 import { Button, Chip } from '../../../components/ui';
+import { goBack } from '../../../lib/goBack';
 
 type VideoDetail = {
   id: string;
@@ -402,7 +403,7 @@ function WatchScreen() {
       <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
           <View style={isWide ? styles.wideContent : undefined}>
             <View style={isWide ? styles.body : styles.bodyStacked}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backRow} hitSlop={8}>
+              <TouchableOpacity onPress={() => goBack('/home')} style={styles.backRow} hitSlop={8}>
                 <Text style={styles.backArrow}>‹</Text>
                 <Text style={styles.backLabel}>Back</Text>
               </TouchableOpacity>

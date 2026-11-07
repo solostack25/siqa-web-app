@@ -17,6 +17,7 @@ import { Glyph } from '../../components/Glyph';
 import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
+import { goBack } from '../../lib/goBack';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -73,7 +74,7 @@ export default function ForgotPasswordScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.wrap}>
-        <TouchableOpacity style={styles.backLink} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backLink} onPress={() => goBack('/login')}>
           <Text style={styles.backLinkText}>← Back</Text>
         </TouchableOpacity>
 

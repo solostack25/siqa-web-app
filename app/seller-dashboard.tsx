@@ -20,6 +20,7 @@ import { DesktopShell } from '../components/DesktopShell';
 import { Icon } from '../components/Icon';
 import { formatPrice as formatMoney } from '../lib/money';
 import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 type Seller = { id: string; shop_name: string; approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null };
 type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
@@ -180,7 +181,7 @@ export default function SellerDashboardScreen() {
             tab switch doesn't stretch across the whole window on desktop. */}
         <View style={styles.topColumn}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/marketplace')}>
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>

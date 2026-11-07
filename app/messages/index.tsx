@@ -16,6 +16,7 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { brandStyles, font } from '../../lib/ds';
+import { goBack } from '../../lib/goBack';
 
 type ThreadRow = {
   id: string;
@@ -126,7 +127,7 @@ export default function MessagesInboxScreen() {
     <DesktopShell>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.roundBtn} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/marketplace')}>
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Messages</Text>

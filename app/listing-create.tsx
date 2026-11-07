@@ -22,6 +22,7 @@ import { DesktopShell } from '../components/DesktopShell';
 import { BottomSheet, Button, IconButton, ListRow, OptionRow, SegmentedControl, Stepper, TextField } from '../components/ui';
 import { font, radius, space, type as T, useDS } from '../lib/ds';
 import { brandStyles } from '../lib/ds';
+import { goBack } from '../lib/goBack';
 
 const CATEGORIES = [
   'Home Decor', 'Books & Media', 'Clothing & Accessories', 'Art & Prints',
@@ -168,7 +169,7 @@ export default function ListingCreateScreen() {
       {/* Photo stage */}
       <View style={{ paddingTop: HEADER_TOP_PADDING - 12, paddingBottom: 26 + 30 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 }}>
-          <IconButton icon="close" label="Close" variant="raised" onPress={() => router.back()} />
+          <IconButton icon="close" label="Close" variant="raised" onPress={() => goBack('/seller-dashboard')} />
           <Text style={[T.headline, { color: c.ink }]} accessibilityRole="header">New product</Text>
           <View style={{ width: 44 }} />
         </View>

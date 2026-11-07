@@ -45,6 +45,7 @@ import { OrgVideos } from '../../components/OrgVideos';
 import { OrgPosts } from '../../components/OrgPosts';
 import { focusedOnly } from '../../components/FocusedOnly';
 import { seedYouTubeId } from '../../components/SeedVideo';
+import { goBack } from '../../lib/goBack';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -513,7 +514,7 @@ function OrgProfileScreen() {
       <DesktopShell>
         <View style={styles.centered}>
           <Text style={styles.muted}>Organization not found.</Text>
-          <TouchableOpacity onPress={() => router.back()} style={{ padding: 12 }}>
+          <TouchableOpacity onPress={() => goBack('/orgs')} style={{ padding: 12 }}>
             <Text style={styles.link}>← Go back</Text>
           </TouchableOpacity>
         </View>
@@ -914,7 +915,7 @@ function OrgProfileScreen() {
     <DesktopShell>
       <View style={styles.container}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} accessibilityLabel="Back">
+          <TouchableOpacity onPress={() => goBack('/orgs')} style={styles.iconBtn} accessibilityLabel="Back">
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.topTitle} numberOfLines={1}>{org.org_name}</Text>

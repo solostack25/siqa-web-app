@@ -22,6 +22,7 @@ import { SITE_ORIGIN } from '../lib/donateLink';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { brandStyles } from '../lib/ds';
 import { Button, IconButton } from '../components/ui';
+import { goBack } from '../lib/goBack';
 
 // Same platform split as donate.tsx: Stripe's native module doesn't
 // support web, and stripe-js touches browser globals — only load
@@ -287,7 +288,7 @@ export default function CheckoutScreen() {
 
   const header = (
     <View style={styles.header}>
-      <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => router.back()} />
+      <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => goBack('/cart')} />
       <Text style={styles.headerTitle}>Checkout</Text>
     </View>
   );
