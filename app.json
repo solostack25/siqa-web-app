@@ -21,7 +21,8 @@
         "NSPhotoLibraryUsageDescription": "Siqa uses your photo library to upload videos, thumbnails, product photos and profile photos.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "Siqa uses your location to show local businesses, organizations and events near you."
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -58,7 +59,9 @@
         {
           "locationWhenInUsePermission": "Siqa uses your location to show local businesses, organizations and events near you."
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

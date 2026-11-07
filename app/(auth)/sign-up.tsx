@@ -17,6 +17,7 @@ import { Theme } from '../../constants/theme';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
+import { SocialSignIn } from '../../components/SocialSignIn';
 
 export default function SignUpScreen() {
   const [fullName, setFullName] = useState('');
@@ -77,6 +78,8 @@ export default function SignUpScreen() {
 
         <View style={styles.card}>
           <Text style={styles.heading}>Create your account</Text>
+
+          <SocialSignIn onSignedIn={() => router.replace((IS_MARKETPLACE_SITE ? '/marketplace' : '/(tabs)/dashboard') as any)} colors={{ text: Colors.text, text2: Colors.text2, text3: Colors.text3, bg: Colors.bg, border: '#d9d9d6' }} />
 
           <View style={styles.field}>
             <Text style={styles.label}>FULL NAME</Text>
