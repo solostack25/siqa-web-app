@@ -15,6 +15,7 @@ import {
   Dimensions,
   PanResponder,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -38,6 +39,7 @@ import { BottomSheet, Button, IconButton, ListRow, OptionRow, Switch as DSSwitch
 import { font, radius, space, type as T, useDS } from '../lib/ds';
 import { brandStyles } from '../lib/ds';
 import { goBack } from '../lib/goBack';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -214,6 +216,67 @@ function GemUploadScreenContent() {
   const [speakerQuery, setSpeakerQuery] = useState('');
   const scrubBarWidth = useRef(0);
   const videoDuration = useRef(0);
+
+  // Short (vertical Gem) or long (horizontal video). "Auto" decides by length
+  // once a video is picked (over 3 minutes = long); before that it's short.
+  const { width: winW } = useWindowDimensions();
+  const isLongVideo = video?.duration != null && video.duration > 180;
+  const effFormat: 'short' | 'long' = contentFormat === 'auto' ? (isLongVideo ? 'long' : 'short') : contentFormat;
+
+  // Phone layout: the white details sheet is a real drawer. Drag its handle up
+  // to cover the preview (more room to type), down to see the preview again.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [stageBottom, setStageBottom] = useState(0); // y where the preview area ends
+  const [headerBottom, setHeaderBottom] = useState(0); // y where the top bar ends
+  const sheetTop = useRef(new Animated.Value(0)).current;
+  const sheetTopNow = useRef(0);
+  const dragStartTop = useRef(0);
+  const sheetPlaced = useRef(false);
+  const collapsedTop = Math.max(stageBottom - 26, headerBottom + 120);
+  const expandedTop = headerBottom + 4;
+
+  useEffect(() => {
+    const id = sheetTop.addListener(({ value }) => { sheetTopNow.current = value; });
+    return () => sheetTop.removeListener(id);
+  }, [sheetTop]);
+
+  function animateSheet(open: boolean) {
+    Animated.spring(sheetTop, {
+      toValue: open ? expandedTop : collapsedTop,
+      useNativeDriver: false,
+      bounciness: 0,
+      speed: 18,
+    }).start();
+  }
+
+  useEffect(() => {
+    if (!stageBottom || !headerBottom) return;
+    if (!sheetPlaced.current) {
+      sheetTop.setValue(sheetOpen ? expandedTop : collapsedTop);
+      sheetPlaced.current = true;
+      return;
+    }
+    animateSheet(sheetOpen);
+  }, [sheetOpen, collapsedTop, expandedTop]);
+
+  const sheetGesture = useMemo(() => {
+    const pan = Gesture.Pan()
+      .runOnJS(true)
+      .activeOffsetY([-6, 6])
+      .onStart(() => { dragStartTop.current = sheetTopNow.current; })
+      .onUpdate((e) => {
+        const next = Math.min(Math.max(dragStartTop.current + e.translationY, expandedTop), collapsedTop);
+        sheetTop.setValue(next);
+      })
+      .onEnd((e) => {
+        const now = Math.min(Math.max(dragStartTop.current + e.translationY, expandedTop), collapsedTop);
+        const open = e.velocityY < -400 ? true : e.velocityY > 400 ? false : now < (expandedTop + collapsedTop) / 2;
+        setSheetOpen(open);
+        animateSheet(open); // in case the state didn't change
+      });
+    const tap = Gesture.Tap().runOnJS(true).onEnd(() => setSheetOpen((o) => !o));
+    return Gesture.Exclusive(pan, tap);
+  }, [expandedTop, collapsedTop]);
 
   useEffect(() => {
     loadProfile();
@@ -513,7 +576,7 @@ function GemUploadScreenContent() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [9, 16],
+        aspect: effFormat === 'long' ? [16, 9] : [9, 16],
         quality: 0.85,
       });
 
@@ -1187,27 +1250,56 @@ function GemUploadScreenContent() {
       ? speakers.filter((s) => s.display_name.toLowerCase().includes(speakerQuery.trim().toLowerCase()))
       : speakers;
 
+    // Short = tall 9:16 frame; long = full-width 16:9 frame.
+    const frameW = effFormat === 'long' ? Math.min(winW - 40, 560) : 206;
+    const frameH = effFormat === 'long' ? Math.round(frameW * 9 / 16) : 366;
+    const lengthHint =
+      video?.duration != null && contentFormat !== 'auto' && (contentFormat === 'short') === isLongVideo
+        ? isLongVideo
+          ? `This video is ${formatTime(video.duration)}. Videos over 3 minutes usually go in Long.`
+          : `This video is ${formatTime(video.duration)}. Clips 3 minutes or less usually go in Short.`
+        : contentFormat === 'auto' && video?.duration != null
+          ? `Picked ${isLongVideo ? 'Long' : 'Short'} from the length (${formatTime(video.duration)})`
+          : null;
+
     return (
       <View style={{ flex: 1, backgroundColor: c.stage }}>
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          bounces={false}
+        {/* Stage: top bar, format switch, preview */}
+        <View
+          style={{ paddingTop: Platform.OS === 'web' ? 8 : 52, paddingBottom: 26 + 20 }}
+          onLayout={(e) => setStageBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}
         >
-          {/* Stage */}
-          <View style={{ paddingTop: Platform.OS === 'web' ? 8 : 52, paddingBottom: 26 + 24 }}>
+          <View onLayout={(e) => setHeaderBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 }}>
               <IconButton icon="close" label="Close" color="#ffffff" onPress={() => goBack('/home')} disabled={uploading} />
-              <Text style={[T.headline, { color: '#ffffff' }]} accessibilityRole="header">New Gem</Text>
+              <Text style={[T.headline, { color: '#ffffff' }]} accessibilityRole="header">{effFormat === 'long' ? 'New video' : 'New Gem'}</Text>
               <Pressable onPress={discardDraft} disabled={uploading} hitSlop={6} style={{ height: 44, paddingHorizontal: 12, justifyContent: 'center' }} accessibilityRole="button">
                 <Text style={[T.buttonMd, font(600), { color: 'rgba(255,255,255,0.72)' }]}>Clear</Text>
               </Pressable>
             </View>
 
-            <View style={{ alignItems: 'center', marginTop: 12 }}>
+          </View>
+
+          <View style={{ alignItems: 'center', marginTop: 4, gap: 14 }}>
+            <View accessibilityRole="radiogroup" accessibilityLabel="Format" style={{ flexDirection: 'row', padding: 3, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.1)' }}>
+              {([['short', 'Short · Gem'], ['long', 'Long video']] as const).map(([v, label]) => {
+                const on = effFormat === v;
+                return (
+                  <Pressable
+                    key={v}
+                    onPress={() => { setContentFormat(v); setPreviewPlaying(false); }}
+                    disabled={uploading}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: on }}
+                    style={{ height: 34, minWidth: 124, paddingHorizontal: 14, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? '#ffffff' : 'transparent' }}
+                  >
+                    <Text style={[T.buttonSm, font(on ? 700 : 600), { color: on ? '#0a0f1c' : 'rgba(255,255,255,0.78)' }]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
               {video ? (
-                <View style={[{ width: 206, height: 366, borderRadius: 22, overflow: 'hidden', backgroundColor: '#48525C' }, { boxShadow: '0px 24px 60px rgba(0,0,0,0.55), 0px 0px 0px 1px rgba(255,255,255,0.08)' } as any]}>
+                <View style={[{ width: frameW, height: frameH, borderRadius: 22, overflow: 'hidden', backgroundColor: '#48525C' }, { boxShadow: '0px 24px 60px rgba(0,0,0,0.55), 0px 0px 0px 1px rgba(255,255,255,0.08)' } as any]}>
                   {previewPlaying || !thumbnail ? (
                     <Video
                       source={{ uri: video.uri }}
@@ -1243,30 +1335,52 @@ function GemUploadScreenContent() {
                   </View>
                 </View>
               ) : (
-                <View style={{ width: 206, height: 366, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 }}>
+                <View style={{ width: frameW, minHeight: frameH, borderRadius: 22, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 }}>
                   <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name="film-outline" size={26} color="#ffffff" />
                   </View>
-                  <Text style={[T.callout, { color: 'rgba(255,255,255,0.8)', textAlign: 'center' }]}>Vertical clips work best</Text>
+                  <Text style={[T.callout, { color: 'rgba(255,255,255,0.8)', textAlign: 'center' }]}>{effFormat === 'long' ? 'Horizontal (16:9) videos work best' : 'Vertical clips work best'}</Text>
                   <Button label="Choose video" icon="add" variant="light" size="md" onPress={pickVideo} disabled={uploading} />
                   {Platform.OS !== 'web' ? (
                     <Button label="Record" icon="radio-button-on" variant="ghost" size="sm" onPress={recordVideo} disabled={uploading} style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
                   ) : null}
                 </View>
               )}
-            </View>
+            {lengthHint ? (
+              <Text style={[T.caption, { color: 'rgba(255,255,255,0.7)', textAlign: 'center', paddingHorizontal: 24 }]}>{lengthHint}</Text>
+            ) : null}
           </View>
+        </View>
 
-          {/* Sheet */}
-          <View style={[{ flexGrow: 1, backgroundColor: c.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet, marginTop: -26 }, shadow('sheet')]}>
-            <View style={{ alignSelf: 'center', width: 38, height: 5, borderRadius: 3, backgroundColor: c.surfaceStrong, marginTop: 8 }} />
+        {/* Details drawer: drag the handle up to cover the preview, down to see it */}
+        <Animated.View
+          style={[
+            { position: 'absolute', left: 0, right: 0, bottom: 0, top: sheetTop, opacity: stageBottom ? 1 : 0, backgroundColor: c.surface, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
+            shadow('sheet'),
+          ]}
+        >
+          <GestureDetector gesture={sheetGesture}>
+            <View
+              collapsable={false}
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel={sheetOpen ? 'Details expanded. Swipe down to show the video' : 'Details. Swipe up for more room'}
+              accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+              onAccessibilityAction={(e) => setSheetOpen(e.nativeEvent.actionName === 'increment')}
+              style={{ height: 28, alignItems: 'center', justifyContent: 'center', cursor: 'grab' } as any}
+            >
+              <View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: c.surfaceStrong }} />
+            </View>
+          </GestureDetector>
 
+          <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 12 }}>
             <View style={{ paddingHorizontal: space[5], paddingTop: space[4], gap: 10 }}>
               <TextField
                 variant="bare"
                 value={caption}
                 onChangeText={setCaption}
-                placeholder="Describe your Gem…"
+                placeholder={effFormat === 'long' ? 'Describe your video…' : 'Describe your Gem…'}
+                onFocus={() => setSheetOpen(true)}
                 accessibilityLabel="Caption"
                 multiline
                 editable={!uploading}
@@ -1288,11 +1402,10 @@ function GemUploadScreenContent() {
               ) : null}
               <ListRow icon="pricetag-outline" label="Topics" value={selectedTopics.join(', ') || 'None'} onPress={() => setSheet('topics')} disabled={uploading} />
               <ListRow icon="eye-outline" label="Who can see" value={visibility === 'public' ? 'Everyone' : 'Followers'} onPress={() => setSheet('visibility')} disabled={uploading} />
-              <ListRow icon="phone-portrait-outline" label="Format" value={formatValue} onPress={() => setSheet('format')} disabled={uploading} />
               <ListRow
                 icon="leaf-outline"
                 label="Plant a Seed button"
-                sub="Let viewers donate from this Gem"
+                sub={effFormat === 'long' ? 'Let viewers donate from this video' : 'Let viewers donate from this Gem'}
                 last={!plantSeed}
                 right={
                   <DSSwitch
@@ -1326,7 +1439,7 @@ function GemUploadScreenContent() {
               ) : null}
             </View>
 
-            <View style={{ flex: 1 }} />
+          </ScrollView>
 
             <View style={{ paddingHorizontal: space[5], paddingTop: 14, paddingBottom: Platform.OS === 'ios' ? 34 : 24, gap: 12 }}>
               {uploading ? (
@@ -1342,11 +1455,10 @@ function GemUploadScreenContent() {
               ) : null}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Button label={savingDraft ? 'Saving…' : 'Save draft'} variant="secondary" onPress={() => saveDraft(true)} disabled={uploading || savingDraft} style={{ flex: 1 }} />
-                <Button label={uploading ? 'Posting' : 'Post Gem'} iconRight={uploading ? undefined : 'arrow-forward'} onPress={postGem} loading={uploading} style={{ flex: 1.6 }} />
+                <Button label={uploading ? 'Posting' : effFormat === 'long' ? 'Post video' : 'Post Gem'} iconRight={uploading ? undefined : 'arrow-forward'} onPress={postGem} loading={uploading} style={{ flex: 1.6 }} />
               </View>
             </View>
-          </View>
-        </ScrollView>
+        </Animated.View>
 
         {/* Sheets */}
         <BottomSheet visible={sheet === 'topics'} onClose={() => setSheet(null)} title="Topics" footer={<Button label="Done" onPress={() => setSheet(null)} />}>
