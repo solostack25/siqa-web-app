@@ -162,6 +162,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="org-profile" options={{ href: null, title: 'Organization' }} />
       <Tabs.Screen name="seed/[id]" options={{ href: null, title: 'Seed' }} />
       <Tabs.Screen name="product/[id]" options={{ href: null, title: 'Product' }} />
+      <Tabs.Screen name="shop/[id]" options={{ href: null, title: 'Shop' }} />
       <Tabs.Screen name="org-listing/[id]" options={{ href: null, title: 'Organization' }} />
       <Tabs.Screen
         name="orgs"

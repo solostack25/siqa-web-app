@@ -478,7 +478,9 @@ function ProductDetailScreen() {
 
       {seller && (
         <View style={styles.shopLine}>
-          <Text style={styles.shopName}>{seller.shop_name}</Text>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/shop/[id]', params: { id: seller.id } } as any)} accessibilityRole="link" accessibilityLabel={`Visit ${seller.shop_name}`}>
+            <Text style={[styles.shopName, { textDecorationLine: 'underline' }]}>{seller.shop_name}</Text>
+          </TouchableOpacity>
           {seller.approval_status === 'approved' && (
             <View style={styles.verifiedBadge}>
               <Icon name="checkmark-circle" size={13} color={C.emeraldLight} />
@@ -645,9 +647,12 @@ function ProductDetailScreen() {
             </View>
           </View>
           {seller.bio ? <Text style={styles.sellerBio} numberOfLines={4}>{seller.bio}</Text> : null}
-          {!isOwnListing && (
-            <Button label="Message seller" icon="chatbubble-outline" variant="secondary" size="md" onPress={messageSeller} loading={messagingBusy} style={{ alignSelf: 'flex-start' }} />
-          )}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Button label="Visit shop" icon="storefront-outline" variant="soft" size="md" onPress={() => router.push({ pathname: '/shop/[id]', params: { id: seller.id } } as any)} />
+            {!isOwnListing && (
+              <Button label="Message seller" icon="chatbubble-outline" variant="secondary" size="md" onPress={messageSeller} loading={messagingBusy} />
+            )}
+          </View>
         </View>
       )}
     </View>

@@ -165,6 +165,18 @@ export function shareProduct(productId: string, title: string, priceLabel?: stri
   });
 }
 
+export function getShopShareUrl(sellerId: string): string {
+  return `${getAppBaseUrl()}/shop/${sellerId}`;
+}
+
+export function shareShop(sellerId: string, shopName: string) {
+  return shareLink({
+    url: getShopShareUrl(sellerId),
+    title: `${shopName} on Siqa`,
+    text: `${shopName}\nShop on Siqa Marketplace`,
+  });
+}
+
 export function shareSeed(seedId: string, title?: string | null) {
   const label = title?.trim() || 'this Seed';
   return shareLink({
