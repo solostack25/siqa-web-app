@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Platform,
 } from 'react-native';
@@ -69,46 +69,6 @@ export function SettingsMobileView(p: {
     ? `${p.savedLoc.label}${p.savedLoc.radius ? ` · ${p.savedLoc.radius} mi` : ''}`
     : 'Anywhere';
 
-  const groups = useMemo(() => {
-    const g: { title: string; rows: Row[] }[] = [];
-    const creator: Row[] = [];
-    if (!IS_MARKETPLACE_SITE) {
-      if (p.isSpeaker) {
-        creator.push({ key: 'studio', label: 'Speaker Studio', icon: 'bar-chart-outline', tone: 'gold', onPress: () => router.push('/studio' as any) });
-        creator.push({ key: 'public', label: 'Public profile', icon: 'person-outline', tone: 'gold', onPress: () => router.push(`/speaker/${p.speakerId}` as any) });
-      }
-      if (p.organization) {
-        creator.push({ key: 'org', label: 'Organization', icon: 'business-outline', tone: 'gold', value: p.organization.org_name,
-          onPress: () => router.push({ pathname: '/org-profile', params: { id: p.organization!.id } } as any) });
-      }
-      if (p.canCreateSeeds) {
-        creator.push({ key: 'seed', label: 'Create a Seed', icon: 'leaf-outline', tone: 'gold', onPress: () => router.push('/seed-create' as any) });
-      }
-    }
-    creator.push({ key: 'biz', label: p.hasBusiness ? 'Business listing' : 'List your business', icon: 'storefront-outline', tone: 'gold',
-      onPress: () => router.push((p.hasBusiness ? '/local/inbox' : '/local/edit') as any) });
-    g.push({ title: p.isSpeaker || p.organization ? 'Creator' : 'Your listings', rows: creator });
-
-    g.push({ title: 'Shopping', rows: [
-      { key: 'orders', label: 'My orders', icon: 'bag-handle-outline', tone: 'rose', onPress: () => router.push('/orders' as any) },
-      p.seller
-        ? { key: 'seller', label: 'Seller dashboard', icon: 'pricetag-outline', tone: 'rose', value: p.seller.shop_name, onPress: () => router.push('/seller-dashboard' as any) }
-        : { key: 'sell', label: 'Sell on Siqa', icon: 'pricetag-outline', tone: 'rose', onPress: () => router.push('/sell' as any) },
-    ]});
-
-    if (p.isAdmin) {
-      g.push({ title: 'Admin', rows: [
-        { key: 'admin', label: 'Moderation & claims', icon: 'shield-checkmark-outline', tone: 'ink', onPress: () => router.push('/admin' as any) },
-      ]});
-    }
-
-    const more: Row[] = [];
-    if (!IS_MARKETPLACE_SITE && !p.isSpeaker) more.push({ key: 'speak', label: 'Become a speaker', icon: 'mic-outline', tone: 'ink', onPress: () => router.push('/apply-speaker' as any) });
-    if (!IS_MARKETPLACE_SITE && !p.organization) more.push({ key: 'orgreg', label: 'Register an organization', icon: 'add-circle-outline', tone: 'ink', onPress: () => router.push('/org-register' as any) });
-    if (more.length) g.push({ title: 'Do more on Siqa', rows: more });
-    return g;
-  }, [p.isSpeaker, p.speakerId, p.organization, p.canCreateSeeds, p.hasBusiness, p.seller, p.isAdmin]);
-
   const q = query.trim().toLowerCase();
   const match = (label: string) => !q || label.toLowerCase().includes(q);
   const showAccount = match('account name email profile');
@@ -128,19 +88,6 @@ export function SettingsMobileView(p: {
       </TouchableOpacity>
 
       <Text style={s.title} accessibilityRole="header">Settings</Text>
-
-      <View style={s.search}>
-        <Icon name="search" size={18} color={C.text3} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search settings"
-          placeholderTextColor={C.text3}
-          style={s.searchInput}
-          accessibilityLabel="Search settings"
-          autoCorrect={false}
-        />
-      </View>
 
       {showAccount && (
         <View>
@@ -228,24 +175,6 @@ export function SettingsMobileView(p: {
           )}
         </View>
       )}
-
-      {groups.map(g => {
-        const rows = g.rows.filter(r => match(r.label) || match(g.title));
-        if (!rows.length) return null;
-        return (
-          <View key={g.title} style={{ gap: 4 }}>
-            <Text style={s.groupTitle}>{g.title}</Text>
-            {rows.map(r => (
-              <TouchableOpacity key={r.key} style={s.row} onPress={r.onPress} accessibilityLabel={r.value ? `${r.label}, ${r.value}` : r.label}>
-                <View style={[s.rowIcon, { backgroundColor: tone(r.tone)[0] }]}><Icon name={r.icon} size={19} color={tone(r.tone)[1]} /></View>
-                <Text style={s.rowLabel} numberOfLines={1}>{r.label}</Text>
-                {r.value ? <Text style={s.rowValue} numberOfLines={1}>{r.value}</Text> : null}
-                <Icon name="chevron-forward" size={16} color={C.text3} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        );
-      })}
 
       {!q && (
         <View style={s.footer}>

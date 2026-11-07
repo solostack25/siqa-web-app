@@ -9,6 +9,7 @@ import { HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon, type SiqaIconName } from './Icon';
 import { EndorsementInbox } from './SeedSocial';
 import { brandStyles, font } from '../lib/ds';
+import { BottomSheet, OptionRow } from './ui';
 
 // The phone version of the "You" screen (app/(tabs)/dashboard.tsx).
 // Layout: big name + avatar, one line of stats, two soft buttons, an admin
@@ -54,6 +55,7 @@ export function ProfileMobileView(p: {
   isAdmin: boolean;
   adminPending: number | null;
   hasBusiness: boolean;
+  seller?: { id: string; shop_name: string } | null;
   followers: number | null;
   gemCount: number | null;
   raisedCents: number | null;
@@ -82,17 +84,27 @@ export function ProfileMobileView(p: {
   const [tab, setTab] = useState<Tab>(tabs[0].key);
   const [menuFor, setMenuFor] = useState<PMVideo | null>(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
+  const go = (path: any) => { setCreateOpen(false); router.push(path); };
+
   const tools: { label: string; icon: SiqaIconName; go: () => void }[] = [
     ...(isSpeaker ? [{ label: 'Studio', icon: 'bar-chart-outline' as SiqaIconName, go: () => router.push('/studio' as any) }] : []),
-    ...(p.canCreateSeeds ? [{ label: 'New Seed', icon: 'leaf-outline' as SiqaIconName, go: () => router.push('/seed-create' as any) }] : []),
+    ...(p.seller ? [{ label: 'My shop', icon: 'pricetag-outline' as SiqaIconName, go: () => router.push('/seller-dashboard' as any) }] : []),
     { label: 'Business', icon: 'storefront-outline', go: () => router.push((p.hasBusiness ? '/local/inbox' : '/local/edit') as any) },
     { label: 'Orders', icon: 'bag-handle-outline', go: () => router.push('/orders' as any) },
-    ...(!isSpeaker ? [{ label: 'Speak', icon: 'mic-outline' as SiqaIconName, go: () => router.push('/apply-speaker' as any) }] : []),
   ];
 
-  const create = isSpeaker
-    ? () => router.push('/gem-upload' as any)
-    : p.canCreateSeeds ? () => router.push('/seed-create' as any) : null;
+  // Everything you can make on Siqa, in one place (the + at the top).
+  const createItems: { label: string; sub: string; icon: SiqaIconName; path: string }[] = [
+    ...(isSpeaker ? [{ label: 'Post a Gem or video', sub: 'Short clips or full-length talks', icon: 'videocam-outline' as SiqaIconName, path: '/gem-upload' }] : []),
+    ...(p.canCreateSeeds ? [{ label: 'Create a Seed', sub: 'A fundraiser for your masjid or nonprofit', icon: 'leaf-outline' as SiqaIconName, path: '/seed-create' }] : []),
+    p.seller
+      ? { label: 'Add a product', sub: p.seller.shop_name, icon: 'pricetag-outline' as SiqaIconName, path: '/listing-create' }
+      : { label: 'Start selling', sub: 'Open a shop on the Marketplace', icon: 'pricetag-outline' as SiqaIconName, path: '/sell' },
+    { label: p.hasBusiness ? 'Update your business listing' : 'List your business', sub: 'Show up in Local & services', icon: 'storefront-outline' as SiqaIconName, path: p.hasBusiness ? '/local/inbox' : '/local/edit' },
+    ...(!isSpeaker ? [{ label: 'Apply to be a speaker', sub: 'Post Gems once Siqa approves you', icon: 'mic-outline' as SiqaIconName, path: '/apply-speaker' }] : []),
+    ...(!p.organization ? [{ label: 'Register an organization', sub: 'Masjid, school or nonprofit', icon: 'business-outline' as SiqaIconName, path: '/org-register' }] : []),
+  ];
 
   const publicPage = isSpeaker
     ? () => router.push(`/speaker/${p.speakerId}` as any)
@@ -148,11 +160,9 @@ export function ProfileMobileView(p: {
       >
         {/* Top actions */}
         <View style={s.topBar}>
-          {create && (
-            <TouchableOpacity style={s.iconBtn} onPress={create} accessibilityLabel={isSpeaker ? 'Post a Gem' : 'Create a Seed'}>
-              <Icon name="add-circle-outline" size={26} color={C.text} />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={s.iconBtn} onPress={() => setCreateOpen(true)} accessibilityLabel="Create">
+            <Icon name="add-circle-outline" size={26} color={C.text} />
+          </TouchableOpacity>
           <TouchableOpacity style={s.iconBtn} onPress={() => router.push('/settings' as any)} accessibilityLabel="Settings">
             <Icon name="settings-outline" size={24} color={C.text} />
           </TouchableOpacity>
@@ -320,6 +330,12 @@ export function ProfileMobileView(p: {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <BottomSheet visible={createOpen} onClose={() => setCreateOpen(false)} title="Create">
+        {createItems.map((it, i) => (
+          <OptionRow key={it.label} label={it.label} sub={it.sub} icon={it.icon} action onPress={() => go(it.path)} last={i === createItems.length - 1} />
+        ))}
+      </BottomSheet>
     </View>
   );
 }

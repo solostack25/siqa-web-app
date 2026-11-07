@@ -83,6 +83,18 @@ export default function MarketplaceScreen() {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [added, setAdded] = useState<AddedItem | null>(null);
   const [sponsored, setSponsored] = useState<Product[]>([]);
+  // Sellers get an "Add product" button right in the Shop header.
+  const [isSeller, setIsSeller] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const { data } = await supabase.from('marketplace_sellers').select('id').eq('user_id', session.user.id).maybeSingle();
+      if (alive) setIsSeller(Boolean(data));
+    })();
+    return () => { alive = false; };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -305,6 +317,11 @@ export default function MarketplaceScreen() {
           <Text style={styles.headerSub}>Support Muslim-owned shops</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          {isSeller && (
+            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/listing-create' as any)} accessibilityLabel="Add a product">
+              <Icon name="add" size={22} color={C.text} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/messages' as any)}>
             <Icon name="chatbubble-outline" size={19} color={C.text} />
           </TouchableOpacity>

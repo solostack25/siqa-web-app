@@ -187,6 +187,7 @@ function DashboardScreenInner() {
   const [expandedDonations, setExpandedDonations] = useState(false);
   const [adminPending, setAdminPending] = useState<number | null>(null);
   const [hasBusiness, setHasBusiness] = useState(false);
+  const [seller, setSeller] = useState<{ id: string; shop_name: string } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -294,6 +295,13 @@ function DashboardScreenInner() {
 
     const { data: biz } = await supabase.from('business_listings').select('id').eq('owner_id', uid).limit(1);
     setHasBusiness(Boolean(biz && biz.length));
+
+    const { data: sellerData } = await supabase
+      .from('marketplace_sellers')
+      .select('id, shop_name')
+      .eq('user_id', uid)
+      .maybeSingle();
+    setSeller(sellerData ?? null);
 
     if (profileData && isAdminRole(profileData.role)) {
       // Same queues as the admin screen; head-only counts.
@@ -444,6 +452,7 @@ function DashboardScreenInner() {
           isAdmin={isAdminRole(role)}
           adminPending={adminPending}
           hasBusiness={hasBusiness}
+          seller={seller}
           followers={liveFollowerCount}
           gemCount={liveVideoCount}
           raisedCents={speaker?.total_raised ?? 0}
