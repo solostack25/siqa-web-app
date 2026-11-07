@@ -359,7 +359,7 @@ function ShopScreen() {
 
   const actions = isOwner ? (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
-      <Button label="Edit store" variant="soft" size="md" grow={!isDesktop} onPress={() => router.push('/sell' as any)} />
+      <Button label="Edit store" variant="soft" size="md" grow={!isDesktop} onPress={() => router.push({ pathname: '/seller-dashboard', params: { edit: '1' } } as any)} />
       <Button label="My store" variant="secondary" size="md" icon="storefront-outline" grow={!isDesktop} onPress={() => router.push('/seller-dashboard' as any)} />
       {isDesktop ? <IconButton icon="share-outline" label="Share shop" variant="soft" onPress={() => shareShop(shop.id, shop.shop_name)} /> : null}
     </View>
