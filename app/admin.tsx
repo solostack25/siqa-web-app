@@ -85,7 +85,6 @@ type SpeakerApplication = {
   profile_id: string;
   full_name: string;
   display_name: string;
-  denomination: string | null;
   state: string | null;
   topics: string[];
   bio: string | null;
@@ -170,7 +169,7 @@ export default function AdminScreen() {
           .limit(30),
         supabase
           .from('speaker_applications')
-          .select('id, profile_id, full_name, display_name, denomination, state, topics, bio, why_siqa, website, instagram_url, youtube_url, claimed_speaker_id, status, created_at')
+          .select('id, profile_id, full_name, display_name, state, topics, bio, why_siqa, website, instagram_url, youtube_url, claimed_speaker_id, status, created_at')
           .eq('status', 'pending')
           .order('created_at', { ascending: false })
           .limit(30),
@@ -294,7 +293,6 @@ export default function AdminScreen() {
                   .update({
                     profile_id: app.profile_id,
                     display_name: app.display_name,
-                    denomination: app.denomination,
                     state: app.state,
                     topics: app.topics,
                     bio: app.bio,
@@ -309,7 +307,6 @@ export default function AdminScreen() {
                   .insert({
                     profile_id: app.profile_id,
                     display_name: app.display_name,
-                    denomination: app.denomination,
                     state: app.state,
                     topics: app.topics,
                     bio: app.bio,
@@ -534,7 +531,7 @@ export default function AdminScreen() {
           <View key={app.id} style={styles.queueCard}>
             <View style={styles.cardInfo}>
               <Text style={styles.cardTitle}>{app.display_name}</Text>
-              <Text style={styles.cardMeta}>{app.full_name} · {[app.denomination, app.state].filter(Boolean).join(', ')}</Text>
+              <Text style={styles.cardMeta}>{[app.full_name, app.state].filter(Boolean).join(' · ')}</Text>
               {app.topics?.length > 0 && <Text style={styles.cardMeta}>Topics: {app.topics.slice(0,3).join(', ')}</Text>}
               {app.claimed_speaker_id && <Text style={[styles.cardMeta, { color: C.gold }]}>Claiming existing profile</Text>}
               {app.why_siqa && <Text style={styles.cardMeta} numberOfLines={2}>{app.why_siqa}</Text>}

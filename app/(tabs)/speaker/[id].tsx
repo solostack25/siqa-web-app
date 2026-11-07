@@ -37,7 +37,6 @@ const MAX_CONTENT = 1240;
 type Speaker = {
   id: string;
   display_name: string;
-  denomination: string | null;
   state: string | null;
   country: string | null;
   topics: string[] | null;
@@ -162,7 +161,7 @@ function SpeakerProfileScreen() {
     const { data } = await supabase
       .from('speakers')
       .select(`
-        id, display_name, denomination, state, country, topics, languages,
+        id, display_name, state, country, topics, languages,
         bio, total_raised, follower_count, events_count,
         profile_id, is_verified, is_claimed, avatar_url, banner_url,
         website, youtube_url, instagram_url
@@ -395,10 +394,8 @@ function SpeakerProfileScreen() {
   }
 
   const initial = speakerInitial(speaker.display_name);
-  const location = [speaker.denomination, speaker.state, speaker.country !== 'US' ? speaker.country : null]
-    .filter(Boolean).join(' · ');
-  // "Based in" is the place only (the header line also shows the denomination).
-  const basedIn = [speaker.state, speaker.country !== 'US' ? speaker.country : null].filter(Boolean).join(' · ');
+  const location = [speaker.state, speaker.country !== 'US' ? speaker.country : null].filter(Boolean).join(' · ');
+  const basedIn = location;
 
   function openEdit() {
     if (!speaker) return;
