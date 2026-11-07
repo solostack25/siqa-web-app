@@ -473,7 +473,7 @@ export default function SettingsScreen() {
               >
                 <Icon name="storefront-outline" size={18} color={C.text2} />
                 <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuLabel}>{mySeller ? 'Seller Dashboard' : 'Sell on Siqa'}</Text>
+                  <Text style={styles.menuLabel}>{mySeller ? 'My store' : 'Sell on Siqa'}</Text>
                   <Text style={styles.menuSubLabel}>
                     {mySeller ? mySeller.shop_name : 'Turn your craft into a shop'}
                   </Text>

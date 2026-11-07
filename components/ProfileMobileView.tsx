@@ -89,7 +89,7 @@ export function ProfileMobileView(p: {
 
   const tools: { label: string; icon: SiqaIconName; go: () => void }[] = [
     ...(isSpeaker ? [{ label: 'Studio', icon: 'bar-chart-outline' as SiqaIconName, go: () => router.push('/studio' as any) }] : []),
-    ...(p.seller ? [{ label: 'My shop', icon: 'pricetag-outline' as SiqaIconName, go: () => router.push('/seller-dashboard' as any) }] : []),
+    ...(p.seller ? [{ label: 'My store', icon: 'storefront-outline' as SiqaIconName, go: () => router.push('/seller-dashboard' as any) }] : []),
     { label: 'Business', icon: 'storefront-outline', go: () => router.push((p.hasBusiness ? '/local/inbox' : '/local/edit') as any) },
     { label: 'Orders', icon: 'bag-handle-outline', go: () => router.push('/orders' as any) },
   ];

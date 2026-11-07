@@ -222,7 +222,7 @@ export default function SellScreen() {
           <Text style={styles.cardTitle}>You're all set</Text>
           <Text style={styles.cardSub}>"{seller.shop_name}" is ready to sell on Siqa.</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/seller-dashboard' as any)}>
-            <Text style={styles.primaryBtnText}>Go to Seller Dashboard</Text>
+            <Text style={styles.primaryBtnText}>Go to my store</Text>
           </TouchableOpacity>
         </View>
       )}

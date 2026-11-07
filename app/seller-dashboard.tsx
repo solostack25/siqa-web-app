@@ -1,29 +1,42 @@
+// My store: the seller's home for their shop. One screen for the store
+// header, this month's numbers, payouts, orders to ship and listings, built
+// on the Siqa design system (lib/ds.ts + components/ui). On phones it is one
+// scrolling column with Add product pinned at the bottom; on desktop web it
+// splits into listings on the left and orders/payouts/settings on the right.
+// "All orders" switches to the full order list with cancel & refund.
+
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Image,
   ActivityIndicator,
   Alert,
-  TextInput,
   Platform,
+  TextInput,
+  useWindowDimensions,
 } from 'react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
-import { useTheme, type AppColors } from '../lib/theme';
-import { Glyph } from '../components/Glyph';
-import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
-import { DesktopShell } from '../components/DesktopShell';
-import { Icon } from '../components/Icon';
+import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
+import { Icon, type SiqaIconName } from '../components/Icon';
+import { Button, IconButton, Chip, ListRow, SectionLabel, TextField, BottomSheet, OptionRow, SegmentedControl } from '../components/ui';
 import { formatPrice as formatMoney } from '../lib/money';
-import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
+import { font, radius, space, type, useDS, type DS } from '../lib/ds';
+import { HEADER_TOP_PADDING } from '../constants/theme';
 import { goBack } from '../lib/goBack';
 
-type Seller = { id: string; shop_name: string; approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null };
-type Product = { id: string; title: string; price_cents: number; images: string[] | null; status: string; inventory_count: number };
+type Seller = {
+  id: string; shop_name: string; bio: string | null; avatar_url: string | null; banner_url: string | null;
+  approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null;
+};
+type Product = {
+  id: string; title: string; price_cents: number; images: string[] | null; status: string;
+  inventory_count: number; is_digital: boolean | null;
+};
 type Order = {
   id: string; status: string; total_cents: number; quantity: number; variant_label?: string | null; created_at: string;
   siqa_fee_cents: number | null; processing_fee_cents: number | null; seller_payout_cents: number | null;
@@ -32,31 +45,80 @@ type Order = {
   shipping_name: string | null; shipping_address: { line1?: string; line2?: string; city?: string; state?: string; postal_code?: string } | null;
   marketplace_products: { title: string; images: string[] | null } | null;
 };
+type Payout = { payout_cents: number; reversed_cents: number | null; status: string; transferred_at: string | null };
+
+type ListingFilter = 'all' | 'active' | 'hidden' | 'soldout';
 
 const NEXT_STATUS: Record<string, string> = { paid: 'shipped', shipped: 'completed' };
-const NEXT_LABEL: Record<string, string> = { paid: 'Mark Shipped', shipped: 'Mark Completed' };
+const NEXT_LABEL: Record<string, string> = { paid: 'Mark shipped', shipped: 'Mark completed' };
 const CANCELLABLE = ['pending', 'paid'];
+/** Orders that count as a sale (paid for and not cancelled). */
+const SOLD = ['paid', 'shipped', 'completed'];
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
+const OVERVIEW_LISTINGS = 8;
 
-function statusColor(status: string, C: AppColors) {
-  if (status === 'completed') return C.emeraldLight;
-  if (status === 'cancelled') return C.live;
-  return C.gold;
+function showError(title: string, msg: string) {
+  if (Platform.OS === 'web') window.alert(msg);
+  else Alert.alert(title, msg);
 }
 
+function shortDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
-export default function SellerDashboardScreen() {
-  const { colors: C } = useTheme();
-  const styles = makeStyles(C);
+function dollars(cents: number) {
+  // Whole dollars for the big numbers ($1,240); cents only when they matter.
+  return cents % 100 === 0
+    ? '$' + (cents / 100).toLocaleString('en-US')
+    : formatMoney(cents);
+}
+
+function change(now: number, before: number, unit: 'money' | 'count'): { text: string; good: boolean } {
+  if (before === 0) return now > 0 ? { text: 'New this month', good: true } : { text: 'Nothing yet', good: false };
+  if (unit === 'count') {
+    const d = now - before;
+    return { text: d === 0 ? 'Same as last month' : `${d > 0 ? '+' : ''}${d} vs last month`, good: d > 0 };
+  }
+  const pct = Math.round(((now - before) / before) * 100);
+  return { text: pct === 0 ? 'Same as last month' : `${pct > 0 ? '+' : ''}${pct}% vs last month`, good: pct > 0 };
+}
+
+function listingState(p: Product): 'active' | 'hidden' | 'soldout' {
+  if (p.status !== 'active') return 'hidden';
+  if (!p.is_digital && (p.inventory_count ?? 0) <= 0) return 'soldout';
+  return 'active';
+}
+
+function orderStatusLabel(status: string) {
+  return ({ pending: 'Awaiting payment', paid: 'To ship', shipped: 'Shipped', completed: 'Completed', cancelled: 'Cancelled' } as Record<string, string>)[status] ?? status;
+}
+
+export default function MyStoreScreen() {
+  const ds = useDS();
+  const { c, shadow } = ds;
+  const isDesktop = useIsDesktopWeb();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  // Two columns only when there's room for the listings table beside the side column.
+  const twoCol = isDesktop && width >= 1180;
 
   const [loading, setLoading] = useState(true);
   const [seller, setSeller] = useState<Seller | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [tab, setTab] = useState<'listings' | 'orders'>('orders');
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [rating, setRating] = useState<{ avg: number; count: number }>({ avg: 0, count: 0 });
+  const [unread, setUnread] = useState(0);
+
+  const [view, setView] = useState<'overview' | 'orders'>('overview');
+  const [orderFilter, setOrderFilter] = useState<'toship' | 'all'>('toship');
+  const [listingFilter, setListingFilter] = useState<ListingFilter>('all');
+  const [showAllListings, setShowAllListings] = useState(false);
+  const [menuProduct, setMenuProduct] = useState<Product | null>(null);
+
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [shippingOpen, setShippingOpen] = useState(false);
   const [shippingInput, setShippingInput] = useState('');
-  const [editingShipping, setEditingShipping] = useState(false);
   const [savingShipping, setSavingShipping] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -69,55 +131,81 @@ export default function SellerDashboardScreen() {
   );
 
   async function load() {
-    setLoading(true);
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) { router.replace('/(auth)/sign-in' as any); return; }
+    const uid = session.user.id;
 
     const { data: sellerData } = await supabase
       .from('marketplace_sellers')
-      .select('id, shop_name, approval_status, stripe_onboarded, shipping_cents')
-      .eq('user_id', session.user.id)
+      .select('id, shop_name, bio, avatar_url, banner_url, approval_status, stripe_onboarded, shipping_cents')
+      .eq('user_id', uid)
       .maybeSingle();
 
     if (!sellerData) {
       router.replace('/sell' as any);
       return;
     }
-    setSeller(sellerData as any);
+    setSeller(sellerData as Seller);
 
-    const [{ data: productsData }, { data: ordersData }] = await Promise.all([
-      supabase.from('marketplace_products').select('id, title, price_cents, images, status, inventory_count').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
-      supabase.from('marketplace_orders').select('id, status, total_cents, quantity, variant_label, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, shipping_cents, tax_fee_cents, tax_cents, cancel_reason, refunded_cents, shipping_name, shipping_address, marketplace_products(title, images)').eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
+    const [{ data: productsData }, { data: ordersData }, { data: payoutsData }, { data: threadsData }] = await Promise.all([
+      supabase.from('marketplace_products')
+        .select('id, title, price_cents, images, status, inventory_count, is_digital')
+        .eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
+      supabase.from('marketplace_orders')
+        .select('id, status, total_cents, quantity, variant_label, created_at, siqa_fee_cents, processing_fee_cents, seller_payout_cents, shipping_cents, tax_fee_cents, tax_cents, cancel_reason, refunded_cents, shipping_name, shipping_address, marketplace_products(title, images)')
+        .eq('seller_id', sellerData.id).order('created_at', { ascending: false }),
+      supabase.from('marketplace_seller_payouts')
+        .select('payout_cents, reversed_cents, status, transferred_at')
+        .eq('seller_id', sellerData.id),
+      supabase.from('marketplace_threads').select('id').eq('seller_id', sellerData.id),
     ]);
 
-    if (productsData) setProducts(productsData as any);
-    if (ordersData) setOrders(ordersData as any);
+    const prods = (productsData ?? []) as Product[];
+    setProducts(prods);
+    setOrders((ordersData ?? []) as any);
+    setPayouts((payoutsData ?? []) as Payout[]);
+
+    // Reviews are public; unread = buyer messages in this shop's threads not yet read.
+    const threadIds = (threadsData ?? []).map((t: any) => t.id);
+    const [reviewsRes, unreadRes] = await Promise.all([
+      prods.length
+        ? supabase.from('marketplace_reviews').select('rating').in('product_id', prods.map(p => p.id))
+        : Promise.resolve({ data: [] as { rating: number }[] }),
+      threadIds.length
+        ? supabase.from('marketplace_messages').select('id', { count: 'exact', head: true })
+            .in('thread_id', threadIds).is('read_at', null).neq('sender_id', uid)
+        : Promise.resolve({ count: 0 }),
+    ]);
+    const ratings = ((reviewsRes as any).data ?? []).map((r: any) => r.rating as number);
+    setRating({ avg: ratings.length ? ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length : 0, count: ratings.length });
+    setUnread((unreadRes as any).count ?? 0);
+
     setLoading(false);
   }
 
+  // ── Actions ────────────────────────────────────────────────────────
   // Flat shipping price, charged once per checkout when the buyer has at
   // least one of this shop's physical items in their cart.
   async function saveShipping() {
     if (!seller) return;
-    const dollars = parseFloat(shippingInput.replace(/[^0-9.]/g, '') || '0');
-    if (!Number.isFinite(dollars) || dollars < 0 || dollars > 500) {
-      const msg = 'Enter a shipping price between $0 and $500.';
-      return Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Shipping', msg);
+    const amount = parseFloat(shippingInput.replace(/[^0-9.]/g, '') || '0');
+    if (!Number.isFinite(amount) || amount < 0 || amount > 500) {
+      return showError('Shipping', 'Enter a shipping price between $0 and $500.');
     }
-    const cents = Math.round(dollars * 100);
+    const cents = Math.round(amount * 100);
     setSavingShipping(true);
     const { error } = await supabase.from('marketplace_sellers').update({ shipping_cents: cents }).eq('id', seller.id);
     setSavingShipping(false);
-    if (error) return Platform.OS === 'web' ? window.alert(error.message) : Alert.alert('Error', error.message);
+    if (error) return showError('Error', error.message);
     setSeller({ ...seller, shipping_cents: cents });
-    setEditingShipping(false);
+    setShippingOpen(false);
   }
 
   async function updateOrderStatus(orderId: string, status: string) {
     setBusyId(orderId);
     const { error } = await supabase.from('marketplace_orders').update({ status }).eq('id', orderId);
     setBusyId(null);
-    if (error) return Alert.alert('Error', error.message);
+    if (error) return showError('Error', error.message);
     setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, status } : o)));
   }
 
@@ -158,341 +246,606 @@ export default function SellerDashboardScreen() {
     setBusyId(product.id);
     const { error } = await supabase.from('marketplace_products').update({ status: newStatus }).eq('id', product.id);
     setBusyId(null);
-    if (error) return Alert.alert('Error', error.message);
+    if (error) return showError('Error', error.message);
     setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, status: newStatus } : p)));
   }
+
+  function openShipping() {
+    setShippingInput(((seller?.shipping_cents ?? 0) / 100).toFixed(2));
+    setShippingOpen(true);
+  }
+
+  // ── Numbers ────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const lastStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+    const sold = orders.filter(o => SOLD.includes(o.status));
+    const inRange = (o: Order, from: number, to: number) => {
+      const t = new Date(o.created_at).getTime();
+      return t >= from && t < to;
+    };
+    const thisMonth = sold.filter(o => inRange(o, monthStart, Infinity));
+    const lastMonth = sold.filter(o => inRange(o, lastStart, monthStart));
+    const sum = (xs: Order[]) => xs.reduce((a, o) => a + o.total_cents, 0);
+    const owed = payouts.filter(p => p.status === 'owed').reduce((a, p) => a + p.payout_cents, 0);
+    const paidThisMonth = payouts
+      .filter(p => p.status === 'transferred' && p.transferred_at && new Date(p.transferred_at).getTime() >= monthStart)
+      .reduce((a, p) => a + p.payout_cents - (p.reversed_cents ?? 0), 0);
+    return {
+      salesNow: sum(thisMonth), salesBefore: sum(lastMonth),
+      ordersNow: thisMonth.length, ordersBefore: lastMonth.length,
+      totalSales: sold.reduce((a, o) => a + o.quantity, 0),
+      owed, paidThisMonth,
+    };
+  }, [orders, payouts]);
+
+  const toShip = orders.filter(o => o.status === 'paid');
+  const counts = useMemo(() => {
+    const out = { all: products.length, active: 0, hidden: 0, soldout: 0 };
+    products.forEach(p => { out[listingState(p)]++; });
+    return out;
+  }, [products]);
+  const filteredListings = listingFilter === 'all' ? products : products.filter(p => listingState(p) === listingFilter);
+  const shownListings = showAllListings ? filteredListings : filteredListings.slice(0, OVERVIEW_LISTINGS);
 
   if (loading || !seller) {
     return (
       <DesktopShell>
-        <View style={styles.centered}>
-          <ActivityIndicator color={C.gold} size="large" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg }}>
+          <ActivityIndicator color={c.gold} size="large" />
         </View>
       </DesktopShell>
     );
   }
 
-  const needsAction = orders.filter(o => o.status === 'paid');
+  const pad = isDesktop ? space[10] : space[5];
+  const card = [{ backgroundColor: c.surface, borderRadius: radius.lg }, shadow('card')];
+  const shippingValue = (seller.shipping_cents ?? 0) > 0 ? `Flat ${formatMoney(seller.shipping_cents)}` : 'Free';
+
+  // ── Pieces ─────────────────────────────────────────────────────────
+  const statusPill = (() => {
+    const s = seller.approval_status;
+    const look = s === 'approved'
+      ? { bg: c.seedTint, fg: c.seed, label: 'Open' }
+      : s === 'pending'
+        ? { bg: c.goldTint, fg: c.goldInk, label: 'In review' }
+        : { bg: c.surfaceSoft, fg: c.ink2, label: s.charAt(0).toUpperCase() + s.slice(1) };
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 26, paddingHorizontal: 10, borderRadius: radius.pill, backgroundColor: look.bg, alignSelf: 'flex-start' }}>
+        <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: look.fg }} />
+        <Text style={[type.micro, { color: look.fg }]}>{look.label}</Text>
+      </View>
+    );
+  })();
+
+  const avatar = (d: number) => (
+    <View style={{ width: d, height: d, borderRadius: d / 2, backgroundColor: c.night, borderWidth: 4, borderColor: c.bg, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+      {seller.avatar_url
+        ? <Image source={{ uri: seller.avatar_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityIgnoresInvertColors />
+        : <Text style={[type.title1, { color: c.brandGold, fontSize: d * 0.36, lineHeight: d * 0.44 }]}>{seller.shop_name.trim().charAt(0).toUpperCase()}</Text>}
+    </View>
+  );
+
+  const banner = (h: number, rounded: boolean) => (
+    <View style={{ height: h, backgroundColor: c.bgSunk, borderRadius: rounded ? radius.lg : 0, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+      {seller.banner_url
+        ? <Image source={{ uri: seller.banner_url }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" accessibilityIgnoresInvertColors />
+        : <Icon name="storefront-outline" size={26} color={c.ink3} />}
+    </View>
+  );
+
+  const metaLine = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+      {rating.count > 0 ? (
+        <>
+          <Icon name="star" size={14} color={c.gold} />
+          <Text style={[type.subhead, { color: c.ink }]}>{rating.avg.toFixed(1)}</Text>
+          <Text style={[type.subhead, { color: c.ink2 }]}>· {rating.count} {rating.count === 1 ? 'review' : 'reviews'} ·</Text>
+        </>
+      ) : null}
+      <Text style={[type.subhead, { color: c.ink2 }]}>{stats.totalSales} {stats.totalSales === 1 ? 'sale' : 'sales'}</Text>
+    </View>
+  );
+
+  const stripeNotice = !seller.stripe_onboarded ? (
+    <Pressable
+      onPress={() => router.push('/sell' as any)}
+      accessibilityRole="button"
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: c.goldTint, opacity: pressed ? 0.8 : 1 })}
+    >
+      <IconTile icon="card-outline" bg={c.surface} fg={c.goldInk} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[type.callout, font(700), { color: c.ink }]}>Finish setting up payouts</Text>
+        <Text style={[type.caption, { color: c.goldInk }]}>Connect Stripe so buyers can pay you.</Text>
+      </View>
+      <Icon name="chevron-forward" size={18} color={c.goldInk} />
+    </Pressable>
+  ) : null;
+
+  const payoutTitle = stats.owed > 0 ? 'On the way to you' : 'Paid out this month';
+  const payoutAmount = stats.owed > 0 ? stats.owed : stats.paidThisMonth;
+
+  const kpi = (label: string, value: string, sub: { text: string; good: boolean } | string, tone: 'card' | 'gold' = 'card') => {
+    const gold = tone === 'gold';
+    const subText = typeof sub === 'string' ? sub : sub.text;
+    const subGood = typeof sub !== 'string' && sub.good;
+    return (
+      <View key={label} style={[
+        { flexGrow: 1, flexBasis: isDesktop ? 200 : 0, minWidth: isDesktop ? 180 : 0, padding: isDesktop ? 20 : 14, borderRadius: radius.lg, gap: isDesktop ? 6 : 4 },
+        gold ? { backgroundColor: c.goldTint } : card,
+      ]}>
+        <Text style={[isDesktop ? type.subhead : type.micro, { color: gold ? c.goldInk : c.ink2 }]} numberOfLines={1}>{label}</Text>
+        <Text style={[isDesktop ? type.amount : type.title2, font(800, 'display'), { color: c.ink }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+        <Text style={[type.micro, font(isDesktop ? 500 : 600), { color: gold ? c.goldInk : subGood ? c.seed : c.ink2 }]} numberOfLines={2}>{subText}</Text>
+      </View>
+    );
+  };
+
+  const sectionHead = (title: string, count?: number, link?: { label: string; onPress: () => void }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+      <Text style={[isDesktop && title === 'Listings' ? type.title2 : type.headline, { color: c.ink }]} accessibilityRole="header">
+        {title}{count != null ? <Text style={[font(500), { color: c.ink2 }]}> · {count}</Text> : null}
+      </Text>
+      {link ? (
+        <Pressable onPress={link.onPress} accessibilityRole="link" hitSlop={10}>
+          <Text style={[type.subhead, { color: c.ink, textDecorationLine: 'underline' }]}>{link.label}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  const thumb = (uri: string | undefined | null, d: number, r: number = radius.md) => (
+    <View style={{ width: d, height: d, borderRadius: r, backgroundColor: c.bgSunk, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+      {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityIgnoresInvertColors />
+        : <Icon name="image-outline" size={d > 60 ? 26 : 18} color={c.ink3} />}
+    </View>
+  );
+
+  const toShipList = (
+    <View style={{ gap: 4 }}>
+      {sectionHead('To ship', toShip.length, { label: 'All orders', onPress: () => { setOrderFilter(toShip.length ? 'toship' : 'all'); setView('orders'); } })}
+      {toShip.length === 0 ? (
+        <Text style={[type.callout, { color: c.ink2, paddingVertical: 12 }]}>Nothing to ship right now.</Text>
+      ) : toShip.slice(0, 4).map((o, i) => (
+        <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: i === Math.min(toShip.length, 4) - 1 ? 0 : 1, borderBottomColor: c.line }}>
+          {isDesktop ? null : thumb(o.marketplace_products?.images?.[0], 48)}
+          <Pressable style={{ flex: 1, minWidth: 0, gap: 2 }} onPress={() => { setOrderFilter('toship'); setView('orders'); }} accessibilityRole="button">
+            <Text style={[type.callout, font(600), { color: c.ink }]} numberOfLines={1}>
+              {o.marketplace_products?.title ?? 'Product'}{o.quantity > 1 ? ` × ${o.quantity}` : ''}
+            </Text>
+            <Text style={[type.caption, { color: c.ink2 }]} numberOfLines={1}>
+              {[o.shipping_name, o.variant_label, `Ordered ${shortDate(o.created_at)}`].filter(Boolean).join(' · ')}
+            </Text>
+          </Pressable>
+          <Button label="Mark shipped" size="sm" variant="soft" loading={busyId === o.id} onPress={() => updateOrderStatus(o.id, 'shipped')} />
+        </View>
+      ))}
+      {toShip.length > 4 ? (
+        <Text style={[type.caption, { color: c.ink2, paddingTop: 6 }]}>+ {toShip.length - 4} more in All orders</Text>
+      ) : null}
+    </View>
+  );
+
+  const tag = (p: Product, overImage = false) => {
+    const s = listingState(p);
+    const look = s === 'active'
+      ? (overImage ? { bg: 'rgba(255,255,255,0.92)', fg: '#111111' } : { bg: c.seedTint, fg: c.seed })
+      : s === 'soldout' ? { bg: c.dangerTint, fg: c.danger } : { bg: c.surfaceSoft, fg: c.ink2 };
+    const label = s === 'active' ? 'Active' : s === 'soldout' ? 'Sold out' : 'Hidden';
+    return (
+      <View style={{ height: 22, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: look.bg, justifyContent: 'center', alignSelf: 'flex-start' }}>
+        <Text style={[type.micro, { color: look.fg }]}>{label}</Text>
+      </View>
+    );
+  };
+
+  const stockText = (p: Product) => p.is_digital ? 'Digital' : `${p.inventory_count ?? 0} left`;
+  const editListing = (p: Product) => router.push({ pathname: '/listing-create', params: { id: p.id } } as any);
+
+  const listingFilters = (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space[2], paddingVertical: 5 }}>
+      <Chip label={`All ${counts.all}`} selected={listingFilter === 'all'} onPress={() => setListingFilter('all')} />
+      <Chip label={`Active ${counts.active}`} selected={listingFilter === 'active'} onPress={() => setListingFilter('active')} />
+      {counts.soldout > 0 ? <Chip label={`Sold out ${counts.soldout}`} selected={listingFilter === 'soldout'} onPress={() => setListingFilter('soldout')} /> : null}
+      {counts.hidden > 0 ? <Chip label={`Hidden ${counts.hidden}`} selected={listingFilter === 'hidden'} onPress={() => setListingFilter('hidden')} /> : null}
+    </ScrollView>
+  );
+
+  const listingsEmpty = (
+    <View style={{ alignItems: 'center', paddingVertical: space[8], gap: space[3] }}>
+      <Icon name="bag-handle-outline" size={30} color={c.ink3} />
+      <Text style={[type.callout, { color: c.ink2 }]}>
+        {products.length === 0 ? 'Your listings show up here.' : 'No listings in this group.'}
+      </Text>
+      {products.length === 0 ? <Button label="Add your first product" size="md" variant="secondary" icon="add" onPress={() => router.push('/listing-create' as any)} /> : null}
+    </View>
+  );
+
+  const listingsGrid = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: space[4] }}>
+      {shownListings.map(p => (
+        <Pressable key={p.id} onPress={() => editListing(p)} accessibilityRole="button" accessibilityLabel={`Edit ${p.title}`}
+          style={({ pressed }) => ({ width: '48.3%', gap: space[2], opacity: pressed ? 0.85 : 1 })}>
+          <View style={{ aspectRatio: 1, borderRadius: radius.lg, backgroundColor: c.bgSunk, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+            {p.images?.[0] ? <Image source={{ uri: p.images[0] }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" accessibilityIgnoresInvertColors />
+              : <Icon name="image-outline" size={26} color={c.ink3} />}
+            <View style={{ position: 'absolute', top: 8, left: 8 }}>{tag(p, true)}</View>
+            <IconButton icon="ellipsis-horizontal" label={`Options for ${p.title}`} variant="raised" size="sm" onPress={() => setMenuProduct(p)} style={{ position: 'absolute', top: 6, right: 6 }} />
+          </View>
+          <View style={{ gap: 2 }}>
+            <Text style={[type.subhead, font(600), { color: c.ink }]} numberOfLines={2}>{p.title}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <Text style={[type.callout, font(800, 'display'), { color: c.ink }]}>{formatMoney(p.price_cents)}</Text>
+              <Text style={[type.micro, { color: c.ink2 }]}>{stockText(p)}</Text>
+            </View>
+          </View>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const listingsTable = (
+    <View style={[card, { overflow: 'hidden' }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, height: 44, borderBottomWidth: 1, borderBottomColor: c.line }}>
+        <Text style={[type.caption, { color: c.ink2, flex: 1 }]}>Product</Text>
+        <Text style={[type.caption, { color: c.ink2, width: 90 }]}>Price</Text>
+        <Text style={[type.caption, { color: c.ink2, width: 80 }]}>Stock</Text>
+        <Text style={[type.caption, { color: c.ink2, width: 84 }]}>Status</Text>
+        <View style={{ width: 44 }} />
+      </View>
+      {shownListings.map((p, i) => (
+        <Pressable key={p.id} onPress={() => editListing(p)} accessibilityRole="button" accessibilityLabel={`Edit ${p.title}`}
+          style={({ hovered, pressed }: any) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10,
+            borderBottomWidth: i === shownListings.length - 1 ? 0 : 1, borderBottomColor: c.line,
+            backgroundColor: hovered || pressed ? c.bgSunk : 'transparent',
+          })}>
+          <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {thumb(p.images?.[0], 48, radius.sm)}
+            <Text style={[type.subhead, font(600), { color: c.ink, flex: 1 }]} numberOfLines={1}>{p.title}</Text>
+          </View>
+          <Text style={[type.callout, font(800, 'display'), { color: c.ink, width: 90 }]}>{formatMoney(p.price_cents)}</Text>
+          <Text style={[type.subhead, font(400), { color: c.ink2, width: 80 }]}>{p.is_digital ? 'Digital' : String(p.inventory_count ?? 0)}</Text>
+          <View style={{ width: 84 }}>{tag(p)}</View>
+          <IconButton icon="ellipsis-horizontal" label={`Options for ${p.title}`} onPress={() => setMenuProduct(p)} />
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  const listingsSection = (
+    <View style={{ gap: space[3] }}>
+      {sectionHead('Listings', undefined, isDesktop ? undefined : { label: 'Add', onPress: () => router.push('/listing-create' as any) })}
+      {products.length > 0 ? listingFilters : null}
+      {filteredListings.length === 0 ? listingsEmpty : isDesktop ? listingsTable : listingsGrid}
+      {filteredListings.length > OVERVIEW_LISTINGS ? (
+        <Pressable onPress={() => setShowAllListings(v => !v)} accessibilityRole="button" style={{ alignSelf: 'flex-start', paddingVertical: 6 }}>
+          <Text style={[type.subhead, { color: c.ink, textDecorationLine: 'underline' }]}>
+            {showAllListings ? 'Show fewer' : `See all ${filteredListings.length} listings`}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  const settingsRows = (
+    <View>
+      <SectionLabel style={{ marginBottom: 2 }}>Store settings</SectionLabel>
+      <ListRow icon="card-outline" label="Payouts" value={seller.stripe_onboarded ? 'Stripe connected' : 'Set up'} onPress={() => router.push('/sell' as any)} />
+      <ListRow icon="cube-outline" label="Shipping" value={shippingValue} onPress={openShipping} />
+      <ListRow icon="chatbubble-outline" label="Messages" value={unread > 0 ? `${unread} new` : undefined} onPress={() => router.push('/messages' as any)} />
+      <ListRow icon="create-outline" label="Store name and bio" onPress={() => router.push('/sell' as any)} last />
+    </View>
+  );
+
+  // ── Overview ───────────────────────────────────────────────────────
+  const salesChange = change(stats.salesNow, stats.salesBefore, 'money');
+  const ordersChange = change(stats.ordersNow, stats.ordersBefore, 'count');
+  const kpis = (
+    <View style={{ flexDirection: 'row', flexWrap: isDesktop ? 'wrap' : 'nowrap', gap: isDesktop ? space[4] : space[2] }}>
+      {kpi(isDesktop ? 'Sales this month' : 'Sales', dollars(stats.salesNow), salesChange)}
+      {kpi('Orders', String(stats.ordersNow), isDesktop && toShip.length ? `${toShip.length} waiting to ship` : ordersChange)}
+      {kpi('Rating', rating.count ? rating.avg.toFixed(1) : '—', rating.count ? `${rating.count} ${rating.count === 1 ? 'review' : 'reviews'}` : 'No reviews yet')}
+      {isDesktop && seller.stripe_onboarded ? kpi(payoutTitle, formatMoney(payoutAmount), 'Sent to your bank by Stripe', 'gold') : null}
+    </View>
+  );
+
+  const mobilePayout = seller.stripe_onboarded && payoutAmount > 0 ? (
+    <Pressable onPress={() => router.push('/sell' as any)} accessibilityRole="button"
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: radius.lg, backgroundColor: c.goldTint, opacity: pressed ? 0.8 : 1 })}>
+      <IconTile icon="wallet-outline" bg={c.surface} fg={c.goldInk} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[type.callout, font(700), { color: c.ink }]}>{payoutTitle} {formatMoney(payoutAmount)}</Text>
+        <Text style={[type.caption, { color: c.goldInk }]}>Sent to your bank by Stripe</Text>
+      </View>
+      <Icon name="chevron-forward" size={18} color={c.goldInk} />
+    </Pressable>
+  ) : null;
+
+  const mobileOverview = (
+    <View style={{ gap: space[6] }}>
+      <View>
+        {banner(128, true)}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 12, marginTop: -32, paddingLeft: 12 }}>
+          {avatar(76)}
+          <View style={{ paddingBottom: 6 }}>{statusPill}</View>
+        </View>
+        <View style={{ marginTop: space[3], gap: 4 }}>
+          <Text style={[type.title1, { color: c.ink }]} accessibilityRole="header">{seller.shop_name}</Text>
+          {seller.bio ? <Text style={[type.subhead, { color: c.ink2 }]} numberOfLines={2}>{seller.bio}</Text> : null}
+          {metaLine}
+        </View>
+        <View style={{ flexDirection: 'row', gap: space[2], marginTop: space[4] }}>
+          <Button label="Edit store" variant="soft" size="md" grow onPress={() => router.push('/sell' as any)} />
+          <Button label={unread > 0 ? `Messages · ${unread}` : 'Messages'} variant="secondary" size="md" icon="chatbubble-outline" grow onPress={() => router.push('/messages' as any)} />
+        </View>
+      </View>
+      {stripeNotice ?? mobilePayout}
+      <View style={{ gap: space[3] }}>
+        {sectionHead('This month')}
+        {kpis}
+      </View>
+      {toShipList}
+      {listingsSection}
+      {settingsRows}
+    </View>
+  );
+
+  const desktopOverview = (
+    <View style={{ gap: space[6] }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space[4] }}>
+        <Text style={[type.display, { color: c.ink }]} accessibilityRole="header">My store</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+          <Button label={unread > 0 ? `Messages · ${unread}` : 'Messages'} variant="secondary" size="md" icon="chatbubble-outline" onPress={() => router.push('/messages' as any)} />
+          <Button label="Add product" variant="primary" size="md" icon="add" onPress={() => router.push('/listing-create' as any)} />
+        </View>
+      </View>
+
+      <View style={[card, { borderRadius: radius.xl, overflow: 'hidden' }]}>
+        {banner(150, false)}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: space[5], paddingHorizontal: space[6], paddingBottom: space[6] }}>
+          <View style={{ marginTop: -40 }}>{avatar(96)}</View>
+          <View style={{ flexGrow: 1, flexBasis: 320, minWidth: 0, gap: 4, paddingTop: space[4] }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+              <Text style={[type.title1, { color: c.ink }]}>{seller.shop_name}</Text>
+              {statusPill}
+            </View>
+            {seller.bio ? <Text style={[type.subhead, { color: c.ink2 }]} numberOfLines={2}>{seller.bio}</Text> : null}
+            {metaLine}
+          </View>
+          <Button label="Edit store" variant="soft" size="md" onPress={() => router.push('/sell' as any)} />
+        </View>
+      </View>
+
+      {stripeNotice}
+      {kpis}
+
+      <View style={{ flexDirection: twoCol ? 'row' : 'column', gap: space[6], alignItems: 'flex-start' }}>
+        <View style={{ flex: twoCol ? 1 : undefined, alignSelf: 'stretch', minWidth: 0 }}>{listingsSection}</View>
+        <View style={{ width: twoCol ? 360 : '100%', gap: space[6] }}>
+          <View style={[card, { borderRadius: radius.xl, padding: space[5] }]}>{toShipList}</View>
+          {settingsRows}
+        </View>
+      </View>
+    </View>
+  );
+
+  // ── All orders ─────────────────────────────────────────────────────
+  const visibleOrders = orderFilter === 'toship' ? toShip : orders;
+  const ordersView = (
+    <View style={{ gap: space[5] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
+        <IconButton icon="arrow-back" label="Back to my store" onPress={() => setView('overview')} />
+        <Text style={[isDesktop ? type.display : type.title1, { color: c.ink, flex: 1 }]} accessibilityRole="header">Orders</Text>
+      </View>
+      <SegmentedControl
+        label="Which orders"
+        value={orderFilter}
+        onChange={setOrderFilter}
+        options={[{ value: 'toship', label: `To ship · ${toShip.length}` }, { value: 'all', label: `All · ${orders.length}` }]}
+        style={{ maxWidth: 420 }}
+      />
+      {visibleOrders.length === 0 ? (
+        <View style={{ alignItems: 'center', paddingVertical: space[10], gap: space[3] }}>
+          <Icon name="file-tray-outline" size={30} color={c.ink3} />
+          <Text style={[type.callout, { color: c.ink2 }]}>{orderFilter === 'toship' ? 'Nothing to ship right now.' : 'No orders yet.'}</Text>
+        </View>
+      ) : (
+        <View style={{ gap: space[3] }}>
+          {visibleOrders.map(order => (
+            <OrderCard
+              key={order.id}
+              order={order}
+              ds={ds}
+              busy={busyId === order.id}
+              cancelling={cancellingId === order.id}
+              cancelReason={cancelReason}
+              cancelError={cancelError}
+              thumb={thumb(order.marketplace_products?.images?.[0], 56)}
+              onAdvance={() => updateOrderStatus(order.id, NEXT_STATUS[order.status])}
+              onStartCancel={() => { setCancellingId(order.id); setCancelReason(''); setCancelError(null); }}
+              onStopCancel={() => setCancellingId(null)}
+              onReason={setCancelReason}
+              onConfirmCancel={() => confirmCancel(order)}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <DesktopShell>
-      <View style={styles.container}>
-        {/* Header, notice and tabs share the list's centered column so the
-            tab switch doesn't stretch across the whole window on desktop. */}
-        <View style={styles.topColumn}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.roundBtn} onPress={() => goBack('/marketplace')}>
-            <Icon name="arrow-back" size={20} color={C.text} />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{seller.shop_name}</Text>
-            <Text style={styles.headerSub}>
-              {seller.approval_status === 'approved' ? '✓ Approved seller' : 'Approval pending'}
-            </Text>
+      <View style={{ flex: 1, backgroundColor: c.bg }}>
+        {!isDesktop && view === 'overview' ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[3], paddingTop: Math.max(insets.top, HEADER_TOP_PADDING - 16), paddingBottom: 4 }}>
+            <IconButton icon="chevron-back" label="Back" onPress={() => goBack('/marketplace')} />
+            <Text style={[type.headline, font(700, 'display'), { color: c.ink }]}>My store</Text>
+            <View style={{ width: 44 }} />
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/listing-create' as any)}>
-            <Icon name="add" size={20} color={dsStatic().c.onPrimary} />
-          </TouchableOpacity>
-        </View>
+        ) : null}
 
-        {!seller.stripe_onboarded && (
-          <TouchableOpacity style={styles.notice} onPress={() => router.push('/sell' as any)}>
-            <Text style={styles.noticeText}><Glyph name="warning-outline" style={styles.noticeText} />{' '}Connect Stripe to receive payments — tap to finish setup.</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.shippingRow}>
-          <Icon name="cube-outline" size={16} color={C.text2} />
-          {editingShipping ? (
-            <>
-              <Text style={styles.shippingLabel}>Shipping per order $</Text>
-              <TextInput
-                style={styles.shippingInput}
-                value={shippingInput}
-                onChangeText={setShippingInput}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor={C.text3}
-                autoFocus
-              />
-              <TouchableOpacity style={styles.smallBtn} onPress={saveShipping} disabled={savingShipping}>
-                <Text style={styles.smallBtnText}>{savingShipping ? '...' : 'Save'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setEditingShipping(false)}>
-                <Text style={styles.shippingEdit}>Cancel</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.shippingLabel}>
-                Shipping per order: <Text style={styles.shippingValue}>{(seller.shipping_cents ?? 0) > 0 ? formatMoney(seller.shipping_cents) : 'Free'}</Text>
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShippingInput(((seller.shipping_cents ?? 0) / 100).toFixed(2));
-                  setEditingShipping(true);
-                }}
-              >
-                <Text style={styles.shippingEdit}>Edit</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-
-        <View style={styles.tabs}>
-          <TouchableOpacity style={[styles.tab, tab === 'orders' && styles.tabActive]} onPress={() => setTab('orders')}>
-            <Text style={[styles.tabText, tab === 'orders' && styles.tabTextActive]}>
-              Orders{needsAction.length > 0 ? ` (${needsAction.length})` : ''}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, tab === 'listings' && styles.tabActive]} onPress={() => setTab('listings')}>
-            <Text style={[styles.tabText, tab === 'listings' && styles.tabTextActive]}>Listings ({products.length})</Text>
-          </TouchableOpacity>
-        </View>
-        </View>
-
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body}>
-          {tab === 'orders' ? (
-            orders.length === 0 ? (
-              <View style={styles.empty}>
-                <Glyph name="file-tray-outline" style={styles.emptyEmoji} />
-                <Text style={styles.emptyText}>No orders yet</Text>
-              </View>
-            ) : (
-              orders.map(order => {
-                const nextStatus = NEXT_STATUS[order.status];
-                const canCancel = CANCELLABLE.includes(order.status);
-                return (
-                  <View key={order.id} style={styles.orderCard}>
-                    <View style={styles.orderImage}>
-                      {order.marketplace_products?.images?.[0] ? (
-                        <Image source={{ uri: order.marketplace_products.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                      ) : null}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.orderTitle} numberOfLines={1}>{order.marketplace_products?.title ?? 'Product'}</Text>
-                      <Text style={styles.orderMeta}>{order.variant_label ? `${order.variant_label} · ` : ''}Qty {order.quantity} · {formatMoney(order.total_cents)}</Text>
-                      {(order.shipping_cents ?? 0) > 0 && (
-                        <Text style={styles.orderMeta}>+ {formatMoney(order.shipping_cents)} shipping</Text>
-                      )}
-                      {order.seller_payout_cents != null && (
-                        // Same split the admin Payouts page shows: Siqa's 6.5% fee,
-                        // this order's share of Stripe processing and of the
-                        // Stripe Tax fee come off first.
-                        <Text style={styles.orderMeta}>
-                          You get {formatMoney(order.seller_payout_cents)}
-                          {' '}(fees {formatMoney((order.siqa_fee_cents ?? 0) + (order.processing_fee_cents ?? 0) + (order.tax_fee_cents ?? 0))})
-                        </Text>
-                      )}
-                      {order.shipping_address?.line1 && order.status !== 'pending' && (
-                        <View style={styles.shipTo}>
-                          <Text style={styles.shipToLabel}>Ship to</Text>
-                          <Text style={styles.shipToText} selectable>
-                            {[
-                              order.shipping_name,
-                              order.shipping_address.line1,
-                              order.shipping_address.line2,
-                              [order.shipping_address.city, order.shipping_address.state, order.shipping_address.postal_code].filter(Boolean).join(' '),
-                            ].filter(Boolean).join('\n')}
-                          </Text>
-                        </View>
-                      )}
-                      <Text style={[styles.orderStatus, { color: statusColor(order.status, C) }]}>{order.status.toUpperCase()}</Text>
-                      {order.status === 'cancelled' && (order.refunded_cents || order.cancel_reason) ? (
-                        <Text style={styles.orderMeta}>
-                          {(order.refunded_cents ?? 0) > 0 ? `Refunded ${formatMoney(order.refunded_cents)} to the buyer` : 'Not charged'}
-                          {order.cancel_reason ? ` · "${order.cancel_reason}"` : ''}
-                        </Text>
-                      ) : null}
-                      {cancellingId === order.id && (
-                        <View style={styles.cancelPanel}>
-                          <Text style={styles.cancelTitle}>
-                            {order.status === 'pending'
-                              ? 'Cancel this unpaid order?'
-                              : `Refund the buyer ${formatMoney(order.total_cents + (order.shipping_cents ?? 0) + (order.tax_cents ?? 0))}?`}
-                          </Text>
-                          {order.status !== 'pending' && (
-                            <Text style={styles.cancelHint}>
-                              The buyer gets this item's price, shipping and tax back. Your payout for it
-                              {order.seller_payout_cents != null ? ` (${formatMoney(order.seller_payout_cents)})` : ''} is taken back.
-                            </Text>
-                          )}
-                          <TextInput
-                            style={styles.cancelInput}
-                            value={cancelReason}
-                            onChangeText={setCancelReason}
-                            placeholder="Reason for the buyer (e.g. out of stock)"
-                            placeholderTextColor={C.text3}
-                            maxLength={500}
-                            multiline
-                          />
-                          {cancelError && <Text style={styles.cancelErrorText}>{cancelError}</Text>}
-                          <View style={styles.orderActions}>
-                            <TouchableOpacity style={styles.dangerBtn} onPress={() => confirmCancel(order)} disabled={busyId === order.id}>
-                              {busyId === order.id
-                                ? <ActivityIndicator size="small" color={dsStatic().c.danger} />
-                                : <Text style={styles.dangerBtnText}>{order.status === 'pending' ? 'Cancel order' : 'Cancel & refund'}</Text>}
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.smallBtnGhost} onPress={() => setCancellingId(null)} disabled={busyId === order.id}>
-                              <Text style={styles.smallBtnGhostText}>Keep order</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      )}
-                      {(nextStatus || canCancel) && cancellingId !== order.id && (
-                        <View style={styles.orderActions}>
-                          {nextStatus && (
-                            <TouchableOpacity style={styles.smallBtn} onPress={() => updateOrderStatus(order.id, nextStatus)} disabled={busyId === order.id}>
-                              <Text style={styles.smallBtnText}>{busyId === order.id ? '...' : NEXT_LABEL[order.status]}</Text>
-                            </TouchableOpacity>
-                          )}
-                          {canCancel && cancellingId !== order.id && (
-                            <TouchableOpacity
-                              style={styles.smallBtnGhost}
-                              onPress={() => { setCancellingId(order.id); setCancelReason(''); setCancelError(null); }}
-                              disabled={busyId === order.id}
-                            >
-                              <Text style={styles.smallBtnGhostText}>{order.status === 'pending' ? 'Cancel' : 'Cancel & refund'}</Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                );
-              })
-            )
-          ) : products.length === 0 ? (
-            <View style={styles.empty}>
-              <Glyph name="bag-handle-outline" style={styles.emptyEmoji} />
-              <Text style={styles.emptyText}>No listings yet</Text>
-              <TouchableOpacity style={styles.smallBtn} onPress={() => router.push('/listing-create' as any)}>
-                <Text style={styles.smallBtnText}>Create your first listing</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            products.map(product => (
-              <TouchableOpacity
-                key={product.id}
-                style={styles.orderCard}
-                onPress={() => router.push({ pathname: '/product/[id]', params: { id: product.id } } as any)}
-              >
-                <View style={styles.orderImage}>
-                  {product.images?.[0] ? (
-                    <Image source={{ uri: product.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-                  ) : null}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.orderTitle} numberOfLines={1}>{product.title}</Text>
-                  <Text style={styles.orderMeta}>
-                    {formatMoney(product.price_cents)} · {product.inventory_count} in stock
-                  </Text>
-                  <Text style={[styles.orderStatus, { color: product.status === 'active' ? C.emeraldLight : C.text3 }]}>
-                    {product.status.toUpperCase()}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.smallBtnGhost, { marginRight: 6 }]}
-                  onPress={(e) => { e.stopPropagation(); router.push({ pathname: '/listing-create', params: { id: product.id } } as any); }}
-                  accessibilityLabel={`Edit ${product.title}`}
-                >
-                  <Text style={styles.smallBtnGhostText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.smallBtnGhost}
-                  onPress={(e) => { e.stopPropagation(); toggleListing(product); }}
-                  disabled={busyId === product.id}
-                >
-                  <Text style={styles.smallBtnGhostText}>{product.status === 'active' ? 'Deactivate' : 'Reactivate'}</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))
-          )}
-          <View style={{ height: 40 }} />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: pad,
+            paddingTop: isDesktop ? space[8] : view === 'orders' ? Math.max(insets.top, HEADER_TOP_PADDING - 16) : space[2],
+            paddingBottom: isDesktop ? 56 : space[8],
+            width: '100%', maxWidth: 1120 + pad * 2, alignSelf: 'center',
+          }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {view === 'orders' ? ordersView : isDesktop ? desktopOverview : mobileOverview}
         </ScrollView>
+
+        {!isDesktop && view === 'overview' ? (
+          <View style={{ paddingHorizontal: space[5], paddingTop: space[3], paddingBottom: Math.max(insets.bottom, 12) + 8, backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.line }}>
+            <Button label="Add product" icon="add" onPress={() => router.push('/listing-create' as any)} />
+          </View>
+        ) : null}
       </View>
+
+      <BottomSheet visible={!!menuProduct} onClose={() => setMenuProduct(null)} title={menuProduct?.title ?? 'Listing'}>
+        {menuProduct ? (
+          <>
+            <OptionRow action icon="eye-outline" label="View listing" onPress={() => { const id = menuProduct.id; setMenuProduct(null); router.push({ pathname: '/product/[id]', params: { id } } as any); }} />
+            <OptionRow action icon="create-outline" label="Edit listing" onPress={() => { const p = menuProduct; setMenuProduct(null); editListing(p); }} />
+            <OptionRow
+              action
+              last
+              icon={menuProduct.status === 'active' ? 'eye-off-outline' : 'refresh-outline'}
+              label={menuProduct.status === 'active' ? 'Hide from shoppers' : 'Show to shoppers again'}
+              sub={menuProduct.status === 'active' ? 'You can bring it back any time.' : undefined}
+              onPress={() => { const p = menuProduct; setMenuProduct(null); toggleListing(p); }}
+            />
+          </>
+        ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={shippingOpen}
+        onClose={() => setShippingOpen(false)}
+        title="Shipping"
+        footer={<Button label="Save shipping" loading={savingShipping} onPress={saveShipping} />}
+      >
+        <TextField
+          label="Flat price per order ($)"
+          value={shippingInput}
+          onChangeText={setShippingInput}
+          keyboardType="decimal-pad"
+          placeholder="0.00"
+          help="Charged once per checkout when a buyer has any of your physical items. Enter 0 for free shipping."
+          autoFocus
+        />
+      </BottomSheet>
     </DesktopShell>
   );
 }
 
-function makeStyles(C: AppColors) {
-  return StyleSheet.create(brandStyles({
-    container: { flex: 1, backgroundColor: C.bg },
-    topColumn: { maxWidth: 760, width: '100%', alignSelf: 'center' },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+function IconTile({ icon, bg, fg }: { icon: SiqaIconName; bg: string; fg: string }) {
+  return (
+    <View style={{ width: 36, height: 36, borderRadius: radius.md, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }} importantForAccessibility="no">
+      <Icon name={icon} size={20} color={fg} />
+    </View>
+  );
+}
 
-    header: {
-      flexDirection: 'row', alignItems: 'center', gap: Theme.spacing.md,
-      paddingHorizontal: Theme.spacing.lg, paddingTop: HEADER_TOP_PADDING, paddingBottom: Theme.spacing.md,
-    },
-    roundBtn: {
-      width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2,
-    },
-    headerTitle: { fontSize: Theme.fontSize.lg, fontWeight: '700', color: C.text },
-    headerSub: { fontSize: 11, color: C.text3, marginTop: 1 },
-    addBtn: { ...buttonStyles('primary', 'md').box, width: 44, paddingHorizontal: 0 },
+function OrderCard({
+  order, ds, busy, cancelling, cancelReason, cancelError, thumb,
+  onAdvance, onStartCancel, onStopCancel, onReason, onConfirmCancel,
+}: {
+  order: Order; ds: DS; busy: boolean; cancelling: boolean; cancelReason: string; cancelError: string | null; thumb: React.ReactNode;
+  onAdvance: () => void; onStartCancel: () => void; onStopCancel: () => void; onReason: (v: string) => void; onConfirmCancel: () => void;
+}) {
+  const { c, shadow } = ds;
+  const nextStatus = NEXT_STATUS[order.status];
+  const canCancel = CANCELLABLE.includes(order.status);
+  const statusLook = order.status === 'completed' ? { bg: c.seedTint, fg: c.seed }
+    : order.status === 'cancelled' ? { bg: c.dangerTint, fg: c.danger }
+    : order.status === 'paid' ? { bg: c.goldTint, fg: c.goldInk }
+    : { bg: c.surfaceSoft, fg: c.ink2 };
+  const addr = order.shipping_address;
 
-    notice: {
-      marginHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.md,
-      backgroundColor: C.goldBg, borderRadius: Theme.radius.md, padding: 10, borderWidth: 0.5, borderColor: C.goldDim,
-    },
-    noticeText: { fontSize: 12, color: C.gold, fontWeight: '600' },
+  return (
+    <View style={[{ flexDirection: 'row', gap: space[3], padding: space[4], borderRadius: radius.lg, backgroundColor: c.surface }, shadow('card')]}>
+      {thumb}
+      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space[2] }}>
+          <Text style={[type.callout, font(700), { color: c.ink, flex: 1 }]} numberOfLines={2}>{order.marketplace_products?.title ?? 'Product'}</Text>
+          <View style={{ height: 22, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: statusLook.bg, justifyContent: 'center' }}>
+            <Text style={[type.micro, { color: statusLook.fg }]}>{orderStatusLabel(order.status)}</Text>
+          </View>
+        </View>
+        <Text style={[type.caption, { color: c.ink2 }]}>
+          {order.variant_label ? `${order.variant_label} · ` : ''}Qty {order.quantity} · {formatMoney(order.total_cents)}
+          {(order.shipping_cents ?? 0) > 0 ? ` + ${formatMoney(order.shipping_cents)} shipping` : ''} · {shortDate(order.created_at)}
+        </Text>
+        {order.seller_payout_cents != null ? (
+          // Same split the admin Payouts page shows: Siqa's 6.5% fee,
+          // this order's share of Stripe processing and of the
+          // Stripe Tax fee come off first.
+          <Text style={[type.caption, { color: c.ink2 }]}>
+            You get <Text style={[font(700), { color: c.ink }]}>{formatMoney(order.seller_payout_cents)}</Text>
+            {' '}(fees {formatMoney((order.siqa_fee_cents ?? 0) + (order.processing_fee_cents ?? 0) + (order.tax_fee_cents ?? 0))})
+          </Text>
+        ) : null}
+        {addr?.line1 && order.status !== 'pending' ? (
+          <View style={{ marginTop: 6, padding: space[3], borderRadius: radius.sm, backgroundColor: c.bgSunk, gap: 2 }}>
+            <Text style={[type.micro, { color: c.ink2 }]}>Ship to</Text>
+            <Text style={[type.caption, font(400), { color: c.ink }]} selectable>
+              {[
+                order.shipping_name,
+                addr.line1,
+                addr.line2,
+                [addr.city, addr.state, addr.postal_code].filter(Boolean).join(' '),
+              ].filter(Boolean).join('\n')}
+            </Text>
+          </View>
+        ) : null}
+        {order.status === 'cancelled' && (order.refunded_cents || order.cancel_reason) ? (
+          <Text style={[type.caption, { color: c.ink2 }]}>
+            {(order.refunded_cents ?? 0) > 0 ? `Refunded ${formatMoney(order.refunded_cents)} to the buyer` : 'Not charged'}
+            {order.cancel_reason ? ` · "${order.cancel_reason}"` : ''}
+          </Text>
+        ) : null}
 
-    tabs: {
-      flexDirection: 'row', marginHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.md,
-      backgroundColor: C.surface2, borderRadius: 999, padding: 3,
-    },
-    tab: { flex: 1, paddingVertical: 9, borderRadius: 999, alignItems: 'center' },
-    tabActive: { backgroundColor: C.gold },
-    tabText: { fontSize: 12, fontWeight: '700', color: C.text3 },
-    tabTextActive: { color: C.black },
-
-    body: { paddingHorizontal: Theme.spacing.lg, gap: 12, maxWidth: 760, width: '100%', alignSelf: 'center' },
-    empty: { alignItems: 'center', paddingTop: 60, gap: 10 },
-    emptyEmoji: { fontSize: 36 },
-    emptyText: { color: C.text3, fontSize: 14, fontWeight: '600' },
-
-    orderCard: {
-      flexDirection: 'row', gap: 12, backgroundColor: C.surface, borderRadius: Theme.radius.lg,
-      padding: 12, borderWidth: 0.5, borderColor: C.border2, alignItems: 'center',
-    },
-    orderImage: { width: 56, height: 56, borderRadius: Theme.radius.md, backgroundColor: C.surface2, overflow: 'hidden' },
-    orderTitle: { fontSize: 13, fontWeight: '700', color: C.text },
-    orderMeta: { fontSize: 11, color: C.text3, marginTop: 2 },
-    cancelPanel: {
-      marginTop: 10, padding: 10, borderRadius: 10, gap: 8,
-      backgroundColor: C.surface2, borderWidth: 0.5, borderColor: C.border2,
-    },
-    cancelTitle: { fontSize: 13, fontWeight: '700', color: C.text },
-    cancelHint: { fontSize: 12, color: C.text2, lineHeight: 17 },
-    cancelInput: {
-      minHeight: 56, borderWidth: 1, borderColor: C.border, borderRadius: 8, padding: 8,
-      fontSize: 13, color: C.text, backgroundColor: C.bg, textAlignVertical: 'top',
-    },
-    cancelErrorText: { fontSize: 12, color: C.live },
-    dangerBtn: buttonStyles('danger', 'sm').box,
-    dangerBtnText: buttonStyles('danger', 'sm').text,
-    shipTo: { marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: C.surface2 },
-    shipToLabel: { fontSize: 10, fontWeight: '700', color: C.text3, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-    shipToText: { fontSize: 12, color: C.text, lineHeight: 17 },
-    shippingRow: {
-      flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-      marginHorizontal: Theme.spacing.lg, marginBottom: Theme.spacing.md,
-      padding: 10, borderRadius: Theme.radius.md, backgroundColor: C.surface, borderWidth: 0.5, borderColor: C.border2,
-    },
-    shippingLabel: { fontSize: 13, color: C.text2 },
-    shippingValue: { fontWeight: '700', color: C.text },
-    shippingEdit: { fontSize: 13, fontWeight: '700', color: C.gold, marginLeft: 4 },
-    shippingInput: {
-      width: 80, borderWidth: 1, borderColor: C.border, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
-      fontSize: 14, color: C.text, backgroundColor: C.bg,
-    },
-    orderStatus: { fontSize: 10, fontWeight: '800', marginTop: 4, letterSpacing: 0.5 },
-    orderActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-    smallBtn: buttonStyles('primary', 'sm').box,
-    smallBtnText: buttonStyles('primary', 'sm').text,
-    smallBtnGhost: buttonStyles('secondary', 'sm').box,
-    smallBtnGhostText: buttonStyles('secondary', 'sm').text,
-  }));
+        {cancelling ? (
+          <View style={{ marginTop: space[2], padding: space[3], borderRadius: radius.md, backgroundColor: c.bgSunk, gap: space[2] }}>
+            <Text style={[type.callout, font(700), { color: c.ink }]}>
+              {order.status === 'pending'
+                ? 'Cancel this unpaid order?'
+                : `Refund the buyer ${formatMoney(order.total_cents + (order.shipping_cents ?? 0) + (order.tax_cents ?? 0))}?`}
+            </Text>
+            {order.status !== 'pending' ? (
+              <Text style={[type.caption, font(400), { color: c.ink2 }]}>
+                The buyer gets this item's price, shipping and tax back. Your payout for it
+                {order.seller_payout_cents != null ? ` (${formatMoney(order.seller_payout_cents)})` : ''} is taken back.
+              </Text>
+            ) : null}
+            <TextInput
+              value={cancelReason}
+              onChangeText={onReason}
+              placeholder="Reason for the buyer (e.g. out of stock)"
+              placeholderTextColor={c.ink3}
+              accessibilityLabel="Reason for the buyer"
+              maxLength={500}
+              multiline
+              style={[type.callout, { minHeight: 64, padding: space[3], borderRadius: radius.sm, backgroundColor: c.surface, color: c.ink, textAlignVertical: 'top', outlineStyle: 'none' } as any]}
+            />
+            {cancelError ? <Text style={[type.caption, { color: c.danger }]}>{cancelError}</Text> : null}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+              <Button label={order.status === 'pending' ? 'Cancel order' : 'Cancel & refund'} variant="danger" size="sm" loading={busy} onPress={onConfirmCancel} />
+              <Button label="Keep order" variant="secondary" size="sm" disabled={busy} onPress={onStopCancel} />
+            </View>
+          </View>
+        ) : (nextStatus || canCancel) ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2], marginTop: space[2] }}>
+            {nextStatus ? <Button label={NEXT_LABEL[order.status]} variant="primary" size="sm" loading={busy} onPress={onAdvance} /> : null}
+            {canCancel ? <Button label={order.status === 'pending' ? 'Cancel' : 'Cancel & refund'} variant="secondary" size="sm" disabled={busy} onPress={onStartCancel} /> : null}
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
 }
