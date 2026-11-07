@@ -26,7 +26,7 @@ import { brandStyles, font } from '../../../lib/ds';
 import { Button, IconButton, Stepper } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 import { goBack } from '../../../lib/goBack';
-import { categoryPath, priceRange, variantKey, type Variations } from '../../../lib/productTaxonomy';
+import { categoryPath, imageFor, priceRange, variantKey, type Variations } from '../../../lib/productTaxonomy';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -249,7 +249,7 @@ function ProductDetailScreen() {
       title: selectedKey ? `${product.title} (${selectedKey})` : product.title,
       price_cents: unitPrice,
       currency: product.currency,
-      image: product.images?.[0] ?? null,
+      image: imageFor(product, selectedKey),
       category: product.category,
       quantity,
     });
@@ -363,6 +363,13 @@ function ProductDetailScreen() {
   const optionSoldOut = (attr: string, opt: string) =>
     !!vars?.quantity_varies && !product.is_digital && vars.attributes.length === 1 &&
     (vars.variants.find((v) => v.key === opt)?.inventory ?? 0) <= 0;
+  // Etsy-style linked photos: picking "Navy" jumps to the Navy photo.
+  function showOptionPhoto(attr: string, opt: string) {
+    const oi = vars?.option_images;
+    if (!oi || oi.attribute !== attr || !oi.images[opt]) return;
+    const idx = images.indexOf(oi.images[opt]);
+    if (idx >= 0) setActiveImage(idx);
+  }
   const priceLabel = selectedVariant || range.min === range.max
     ? formatPrice(unitPrice, product.currency)
     : `${formatPrice(range.min, product.currency)} – ${formatPrice(range.max, product.currency)}`;
@@ -525,7 +532,7 @@ function ProductDetailScreen() {
                     <TouchableOpacity
                       key={o}
                       disabled={out}
-                      onPress={() => { setPicked((p) => ({ ...p, [a.name]: on ? '' : o })); setPickError(false); setQuantity(1); }}
+                      onPress={() => { setPicked((p) => ({ ...p, [a.name]: on ? '' : o })); setPickError(false); setQuantity(1); if (!on) showOptionPhoto(a.name, o); }}
                       accessibilityRole="radio"
                       accessibilityState={{ checked: on, disabled: out }}
                       accessibilityLabel={`${a.name} ${o}${out ? ', sold out' : ''}`}

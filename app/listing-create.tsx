@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { supabase } from '../lib/supabase';
@@ -44,6 +44,9 @@ const dollars = (cents: number) => (cents / 100).toFixed(2);
 const toCents = (v: string) => Math.round(parseFloat(v || '0') * 100);
 
 export default function ListingCreateScreen() {
+  // ?id=… edits an existing product; no id creates a new one.
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const isEdit = typeof editId === 'string' && editId.length > 0;
   const { colors: C } = useTheme();
   const ds = useDS();
   const { c, shadow } = ds;
@@ -74,6 +77,9 @@ export default function ListingCreateScreen() {
   const [variants, setVariants] = useState<Variant[]>([]);
   const [newOption, setNewOption] = useState<Record<number, string>>({});
   const [customVarName, setCustomVarName] = useState('');
+  // Photo per option (Etsy "link photos"): one variation's options -> a product photo.
+  const [photoAttr, setPhotoAttr] = useState<string | null>(null);
+  const [optionImages, setOptionImages] = useState<Record<string, string>>({});
 
   // Sheets
   const [sheet, setSheet] = useState<SheetKind>(null);
@@ -103,6 +109,40 @@ export default function ListingCreateScreen() {
     }
     setSellerId(seller.id);
     setSellerApproved(seller.approval_status === 'approved');
+
+    if (isEdit) {
+      const { data: p } = await supabase
+        .from('marketplace_products')
+        .select('id, seller_id, title, description, price_cents, inventory_count, is_digital, category, subcategory, item_type, attributes, variations, images')
+        .eq('id', editId)
+        .maybeSingle();
+      if (!p || p.seller_id !== seller.id) {
+        showToast("You can only edit your own products");
+        router.replace('/seller-dashboard' as any);
+        return;
+      }
+      setTitle(p.title ?? '');
+      setDescription(p.description ?? '');
+      setPrice(p.price_cents ? (p.price_cents / 100).toFixed(2) : '');
+      setInventory(String(p.is_digital ? 1 : p.inventory_count ?? 0));
+      setIsDigital(Boolean(p.is_digital));
+      setCategory(p.category ?? null);
+      setSubcategory(p.subcategory ?? null);
+      setItemType(p.item_type ?? null);
+      setDetails((p.attributes as Record<string, string>) ?? {});
+      setImages(p.images ?? []);
+      const v = p.variations as Variations | null;
+      if (v?.attributes?.length) {
+        setVarAttrs(v.attributes);
+        setPriceVaries(Boolean(v.price_varies));
+        setQtyVaries(Boolean(v.quantity_varies));
+        setVariants(v.variants ?? []);
+        if (v.option_images) {
+          setPhotoAttr(v.option_images.attribute);
+          setOptionImages(v.option_images.images ?? {});
+        }
+      }
+    }
     setLoading(false);
   }
 
@@ -136,6 +176,7 @@ export default function ListingCreateScreen() {
 
   function removeImage(url: string) {
     setImages(prev => prev.filter(u => u !== url));
+    setOptionImages(prev => Object.fromEntries(Object.entries(prev).filter(([, u]) => u !== url)));
   }
 
   // ── Variations ──────────────────────────────────────────────────────
@@ -172,6 +213,12 @@ export default function ListingCreateScreen() {
   }
 
   const hasVariations = varAttrs.some((a) => a.options.length > 0);
+  // Which variation's options get their own photo: the seller's pick, else
+  // Color if there is one, else the first.
+  const linkedAttr = varAttrs.find((a) => a.name === photoAttr)?.name
+    ?? varAttrs.find((a) => /colou?r/i.test(a.name))?.name
+    ?? varAttrs[0]?.name
+    ?? null;
   const variationSummary = varAttrs.filter((a) => a.options.length).map((a) => `${a.name}: ${a.options.join(', ')}`);
 
   // ── Submit ──────────────────────────────────────────────────────────
@@ -196,7 +243,17 @@ export default function ListingCreateScreen() {
         price_cents: priceVaries ? v.price_cents : basePriceCents,
         inventory: isDigital ? 999999 : qtyVaries ? v.inventory : baseStock,
       }));
-      variations = { attributes: live, price_varies: priceVaries, quantity_varies: qtyVaries && !isDigital, variants: vs };
+      const linkAttr = live.find((a) => a.name === linkedAttr);
+      const linked = linkAttr
+        ? Object.fromEntries(Object.entries(optionImages).filter(([o, u]) => linkAttr.options.includes(o) && images.includes(u)))
+        : {};
+      variations = {
+        attributes: live,
+        price_varies: priceVaries,
+        quantity_varies: qtyVaries && !isDigital,
+        variants: vs,
+        option_images: linkAttr && Object.keys(linked).length ? { attribute: linkAttr.name, images: linked } : null,
+      };
       if (priceVaries) priceCents = Math.min(...vs.map((v) => v.price_cents));
       if (qtyVaries && !isDigital) stockCount = vs.reduce((n, v) => n + Math.max(0, v.inventory), 0);
     }
@@ -204,21 +261,23 @@ export default function ListingCreateScreen() {
     const cleanDetails = Object.fromEntries(Object.entries(details).filter(([, v]) => v && v.trim()));
 
     setSaving(true);
-    const { error } = await supabase.from('marketplace_products').insert({
-      seller_id: sellerId,
+    const row = {
       title: title.trim(),
       description: description.trim() || null,
       price_cents: priceCents,
       inventory_count: stockCount,
       is_digital: isDigital,
-      status: 'active',
+      ...(isEdit ? {} : { status: 'active' }),
       category,
       subcategory,
       item_type: itemType,
       attributes: cleanDetails,
       variations,
       images,
-    });
+    };
+    const { error } = isEdit
+      ? await supabase.from('marketplace_products').update(row).eq('id', editId).eq('seller_id', sellerId)
+      : await supabase.from('marketplace_products').insert({ ...row, seller_id: sellerId });
     setSaving(false);
 
     if (error) {
@@ -228,9 +287,11 @@ export default function ListingCreateScreen() {
     // Navigate straight away — on web the old confirmation dialog never
     // showed, so sellers stayed on the filled-in form and published twice.
     showToast(
-      sellerApproved
-        ? 'Listing created — it’s live on the Marketplace'
-        : 'Listing saved — it goes live once your shop is approved',
+      isEdit
+        ? 'Changes saved'
+        : sellerApproved
+          ? 'Listing created — it’s live on the Marketplace'
+          : 'Listing saved — it goes live once your shop is approved',
     );
     router.replace('/seller-dashboard' as any);
   }
@@ -287,7 +348,7 @@ export default function ListingCreateScreen() {
       <View style={{ paddingTop: HEADER_TOP_PADDING - 12, paddingBottom: 26 + 24 }} onLayout={drawer.onStageLayout}>
         <View onLayout={drawer.onHeaderLayout} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10 }}>
           <IconButton icon="close" label="Close" variant="raised" onPress={() => goBack('/seller-dashboard')} />
-          <Text style={[T.headline, { color: c.ink }]} accessibilityRole="header">New product</Text>
+          <Text style={[T.headline, { color: c.ink }]} accessibilityRole="header">{isEdit ? 'Edit product' : 'New product'}</Text>
           <View style={{ width: 44 }} />
         </View>
 
@@ -492,7 +553,7 @@ export default function ListingCreateScreen() {
         </ScrollView>
 
         <View style={{ paddingHorizontal: space[5], paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 30 : 20, borderTopWidth: 1, borderTopColor: c.line }}>
-          <Button label="Publish product" onPress={submit} loading={saving} disabled={!canPublish} />
+          <Button label={isEdit ? 'Save changes' : 'Publish product'} onPress={submit} loading={saving} disabled={!canPublish} />
         </View>
       </Animated.View>
 
@@ -603,6 +664,48 @@ export default function ListingCreateScreen() {
               <TextField value={customVarName} onChangeText={setCustomVarName} onSubmitEditing={() => addVariation(customVarName)} placeholder="Or name your own (e.g. Fabric)" accessibilityLabel="Custom variation name" containerStyle={{ flex: 1 }} returnKeyType="done" />
               <Button label="Add" variant="soft" size="md" onPress={() => addVariation(customVarName)} />
             </View>
+          </View>
+        ) : null}
+
+        {hasVariations ? (
+          <View style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.line, gap: 10 }}>
+            <Text style={[T.headline, { color: c.ink }]}>Photo for each option</Text>
+            {images.length === 0 ? (
+              <Text style={[T.caption, { color: c.ink2 }]}>Add product photos first, then link one to each option so buyers see the right one when they pick it.</Text>
+            ) : (
+              <>
+                <Text style={[T.caption, { color: c.ink2 }]}>Tap a photo to show it when a buyer picks that option.</Text>
+                {varAttrs.filter((a) => a.options.length).length > 1 ? (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    {varAttrs.filter((a) => a.options.length).map((a) => (
+                      <Chip key={a.name} label={a.name} selected={linkedAttr === a.name} onPress={() => { setPhotoAttr(a.name); setOptionImages({}); }} />
+                    ))}
+                  </View>
+                ) : null}
+                {(varAttrs.find((a) => a.name === linkedAttr)?.options ?? []).map((o) => (
+                  <View key={o} style={{ gap: 6 }}>
+                    <Text style={[T.subhead, font(600), { color: c.ink }]}>{o}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {images.map((url, k) => {
+                        const on = optionImages[o] === url;
+                        return (
+                          <Pressable
+                            key={url}
+                            onPress={() => setOptionImages((m) => ({ ...m, [o]: on ? '' : url }))}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: on }}
+                            accessibilityLabel={`Photo ${k + 1} for ${o}`}
+                            style={{ width: 56, height: 70, borderRadius: 10, overflow: 'hidden', borderWidth: on ? 3 : 1, borderColor: on ? c.ink : c.line }}
+                          >
+                            <Image source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                ))}
+              </>
+            )}
           </View>
         ) : null}
 

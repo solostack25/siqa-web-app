@@ -392,6 +392,13 @@ export default function SellerDashboardScreen() {
                   </Text>
                 </View>
                 <TouchableOpacity
+                  style={[styles.smallBtnGhost, { marginRight: 6 }]}
+                  onPress={(e) => { e.stopPropagation(); router.push({ pathname: '/listing-create', params: { id: product.id } } as any); }}
+                  accessibilityLabel={`Edit ${product.title}`}
+                >
+                  <Text style={styles.smallBtnGhostText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.smallBtnGhost}
                   onPress={(e) => { e.stopPropagation(); toggleListing(product); }}
                   disabled={busyId === product.id}

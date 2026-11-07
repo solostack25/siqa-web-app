@@ -216,6 +216,8 @@ export type Variations = {
   price_varies: boolean;
   quantity_varies: boolean;
   variants: Variant[];
+  /** Photos linked to one variation's options, e.g. Color → { Black: url }. */
+  option_images?: { attribute: string; images: Record<string, string> } | null;
 };
 
 export function variantKey(values: string[]) {
@@ -257,4 +259,15 @@ export function stockFor(p: Priced, key?: string | null) {
   if (p.is_digital) return Infinity;
   const v = findVariant(p, key);
   return v && p.variations?.quantity_varies ? v.inventory : p.inventory_count;
+}
+
+/** The photo linked to the chosen option (e.g. the Navy one), if any. */
+export function imageFor(p: { images?: string[] | null; variations?: Variations | null }, key?: string | null) {
+  const oi = p.variations?.option_images;
+  if (key && oi && p.variations) {
+    const idx = p.variations.attributes.findIndex((a) => a.name === oi.attribute);
+    const value = idx >= 0 ? key.split(' / ')[idx] : undefined;
+    if (value && oi.images[value]) return oi.images[value];
+  }
+  return p.images?.[0] ?? null;
 }

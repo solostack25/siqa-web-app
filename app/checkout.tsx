@@ -1,4 +1,4 @@
-import { unitPriceFor } from '../lib/productTaxonomy';
+import { unitPriceFor, imageFor } from '../lib/productTaxonomy';
 import {
   View,
   Text,
@@ -136,7 +136,7 @@ export default function CheckoutScreen() {
           title: variantKeyParam ? `${data.title} (${variantKeyParam})` : data.title,
           price_cents: unitPriceFor(data as any, variantKeyParam),
           quantity: Number(quantity) || 1,
-          image: data.images?.[0] ?? null,
+          image: imageFor(data as any, variantKeyParam),
           is_digital: Boolean(data.is_digital),
         }]);
       }
@@ -156,7 +156,7 @@ export default function CheckoutScreen() {
               title: row.variant_key ? `${row.marketplace_products.title} (${row.variant_key})` : row.marketplace_products.title,
               price_cents: unitPriceFor(row.marketplace_products, row.variant_key),
               quantity: row.quantity,
-              image: row.marketplace_products.images?.[0] ?? null,
+              image: imageFor(row.marketplace_products, row.variant_key),
               is_digital: Boolean(row.marketplace_products.is_digital),
             }))
         );

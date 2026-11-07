@@ -1,4 +1,4 @@
-import { unitPriceFor, stockFor, type Variations } from '../lib/productTaxonomy';
+import { unitPriceFor, stockFor, imageFor, type Variations } from '../lib/productTaxonomy';
 import {
   View,
   Text,
@@ -253,12 +253,13 @@ export default function CartScreen() {
           const busy = busyId === item.id;
           const max = p.is_digital ? 99 : stockFor(p, item.variant_key);
           const each = unitPriceFor(p, item.variant_key);
+          const photo = imageFor(p, item.variant_key);
           return (
             <View key={item.id} style={[styles.itemRow, idx > 0 && styles.itemDivider, busy && { opacity: 0.6 }]}>
               <TouchableOpacity onPress={() => openProduct(p.id)}>
                 <View style={[styles.itemImage, { width: imgSize, height: imgSize }]}>
-                  {p.images?.[0] ? (
-                    <Image source={{ uri: p.images[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  {photo ? (
+                    <Image source={{ uri: photo }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                   ) : (
                     <Glyph name="bag-handle-outline" style={{ fontSize: 24, opacity: 0.4 }} />
                   )}
