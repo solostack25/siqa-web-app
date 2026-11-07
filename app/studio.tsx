@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Image,
   TextInput,
@@ -19,7 +20,8 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
-import { brandStyles } from '../lib/ds';
+import { brandStyles, font, radius, type as dsType, useDS } from '../lib/ds';
+import { SegmentedControl, BottomSheet, OptionRow } from '../components/ui';
 
 /**
  * Speaker Studio — the speaker's own dashboard: channel analytics plus a
@@ -71,6 +73,7 @@ type StatusKey = 'published' | 'scheduled' | 'draft' | 'removed';
 type StatusFilter = 'all' | StatusKey;
 type TypeFilter = 'all' | 'long' | 'short';
 type SortKey = 'newest' | 'views' | 'likes' | 'comments';
+const SORT_LABELS: Record<SortKey, string> = { newest: 'Newest', views: 'Most views', likes: 'Most likes', comments: 'Most comments' };
 
 type Activity = {
   followers: string[];
@@ -182,6 +185,7 @@ async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<
 
 export default function StudioScreen() {
   const { colors: C } = useTheme();
+  const ds = useDS();
   const isDesktopWeb = useIsDesktopWeb();
   const { width: windowWidth } = useWindowDimensions();
   const contentWidth = isDesktopWeb ? windowWidth - SIDEBAR_WIDTH : windowWidth;
@@ -204,6 +208,7 @@ export default function StudioScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [sortKey, setSortKey] = useState<SortKey>('newest');
+  const [menu, setMenu] = useState<'status' | 'sort' | null>(null);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -531,6 +536,24 @@ export default function StudioScreen() {
     </TouchableOpacity>
   );
 
+  const MenuButton = ({ caption, value, onPress, grow }: { caption: string; value: string; onPress: () => void; grow?: boolean }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${caption}: ${value}. Change`}
+      style={({ pressed }) => ({
+        flexGrow: grow ? 1 : 0, flexBasis: grow ? 0 : 'auto', minHeight: 40, paddingHorizontal: 14, borderRadius: radius.md,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        backgroundColor: ds.c.surfaceSoft, opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Text style={[dsType.caption, { color: ds.c.ink2 }]} numberOfLines={1}>
+        {caption} <Text style={[font(700), { color: ds.c.ink }]}>{value}</Text>
+      </Text>
+      <Icon name="chevron-down" size={15} color={ds.c.ink2} />
+    </Pressable>
+  );
+
   const Thumb = ({ v, w, h }: { v: StudioVideo; w: number; h: number }) => (
     <View style={[styles.thumb, { width: w, height: h }]}>
       {v.thumbnail_url ? (
@@ -785,29 +808,29 @@ export default function StudioScreen() {
                 </View>
               </View>
 
-              <View style={styles.pillRow}>
-                {(['all', 'published', 'scheduled', 'draft', 'removed'] as StatusFilter[])
-                  .filter(s => s === 'all' || s === 'published' || statusCounts[s] > 0)
-                  .map(s => (
-                    <Chip
-                      key={s}
-                      active={statusFilter === s}
-                      label={`${s === 'all' ? 'All' : statusStyle(s as StatusKey).label} · ${statusCounts[s]}`}
-                      onPress={() => { setStatusFilter(s); setPage(0); }}
-                    />
-                  ))}
-              </View>
-              <View style={styles.filterRow}>
-                <View style={styles.pillRow}>
-                  {([['all', 'All types'], ['long', 'Videos'], ['short', 'Gems']] as [TypeFilter, string][]).map(([k, l]) => (
-                    <Chip key={k} active={typeFilter === k} label={l} onPress={() => { setTypeFilter(k); setPage(0); }} />
-                  ))}
-                </View>
-                <View style={styles.pillRow}>
-                  <Text style={styles.sortLabel}>Sort</Text>
-                  {([['newest', 'Newest'], ['views', 'Views'], ['likes', 'Likes'], ['comments', 'Comments']] as [SortKey, string][]).map(([k, l]) => (
-                    <Chip key={k} active={sortKey === k} label={l} onPress={() => { setSortKey(k); setPage(0); }} />
-                  ))}
+              {/* Type as a segmented control; status and sort as dropdowns, so the
+                  filters take one or two tidy rows instead of three of pills. */}
+              <View style={styles.filterBar}>
+                <SegmentedControl
+                  label="Type"
+                  value={typeFilter}
+                  onChange={(k) => { setTypeFilter(k); setPage(0); }}
+                  options={[{ value: 'all', label: 'All' }, { value: 'long', label: 'Videos' }, { value: 'short', label: 'Gems' }]}
+                  style={{ flexGrow: 1, flexBasis: 260, maxWidth: wide ? 360 : undefined }}
+                />
+                <View style={{ flexDirection: 'row', gap: 8, flexGrow: wide ? 0 : 1 }}>
+                  <MenuButton
+                    caption="Show"
+                    value={statusFilter === 'all' ? 'All' : statusStyle(statusFilter as StatusKey).label}
+                    onPress={() => setMenu('status')}
+                    grow={!wide}
+                  />
+                  <MenuButton
+                    caption="Sort"
+                    value={SORT_LABELS[sortKey]}
+                    onPress={() => setMenu('sort')}
+                    grow={!wide}
+                  />
                 </View>
               </View>
 
@@ -902,6 +925,30 @@ export default function StudioScreen() {
           </View>
         </ScrollView>
       </View>
+      <BottomSheet visible={menu === 'status'} onClose={() => setMenu(null)} title="Show">
+        {(['all', 'published', 'scheduled', 'draft', 'removed'] as StatusFilter[])
+          .filter(st => st === 'all' || st === 'published' || statusCounts[st] > 0)
+          .map((st, i, all) => (
+            <OptionRow
+              key={st}
+              label={`${st === 'all' ? 'All' : statusStyle(st as StatusKey).label} · ${statusCounts[st]}`}
+              selected={statusFilter === st}
+              last={i === all.length - 1}
+              onPress={() => { setStatusFilter(st); setPage(0); setMenu(null); }}
+            />
+          ))}
+      </BottomSheet>
+      <BottomSheet visible={menu === 'sort'} onClose={() => setMenu(null)} title="Sort by">
+        {(Object.keys(SORT_LABELS) as SortKey[]).map((k, i, all) => (
+          <OptionRow
+            key={k}
+            label={SORT_LABELS[k]}
+            selected={sortKey === k}
+            last={i === all.length - 1}
+            onPress={() => { setSortKey(k); setPage(0); setMenu(null); }}
+          />
+        ))}
+      </BottomSheet>
     </DesktopShell>
   );
 }
@@ -1004,6 +1051,7 @@ function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
     },
     searchInput: { flex: 1, fontSize: 14, color: C.text, minWidth: 0, ...(Platform.OS === 'web' ? { outlineStyle: 'none' as any } : {}) },
     filterRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
+    filterBar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', flexShrink: 1, maxWidth: '100%' },
     pill: {
       height: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: C.border,
