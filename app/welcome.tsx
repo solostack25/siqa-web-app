@@ -38,7 +38,7 @@ type Spot = {
   bg: string; fg: string; tagBg: string; btnBg: string; btnFg: string;
 };
 const SPOTS: Record<MoodKey, Spot> = {
-  learn: { label: 'Learn something', where: 'Gems · the ▶ button', title: 'Watch something good', body: 'Short clips and full talks from speakers Siqa has verified.', points: ['Quick reminders', 'Full khutbahs and lectures', 'Speakers you can trust'], cta: 'Open Gems', href: '/gems', bg: B.night, fg: B.nightInk, tagBg: 'rgba(212,172,115,0.2)', btnBg: B.brandGold, btnFg: B.night },
+  learn: { label: 'Learn something', where: 'Gems · the ▶ button', title: 'Watch something good', body: 'Short clips and full talks, straight from each speaker’s official channel.', points: ['Quick reminders', 'Full khutbahs and lectures', 'Real talks, not AI'], cta: 'Open Gems', href: '/gems', bg: B.night, fg: B.nightInk, tagBg: 'rgba(212,172,115,0.2)', btnBg: B.brandGold, btnFg: B.night },
   give: { label: 'Give back', where: 'Seeds tab', title: 'Plant a Seed', body: 'Back a masjid or nonprofit campaign with a clear goal.', points: ['Masjid and nonprofit campaigns', 'Watch the progress grow', 'Share it with family'], cta: 'See Seeds', href: '/seeds', bg: B.seed, fg: '#ffffff', tagBg: 'rgba(255,255,255,0.18)', btnBg: '#ffffff', btnFg: B.seed },
   shop: { label: 'Shop', where: 'Shop tab', title: 'Shop Muslim-owned', body: 'Products from Muslim-owned sellers, plus local services near you.', points: ['Handmade and small-batch goods', 'Local services near you', 'Message sellers directly'], cta: 'Browse the Shop', href: '/marketplace', bg: B.gold, fg: B.ink, tagBg: 'rgba(255,255,255,0.3)', btnBg: B.ink, btnFg: '#ffffff' },
   connect: { label: 'Find my community', where: 'Orgs tab', title: 'Find your people', body: 'Masjids, schools and nonprofits near you, all in one place.', points: ['Follow your masjid', 'See their Seeds and videos', 'Find one near you'], cta: 'Find organizations', href: '/orgs', bg: B.sand, fg: B.ink, tagBg: '#ffffff', btnBg: B.ink, btnFg: '#ffffff' },
@@ -100,7 +100,7 @@ function Collage({ wide }: { wide: boolean }) {
         <View style={{ width: 26 * k, height: 26 * k, borderRadius: 999, backgroundColor: B.seed, alignItems: 'center', justifyContent: 'center' }}>
           <Icon name="checkmark" size={15 * k} color="#ffffff" />
         </View>
-        <Text style={[{ color: B.ink, fontSize: 12 * k }, font(700)]}>Verified speaker</Text>
+        <Text style={[{ color: B.ink, fontSize: 12 * k }, font(700)]}>Official channel</Text>
       </View>
     </View>
   );
@@ -123,10 +123,10 @@ export default function Welcome() {
     router.replace(appStartPath(wide) as any);
   };
 
-  const trust = ['Verified speakers', 'Checked nonprofits', 'Real owners on every profile'];
+  const trust = ['From official channels', 'Checked nonprofits', 'Claimed profiles marked'];
   const soon: { icon: SiqaIconName; title: string; body: string }[] = [
-    { icon: 'help-circle-outline', title: 'Quizzes', body: 'Test your Seerah and history knowledge, checked by our speakers.' },
-    { icon: 'stats-chart-outline', title: 'Polls', body: 'Help your masjid decide what to plan next.' },
+    { icon: 'help-circle-outline', title: 'Quizzes', body: 'Test your Seerah and history knowledge in Chai.' },
+    { icon: 'stats-chart-outline', title: 'Polls', body: 'Weigh in on community questions and see how others voted.' },
   ];
   const join: { icon: SiqaIconName; title: string; action: string; href: string }[] = [
     { icon: 'mic-outline', title: 'Speakers', action: wide ? 'Apply to post Gems' : 'Apply', href: '/apply-speaker' },
@@ -244,12 +244,12 @@ export default function Welcome() {
         </View>
       </View>
 
-      {/* Trust + coming soon */}
+      {/* Trust + new in Chai */}
       <View style={[wrap, { paddingTop: wide ? 72 : 32, flexDirection: wide ? 'row' : 'column-reverse', gap: 20 }]}>
         <View style={{ flex: wide ? 1 : undefined, borderRadius: 28, backgroundColor: B.night, padding: wide ? 32 : 22, gap: 14 }}>
           <Text style={[{ color: B.nightInk, fontSize: wide ? 30 : 22, lineHeight: wide ? 34 : 28, letterSpacing: -0.6 }, font(800, 'display')]}>No fakes. No guessing.</Text>
           <Text style={[{ color: B.nightInk2, fontSize: wide ? 16 : 15, lineHeight: wide ? 24 : 22 }, font(400)]}>
-            AI can copy a scholar's face and voice now. On Siqa, the people behind every video and campaign are checked first.
+            AI can copy a scholar's face and voice now. Every talk on Siqa comes from the speaker's own official channel, and every campaign's organization is checked before it goes live. Speakers can claim their page to get a verified badge.
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {trust.map((t) => (
@@ -263,9 +263,9 @@ export default function Welcome() {
 
         <View style={{ flex: wide ? 1 : undefined, gap: 14, ...(wide ? { borderRadius: 28, borderWidth: 1.5, borderStyle: 'dashed' as const, borderColor: '#c4a266', padding: 32 } : {}) }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={[{ color: c.ink, fontSize: wide ? 26 : 22, lineHeight: wide ? 30 : 28, letterSpacing: -0.4 }, font(800, 'display')]}>On the way</Text>
+            <Text style={[{ color: c.ink, fontSize: wide ? 26 : 22, lineHeight: wide ? 30 : 28, letterSpacing: -0.4 }, font(800, 'display')]}>Chai</Text>
             <View style={[s.pill, { backgroundColor: c.goldTint, height: 24 }]}>
-              <Text style={[{ color: c.goldInk, fontSize: 12 }, font(700)]}>Coming soon</Text>
+              <Text style={[{ color: c.goldInk, fontSize: 12 }, font(700)]}>New</Text>
             </View>
           </View>
           <View style={{ flexDirection: wide ? 'column' : 'row', gap: 12 }}>
