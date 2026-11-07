@@ -21,6 +21,7 @@ import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell'
 import { uploadFileToBunny } from '../../../lib/bunnyUpload';
 import { Icon } from '../../../components/Icon';
 import { shareSpeaker } from '../../../lib/share';
+import { useBlocked, blockUser, unblockUser } from '../../../lib/blocks';
 import ImageCropModal from '../../../components/ImageCropModal';
 import { ClaimNotice, UnclaimedBadge } from '../../../components/ClaimNotice';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../../lib/ds';
@@ -202,6 +203,7 @@ function SpeakerProfileScreen() {
   // Profiles Siqa curated from public lectures aren't run by the speaker
   // until they claim them. Treat a missing column as claimed.
   const unclaimed = speaker ? speaker.is_claimed === false : false;
+  const blockedSet = useBlocked();
   const isOwner = Boolean(userId) && speaker?.profile_id === userId && !unclaimed;
 
   async function toggleFollow() {
@@ -483,6 +485,15 @@ function SpeakerProfileScreen() {
       >
         <Icon name="share-outline" size={18} color={C.text} />
       </TouchableOpacity>
+      {speaker.profile_id && !isOwner && userId ? (
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => (blockedSet.has(speaker.profile_id!) ? unblockUser(speaker.profile_id!) : blockUser(speaker.profile_id, speaker.display_name))}
+          accessibilityLabel={blockedSet.has(speaker.profile_id) ? `Unblock ${speaker.display_name}` : `Block ${speaker.display_name}`}
+        >
+          <Icon name="ban-outline" size={18} color={blockedSet.has(speaker.profile_id) ? C.danger : C.text} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 

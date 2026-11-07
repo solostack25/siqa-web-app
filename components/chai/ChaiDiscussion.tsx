@@ -1,6 +1,6 @@
 // The discussion under a Chai poll or quiz: newest or top comments, each
 // with the commenter's vote or result as a badge, likes, one level of
-// replies, and delete for your own comments.
+// replies, delete for your own comments, and Report or Block on others'.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, Platform, Alert } from 'react-native';
@@ -8,6 +8,9 @@ import { router } from 'expo-router';
 import { chai, chaiFont, chunky, fetchComments, addComment, toggleLike, deleteComment, shortName, ago, type ChaiComment } from '../../lib/chai';
 import { Squiggle } from './ChaiUI';
 import { Icon } from '../Icon';
+import { BottomSheet, OptionRow } from '../ui';
+import { useBlocked, blockUser, reportContent, REPORT_REASONS } from '../../lib/blocks';
+import { showToast } from '../Toast';
 
 const BADGE_COLORS = [chai.saffron, chai.rose, chai.cardamom, chai.masala, chai.plum];
 function badgeColor(label: string) {
@@ -29,6 +32,9 @@ export function ChaiDiscussion({ postId, title = 'The debate', placeholder = 'Ad
   const [replyTo, setReplyTo] = useState<ChaiComment | null>(null);
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [menu, setMenu] = useState<ChaiComment | null>(null);
+  const [reporting, setReporting] = useState<ChaiComment | null>(null);
+  const blocked = useBlocked();
 
   const load = useCallback(async () => {
     const r = await fetchComments(postId);
@@ -38,14 +44,15 @@ export function ChaiDiscussion({ postId, title = 'The debate', placeholder = 'Ad
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  const visible = useMemo(() => comments.filter(c => !blocked.has(c.profile_id)), [comments, blocked]);
   const { tops, replies } = useMemo(() => {
-    const tops = comments.filter(c => !c.parent_id);
+    const tops = visible.filter(c => !c.parent_id);
     const replies: Record<string, ChaiComment[]> = {};
-    comments.filter(c => c.parent_id).forEach(c => { (replies[c.parent_id!] ??= []).push(c); });
+    visible.filter(c => c.parent_id).forEach(c => { (replies[c.parent_id!] ??= []).push(c); });
     Object.values(replies).forEach(l => l.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at)));
     tops.sort((a, b) => sort === 'top' ? (b.like_count - a.like_count) || (+new Date(b.created_at) - +new Date(a.created_at)) : +new Date(b.created_at) - +new Date(a.created_at));
     return { tops, replies };
-  }, [comments, sort]);
+  }, [visible, sort]);
 
   async function post() {
     if (!text.trim()) return;
@@ -102,7 +109,11 @@ export function ChaiDiscussion({ postId, title = 'The debate', placeholder = 'Ad
             ) : null}
             {me === c.profile_id ? (
               <Pressable onPress={() => remove(c)} hitSlop={10} accessibilityRole="button"><Text style={{ fontSize: 12, fontWeight: '700', color: '#b4412c' }}>Delete</Text></Pressable>
-            ) : null}
+            ) : (
+              <Pressable onPress={() => { if (!me) { router.push('/(auth)/sign-in' as any); return; } setMenu(c); }} hitSlop={10} accessibilityRole="button" accessibilityLabel={`More options for ${name}'s comment`}>
+                <Icon name="ellipsis-horizontal" size={16} color={chai.ink2} />
+              </Pressable>
+            )}
           </View>
           {(replies[c.id] ?? []).map(r => row(r, true))}
         </View>
@@ -115,7 +126,7 @@ export function ChaiDiscussion({ postId, title = 'The debate', placeholder = 'Ad
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <View>
           <Text style={[chaiFont('displayBold'), { fontSize: 22, color: chai.ink }]} accessibilityRole="header">
-            {title} <Text style={{ color: chai.masala }}>· {comments.length}</Text>
+            {title} <Text style={{ color: chai.masala }}>· {visible.length}</Text>
           </Text>
           <Squiggle width={96} color={chai.saffron} />
         </View>
@@ -162,6 +173,26 @@ export function ChaiDiscussion({ postId, title = 'The debate', placeholder = 'Ad
       ) : (
         <View style={{ gap: 10 }}>{tops.map(c => row(c))}</View>
       )}
+
+      <BottomSheet visible={!!menu} onClose={() => setMenu(null)} title="Comment">
+        {menu ? (
+          <>
+            <OptionRow action icon="flag-outline" label="Report" onPress={() => { const m = menu; setMenu(null); setReporting(m); }} />
+            <OptionRow action icon="ban-outline" label={`Block ${shortName(menu.profiles?.full_name)}`} last onPress={() => { const m = menu; setMenu(null); blockUser(m.profile_id, shortName(m.profiles?.full_name)); }} />
+          </>
+        ) : null}
+      </BottomSheet>
+      <BottomSheet visible={!!reporting} onClose={() => setReporting(null)} title="Report comment">
+        <Text style={{ fontSize: 13, color: '#6b6b66', marginBottom: 6 }}>What's wrong with it? Siqa reviews every report.</Text>
+        {REPORT_REASONS.map((r, i) => (
+          <OptionRow key={r} action label={r} last={i === REPORT_REASONS.length - 1} onPress={async () => {
+            const c = reporting; setReporting(null);
+            if (!c) return;
+            const err = await reportContent({ targetType: 'chai_comment', targetId: c.id, reportedUserId: c.profile_id, reason: r, details: c.body });
+            showToast(err ? `Couldn't send report: ${err}` : 'Thanks. Siqa will review it.');
+          }} />
+        ))}
+      </BottomSheet>
     </View>
   );
 }

@@ -28,6 +28,9 @@ import { YouTubeShortEmbed, type YouTubeShortHandle } from "../../components/You
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useFocusEffect, router, useLocalSearchParams } from "expo-router";
 import { supabase } from "../../lib/supabase";
+import { BottomSheet, OptionRow } from "../../components/ui";
+import { useBlocked, blockUser, reportContent, REPORT_REASONS } from "../../lib/blocks";
+import { showToast } from "../../components/Toast";
 import { recordView, VIEW_DELAY_MS } from "../../lib/views";
 import { shareShort } from "../../lib/share";
 import { Theme } from "../../constants/theme";
@@ -256,6 +259,7 @@ function GemClip({
   const contentTranslate = useRef(new Animated.Value(12)).current;
 
   const speaker = item.speakers;
+  const [sheet, setSheet] = useState<null | 'menu' | 'report'>(null);
   const plantSeedEnabled =
     (item as any).cta_type === "plant_seed" ||
     Boolean((item as any).fundraiser_id);
@@ -470,35 +474,15 @@ function GemClip({
       onCommentOpen(AUTH_SENTINELS.report, true);
       return;
     }
-
-    Alert.alert(
-      "Report this Gem?",
-      "A Siqa moderator will review it. Reports help keep the platform trustworthy.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Report",
-          style: "destructive",
-          onPress: async () => {
-            const result = await supabase.from("content_reports").insert({
-              video_id: item.id,
-              profile_id: user.id,
-              reason: "Gem reported by viewer",
-              status: "open",
-            });
-            if (result.error) {
-              Alert.alert(
-                "Report not saved",
-                "Reporting is not fully configured yet. Ask Claude to create the content_reports table and RLS policy.",
-              );
-              return;
-            }
-            Alert.alert("Reported", "Thank you. A moderator will review this Gem.");
-          },
-        },
-      ],
-    );
+    setSheet('menu');
   }
+
+  async function sendReport(reason: string) {
+    setSheet(null);
+    const err = await reportContent({ targetType: 'gem', targetId: item.id, videoId: item.id, reportedUserId: speaker?.profile_id ?? null, reason, details: item.title ?? null });
+    showToast(err ? `Couldn't send report: ${err}` : 'Thanks. A moderator will review this Gem.');
+  }
+
 
   return (
     <View style={[styles.clip, { height: gemHeight, width: gemWidth }, Platform.OS === 'web' && { scrollSnapAlign: 'start' } as any]}>
@@ -715,6 +699,21 @@ function GemClip({
           <Glyph name="flag-outline" style={styles.actionIcon} />
           <Text style={styles.actionCount}>Report</Text>
         </TouchableOpacity>
+        <BottomSheet visible={!!sheet} onClose={() => setSheet(null)} title={sheet === 'report' ? 'Report this Gem' : 'This Gem'}>
+          {sheet === 'report' ? (
+            <>
+              <Text style={{ fontSize: 13, color: C.text2, marginBottom: 6 }}>What's wrong with it? Siqa reviews every report.</Text>
+              {REPORT_REASONS.map((r, i) => <OptionRow key={r} action label={r} last={i === REPORT_REASONS.length - 1} onPress={() => sendReport(r)} />)}
+            </>
+          ) : (
+            <>
+              <OptionRow action icon="flag-outline" label="Report this Gem" onPress={() => setSheet('report')} last={!speaker?.profile_id} />
+              {speaker?.profile_id ? (
+                <OptionRow action icon="ban-outline" label={`Block ${speaker.display_name ?? 'this creator'}`} last onPress={() => { setSheet(null); blockUser(speaker.profile_id, speaker.display_name); }} />
+              ) : null}
+            </>
+          )}
+        </BottomSheet>
 
         {plantSeedEnabled && (
           <TouchableOpacity
@@ -746,6 +745,9 @@ function GemsScreenInner() {
   const listRef = useRef<FlatList<VideoItem>>(null);
   const [pendingScrollVideoId, setPendingScrollVideoId] = useState<string | null>(null);
   const [videos, setVideos] = useState<VideoItem[]>([]);
+  const blocked = useBlocked();
+  // Gems from creators you've blocked are skipped.
+  const shownVideos = videos.filter((v) => !blocked.has(v.speakers?.profile_id ?? ''));
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
@@ -980,7 +982,7 @@ function GemsScreenInner() {
     );
   }
 
-  if (!videos.length) {
+  if (!shownVideos.length) {
     return (
       <View style={styles.centered}>
         <Text style={styles.emptyText}>No gems yet</Text>
@@ -992,7 +994,7 @@ function GemsScreenInner() {
     <View style={[styles.container, Platform.OS === 'web' && { overflow: 'hidden', height: gemHeight }]}>
       <FlatList
         ref={listRef}
-        data={videos}
+        data={shownVideos}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <GemClip

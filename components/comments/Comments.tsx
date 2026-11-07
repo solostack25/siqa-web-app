@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { Icon } from '../Icon';
 import { Avatar } from '../SeedSocial';
 import { BottomSheet, Button, Chip, IconButton, OptionRow } from '../ui';
+import { blockUser } from '../../lib/blocks';
 import { showToast } from '../Toast';
 import { confirmDialog } from '../../lib/dialogs';
 import { font, radius, type, useDS } from '../../lib/ds';
@@ -416,6 +417,13 @@ export function CommentsView({
                 if (!api.me) { onAuthRequired('comment'); return; }
                 setReporting(m);
               }} />
+            ) : null}
+            {!isMine ? (
+              <OptionRow action icon="ban-outline" label={`Block ${menu.author.name}`} onPress={() => {
+                const m = menu; setMenu(null);
+                if (!api.me) { onAuthRequired('comment'); return; }
+                blockUser(m.profile_id, m.author.name);
+              }} last={!api.me?.admin} />
             ) : null}
             {isMine || api.me?.admin ? (
               <OptionRow action icon="trash-outline" label="Delete" onPress={() => doDelete(menu)} last />

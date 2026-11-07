@@ -507,6 +507,28 @@ export default function SettingsScreen() {
           )}
 
           <Section
+            icon="shield-checkmark-outline"
+            label="Privacy and safety"
+            sublabel="Blocked accounts, privacy policy, terms"
+            open={openSection === 'privacy'}
+            onToggle={() => toggle('privacy')}
+            alwaysOpen={isDesktopWeb}
+            gridWidth={gridWidth}
+          >
+            {([
+              ['Blocked accounts', 'ban-outline', '/blocked'],
+              ['Privacy policy', 'shield-checkmark-outline', '/privacy'],
+              ['Terms of use', 'document-text-outline', '/terms'],
+            ] as const).map(([label, icon, href], i) => (
+              <TouchableOpacity key={href} style={[styles.menuItem, i === 2 && { borderBottomWidth: 0 }]} onPress={() => router.push(href as any)}>
+                <Icon name={icon} size={18} color={C.text2} />
+                <Text style={styles.menuLabel}>{label}</Text>
+                <Text style={styles.menuArrow}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </Section>
+
+          <Section
             icon="ellipsis-horizontal"
             label="More"
             open={openSection === 'more'}

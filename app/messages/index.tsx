@@ -17,6 +17,7 @@ import { DesktopShell } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { brandStyles, font } from '../../lib/ds';
 import { goBack } from '../../lib/goBack';
+import { useBlocked } from '../../lib/blocks';
 
 type ThreadRow = {
   id: string;
@@ -46,6 +47,7 @@ export default function MessagesInboxScreen() {
   const styles = makeStyles(C);
 
   const [threads, setThreads] = useState<ThreadListItem[]>([]);
+  const blocked = useBlocked();
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(true);
 
@@ -113,6 +115,9 @@ export default function MessagesInboxScreen() {
     setLoading(false);
   }
 
+  // Conversations with people you've blocked drop out of the inbox.
+  const shownThreads = threads.filter(t => !blocked.has(t.iAmSeller ? t.buyer_id : (t as any).marketplace_sellers?.user_id));
+
   if (loading) {
     return (
       <DesktopShell>
@@ -141,7 +146,7 @@ export default function MessagesInboxScreen() {
               <Text style={{ color: C.gold, ...font(700) }}>Sign In</Text>
             </TouchableOpacity>
           </View>
-        ) : threads.length === 0 ? (
+        ) : shownThreads.length === 0 ? (
           <View style={styles.centered}>
             <Glyph name="chatbubbles-outline" style={styles.emptyEmoji} />
             <Text style={styles.emptyText}>No messages yet</Text>
@@ -149,7 +154,7 @@ export default function MessagesInboxScreen() {
           </View>
         ) : (
           <FlatList
-            data={threads}
+            data={shownThreads}
             keyExtractor={t => t.id}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => {
