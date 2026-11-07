@@ -12,6 +12,9 @@ import {
   Inter_800ExtraBold,
 } from '@expo-google-fonts/inter';
 import { InterTight_600SemiBold, InterTight_700Bold, InterTight_800ExtraBold } from '@expo-google-fonts/inter-tight';
+// Chai only (its playful sub-brand): Fredoka headings, Space Mono labels.
+import { Fredoka_600SemiBold, Fredoka_700Bold } from '@expo-google-fonts/fredoka';
+import { SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
 import { currentIsDark, useTheme } from './theme';
 
 // ── Fonts ──────────────────────────────────────────────────────────────
@@ -29,6 +32,9 @@ export const FONT_FILES: Record<string, number> = Platform.OS === 'web' ? {} : {
   InterTight_600SemiBold,
   InterTight_700Bold,
   InterTight_800ExtraBold,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+  SpaceMono_700Bold,
 };
 
 export type Weight = 400 | 500 | 600 | 700 | 800;

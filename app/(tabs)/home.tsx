@@ -25,6 +25,7 @@ import { SearchIcon, ClearIcon, GemIcon } from "../../components/Siqa";
 import { useSearchContext } from "../../contexts/SearchContext";
 import { brandStyles } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
+import { FeaturedVideoCard, TodaysChai, ChaiHeroCard, SeedsCloseToGoal, FromTheShop, SectionHeader, useHomeChai } from '../../components/home/HomeSections';
 
 type LongVideo = {
   id: string;
@@ -43,8 +44,9 @@ type ShortVideo = {
   title: string;
 };
 
+type Feed = "foryou" | "following";
+
 const CATEGORIES = [
-  "All",
   "Islamic Education",
   "Halal Lifestyle",
   "Community Events",
@@ -134,6 +136,10 @@ function HomeScreenInner() {
   const [offset, setOffset] = useState(0);
   const [allLoaded, setAllLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [feed, setFeed] = useState<Feed>("foryou");
+  const [signedIn, setSignedIn] = useState(false);
+  const [followsNone, setFollowsNone] = useState(false);
+  const chaiState = useHomeChai();
 
   function handleSearchSubmit() {
     const trimmed = searchQuery.trim();
@@ -179,8 +185,10 @@ function HomeScreenInner() {
         session.user.email?.split("@")[0] ||
         "Account";
       setUserName(name.split(" ")[0]);
+      setSignedIn(true);
     } else {
       setUserName(null);
+      setSignedIn(false);
     }
   }
 
@@ -196,19 +204,41 @@ function HomeScreenInner() {
     setShorts((data as any[]) ?? []);
   }
 
-  async function loadVideos(reset = true) {
-    const { data } = await supabase
+  async function followedSpeakerIds(): Promise<string[] | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return null;
+    const { data: f } = await supabase.from("follows").select("following_id").eq("follower_id", session.user.id).limit(500);
+    const profileIds = (f ?? []).map((r: any) => r.following_id);
+    if (!profileIds.length) return [];
+    const { data: sp } = await supabase.from("speakers").select("id").in("profile_id", profileIds);
+    return (sp ?? []).map((r: any) => r.id);
+  }
+
+  async function loadVideos(reset = true, which: Feed = feed) {
+    let q = supabase
       .from("videos")
       .select(
         `id, title, thumbnail_url, duration_secs, view_count, published_at, created_at,
          speakers(id, display_name, is_verified)`
       )
       .eq("format", "long")
-      .eq("is_published", true)
+      .eq("is_published", true);
+    if (which === "following") {
+      const ids = await followedSpeakerIds();
+      if (!ids || !ids.length) {
+        setFollowsNone(!!ids);
+        setVideos([]); setAllLoaded(true);
+        return;
+      }
+      setFollowsNone(false);
+      q = q.in("speaker_id", ids);
+    }
+    const { data } = await q
       .order("published_at", { ascending: false })
       .range(reset ? 0 : offset, (reset ? 0 : offset) + PAGE_SIZE - 1);
 
-    const rows = shuffle((data as any[]) ?? []);
+    // Following stays in date order; For you shuffles each batch.
+    const rows = which === "following" ? ((data as any[]) ?? []) : shuffle((data as any[]) ?? []);
     if (reset) {
       setVideos(rows);
       setOffset(PAGE_SIZE);
@@ -239,6 +269,73 @@ function HomeScreenInner() {
     }, [])
   );
 
+  function switchFeed(next: Feed) {
+    if (next === feed) return;
+    setFeed(next);
+    setVideos([]);
+    setAllLoaded(false);
+    loadVideos(true, next);
+  }
+
+  const pad = Theme.spacing.lg;
+  const isForYou = feed === "foryou";
+  // For you: the first video is the featured hero, the next two rows sit
+  // above the Seeds and Shop sections, and the rest scroll in the list.
+  const featured = isForYou ? videos[0] : undefined;
+  const topCount = isForYou ? Math.max(2, numColumns * 2) : 0;
+  const topVideos = isForYou ? videos.slice(1, 1 + topCount) : [];
+  const listVideos = isForYou ? videos.slice(1 + topCount) : videos;
+
+  const renderVideo = (item: LongVideo) => (
+    // Hover (lift + thumbnail zoom) comes from the data-hover="card"
+    // CSS in public/index.html, which works on every web card.
+    <Pressable
+      key={item.id}
+      style={[styles.videoCard, numColumns > 1 && { paddingHorizontal: 0, width: cardWidth }]}
+      onPress={guardTabSwipe(() => router.push(`/watch/${item.id}` as any))}
+      {...({ dataSet: { hover: 'card' } } as any)}
+    >
+      <View style={styles.thumbWrap}>
+        {item.thumbnail_url ? (
+          <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
+            <Image source={{ uri: item.thumbnail_url }} style={styles.thumb} resizeMode="cover" />
+          </View>
+        ) : (
+          <View style={[styles.thumb, styles.thumbPlaceholder]}>
+            <Glyph name="play" size={28} color={C.text3} />
+          </View>
+        )}
+        {item.duration_secs ? (
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>{formatDuration(item.duration_secs)}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.videoMetaRow}>
+        <View style={styles.avatarPlaceholder}>
+          <Text style={styles.avatarInitial}>{(item.speakers?.display_name ?? "S").trim().charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
+          <Text style={styles.videoMeta}>
+            {item.speakers?.display_name ?? "Siqa"}
+            {item.speakers?.is_verified ? <Text>{" "}<Glyph name="checkmark-circle" size={13} color={C.text3} /></Text> : null}
+          </Text>
+          <Text style={styles.videoMeta}>
+            {formatViews(item.view_count)} · {timeAgo(item.published_at ?? item.created_at)}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+
+  const chips: { key: string; label: string; active: boolean; onPress: () => void }[] = [
+    { key: "foryou", label: "For you", active: feed === "foryou", onPress: () => switchFeed("foryou") },
+    { key: "following", label: "Following", active: feed === "following", onPress: () => switchFeed("following") },
+    ...CATEGORIES.map((cat) => ({ key: cat, label: cat, active: false, onPress: () => router.push(`/browse?category=${encodeURIComponent(cat)}` as any) })),
+  ];
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -252,7 +349,7 @@ function HomeScreenInner() {
       key={numColumns}
       style={styles.container}
       contentContainerStyle={isDesktopWeb ? { width: '100%', maxWidth: CONTENT_MAX_WIDTH, alignSelf: 'center' } : undefined}
-      data={videos}
+      data={listVideos}
       keyExtractor={(v) => v.id}
       numColumns={numColumns}
       columnWrapperStyle={numColumns > 1 ? { gap: GRID_GAP, paddingHorizontal: Theme.spacing.lg } : undefined}
@@ -320,23 +417,37 @@ function HomeScreenInner() {
             horizontal
             showsHorizontalScrollIndicator={false}
             style={[styles.chipList, isDesktopWeb && { marginTop: Theme.spacing.lg }]}
-            data={CATEGORIES}
-            keyExtractor={(c) => c}
+            data={chips}
+            keyExtractor={(c) => c.key}
             contentContainerStyle={styles.chipRow}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.chip, item === "All" && styles.chipActive]}
-                {...({ dataSet: item === "All" ? undefined : { hover: 'row' } } as any)}
-                onPress={guardTabSwipe(() => {
-                  if (item !== "All") router.push(`/browse?category=${encodeURIComponent(item)}` as any);
-                })}
-              >
-                <Text style={[styles.chipText, item === "All" && styles.chipTextActive]}>{item}</Text>
-              </TouchableOpacity>
+            renderItem={({ item, index }) => (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: Theme.spacing.sm }}>
+                {index === 2 ? <View style={{ width: 1, height: 20, backgroundColor: C.border }} /> : null}
+                <TouchableOpacity
+                  style={[styles.chip, item.active && styles.chipActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: item.active }}
+                  {...({ dataSet: item.active ? undefined : { hover: 'row' } } as any)}
+                  onPress={guardTabSwipe(item.onPress)}
+                >
+                  <Text style={[styles.chipText, item.active && styles.chipTextActive]}>{item.label}</Text>
+                </TouchableOpacity>
+              </View>
             )}
           />
 
-          {shorts.length > 0 ? (
+          {featured ? (
+            isDesktopWeb ? (
+              <View style={{ flexDirection: "row", gap: Theme.spacing.xl, paddingHorizontal: pad, marginBottom: Theme.spacing.xxl, alignItems: "flex-start" }}>
+                <View style={{ flex: 1.55, minWidth: 0 }}><FeaturedVideoCard video={featured} pad={0} /></View>
+                {chaiState.posts.length ? <View style={{ flex: 1, minWidth: 0, maxWidth: 520 }}><ChaiHeroCard chaiState={chaiState} /></View> : null}
+              </View>
+            ) : (
+              <View style={{ marginBottom: Theme.spacing.xl }}><FeaturedVideoCard video={featured} pad={pad} /></View>
+            )
+          ) : null}
+
+          {isForYou && shorts.length > 0 ? (
             <View style={styles.shortsSection}>
               <View style={styles.shortsLabelRow}>
                 <GemIcon size={19} color={C.gold} />
@@ -371,60 +482,44 @@ function HomeScreenInner() {
               />
             </View>
           ) : null}
+
+          {isForYou && !isDesktopWeb ? <TodaysChai chaiState={chaiState} pad={pad} /> : null}
+
+          {isForYou && topVideos.length ? (
+            <>
+              <SectionHeader title="Latest videos" pad={pad} />
+              <View style={numColumns > 1 ? { flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP, paddingHorizontal: pad } : undefined}>
+                {topVideos.map(renderVideo)}
+              </View>
+            </>
+          ) : null}
+          {isForYou ? (
+            <>
+              <SeedsCloseToGoal pad={pad} cardWidth={isDesktopWeb ? 280 : 240} />
+              <FromTheShop pad={pad} cardWidth={isDesktopWeb ? 190 : 150} />
+              {listVideos.length ? <SectionHeader title="More videos" pad={pad} /> : null}
+            </>
+          ) : null}
+
+          {!isForYou && videos.length === 0 && !signedIn ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>See videos from people you follow</Text>
+              <Text style={styles.emptySubtitle}>Sign in and follow speakers to fill this feed.</Text>
+              <TouchableOpacity style={[styles.chip, styles.chipActive, { marginTop: Theme.spacing.lg }]} onPress={() => router.push("/(auth)/sign-in" as any)}>
+                <Text style={[styles.chipText, styles.chipTextActive]}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </>
       }
-      renderItem={({ item }) => (
-        // TouchableOpacity has no concept of hover — only a press state
-        // — so there was never any feedback for a mouse sitting over a
-        // card on desktop, unlike every YouTube card. Pressable's style
-        // callback gets a real `hovered` flag on web (harmlessly
-        // undefined on native, where hover doesn't apply anyway).
-        // Hover (lift + thumbnail zoom) comes from the data-hover="card"
-        // CSS in public/index.html, which works on every web card.
-        <Pressable
-          style={[styles.videoCard, numColumns > 1 && { paddingHorizontal: 0, width: cardWidth }]}
-          onPress={guardTabSwipe(() => router.push(`/watch/${item.id}` as any))}
-          {...({ dataSet: { hover: 'card' } } as any)}
-        >
-          <View style={styles.thumbWrap}>
-            {item.thumbnail_url ? (
-              <View style={StyleSheet.absoluteFill} {...({ dataSet: { hoverMedia: '1' } } as any)}>
-                <Image source={{ uri: item.thumbnail_url }} style={styles.thumb} resizeMode="cover" />
-              </View>
-            ) : (
-              <View style={[styles.thumb, styles.thumbPlaceholder]}>
-                <Glyph name="play" size={28} color={C.text3} />
-              </View>
-            )}
-            {item.duration_secs ? (
-              <View style={styles.durationBadge}>
-                <Text style={styles.durationText}>{formatDuration(item.duration_secs)}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          <View style={styles.videoMetaRow}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarInitial}>{(item.speakers?.display_name ?? "S").trim().charAt(0).toUpperCase()}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
-              <Text style={styles.videoMeta}>
-                {item.speakers?.display_name ?? "Siqa"}
-                {item.speakers?.is_verified ? <Text>{" "}<Glyph name="checkmark-circle" size={13} color={C.text3} /></Text> : null}
-              </Text>
-              <Text style={styles.videoMeta}>
-                {formatViews(item.view_count)} · {timeAgo(item.published_at ?? item.created_at)}
-              </Text>
-            </View>
-          </View>
-        </Pressable>
-      )}
+      renderItem={({ item }) => renderVideo(item)}
       ListEmptyComponent={
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No videos yet</Text>
-          <Text style={styles.emptySubtitle}>Check back soon as creators start posting.</Text>
-        </View>
+        !isForYou && !signedIn ? null : isForYou && topVideos.length ? null : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>{!isForYou ? (followsNone ? "You're not following anyone yet" : "No new videos from people you follow") : "No videos yet"}</Text>
+            <Text style={styles.emptySubtitle}>{!isForYou ? "Follow speakers from their profile to see their videos here." : "Check back soon as creators start posting."}</Text>
+          </View>
+        )
       }
       ListFooterComponent={
         loadingMore ? <ActivityIndicator color={C.gold} style={{ marginVertical: Theme.spacing.xl }} /> : null

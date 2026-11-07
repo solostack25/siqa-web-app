@@ -11,6 +11,7 @@ import {
   Image,
   useWindowDimensions,
   Platform,
+  ScrollView,
 } from "react-native";
 import { SeedVideo } from "../../components/SeedVideo";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,6 +25,8 @@ import { MobileBrandBar } from "../../components/MobileBrandBar";
 import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
 import { guardTabSwipe } from '../../components/useTabSwipe';
+import { SeedsOrgsSwitch, RegisterOrgCard, VerifiedOrgsRail } from '../../components/SeedsOrgs';
+import { SeedsCloseToGoal, SectionHeader } from '../../components/home/HomeSections';
 
 type Fundraiser = {
   id: string;
@@ -374,14 +377,48 @@ function SeedsScreenInner() {
     );
   }
 
+  // The featured Seed: an emergency first, otherwise the one with the most
+  // donors. It's pulled out of the list below so it doesn't show twice.
+  const showExtras = activeCategory === "All" && fundraisers.length > 1;
+  const featured = showExtras
+    ? [...fundraisers].sort((a, b) =>
+        Number(b.cause_category?.toLowerCase() === "emergency") - Number(a.cause_category?.toLowerCase() === "emergency") ||
+        (b.donor_count ?? 0) - (a.donor_count ?? 0))[0]
+    : undefined;
+  const listData = featured ? filtered.filter((f) => f.id !== featured.id) : filtered;
+
+  function renderFeatured(item: Fundraiser) {
+    const pct = item.goal_amount ? Math.min(Math.round((item.raised_amount / item.goal_amount) * 100), 100) : 0;
+    const cover = item.cover_image_url || item.image_url || null;
+    const open = () => router.push({ pathname: "/seed/[id]", params: { id: item.id } } as any);
+    return (
+      <View style={[styles.featured, isDesktopWeb && { flexDirection: 'row' }]}>
+        <TouchableOpacity activeOpacity={0.92} onPress={guardTabSwipe(open)} style={[styles.featuredMedia, isDesktopWeb && { width: '52%', aspectRatio: undefined, minHeight: 260 }]}>
+          {cover ? <Image source={{ uri: cover }} style={styles.videoCover} resizeMode="cover" /> : <Glyph name={getCategoryIcon(item.cause_category)} size={40} color={C.emerald} />}
+          <View style={styles.featuredTag}><Text style={styles.featuredTagText}>{item.cause_category?.toLowerCase() === "emergency" ? "EMERGENCY" : "FEATURED SEED"}</Text></View>
+        </TouchableOpacity>
+        <View style={{ flex: 1, padding: Theme.spacing.lg, gap: 8, justifyContent: 'center' }}>
+          {item.organizations?.org_name ? (
+            <Text style={styles.categoryText}>{item.organizations.org_name}{item.organizations.is_verified ? " ✓" : ""}</Text>
+          ) : null}
+          <TouchableOpacity onPress={guardTabSwipe(open)}>
+            <Text style={[styles.title, { marginBottom: 0 }]} numberOfLines={3}>{item.title}</Text>
+          </TouchableOpacity>
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
+          <Text style={styles.headerSub}>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{formatMoney(item.raised_amount)}</Text> raised of {formatMoney(item.goal_amount)} · {(item.donor_count ?? 0).toLocaleString()} donors
+          </Text>
+          <Button variant="gold" icon="leaf-outline" label="Donate" style={{ marginTop: 6, alignSelf: isDesktopWeb ? 'flex-start' : 'stretch' }} onPress={guardTabSwipe(open)} />
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <MobileBrandBar />
       <View style={[styles.header, !isDesktopWeb && { paddingTop: 8 }]}>
-        <View>
-          <Text style={styles.headerTitle}>Seeds</Text>
-          <Text style={styles.headerSub}>Plant your seeds</Text>
-        </View>
+        <SeedsOrgsSwitch value="seeds" style={{ flex: 1, marginRight: canCreate ? Theme.spacing.md : 0 }} />
         {canCreate && (
           <Button size="sm" icon="add" label="New Seed" onPress={() => router.push("/seed-create" as any)} />
         )}
@@ -420,9 +457,19 @@ function SeedsScreenInner() {
           <ActivityIndicator color={C.gold} size="large" />
         </View>
       ) : (
+        <View style={{ flex: 1, flexDirection: isDesktopWeb ? 'row' : 'column' }}>
         <FlatList
+          style={{ flex: 1 }}
+          ListHeaderComponent={showExtras ? (
+            <View style={{ marginHorizontal: -Theme.spacing.lg }}>
+              {featured ? renderFeatured(featured) : null}
+              <SeedsCloseToGoal pad={Theme.spacing.lg} cardWidth={isDesktopWeb ? 260 : 230} />
+              <SectionHeader title="New Seeds" pad={Theme.spacing.lg} />
+            </View>
+          ) : null}
+          ListFooterComponent={!isDesktopWeb ? <RegisterOrgCard style={{ marginTop: Theme.spacing.lg }} /> : null}
           key={numColumns}
-          data={filtered}
+          data={listData}
           keyExtractor={(item) => item.id}
           renderItem={renderCard}
           numColumns={numColumns}
@@ -440,6 +487,12 @@ function SeedsScreenInner() {
             </View>
           }
         />
+        {isDesktopWeb ? (
+          <ScrollView style={{ width: 340, flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingTop: Theme.spacing.lg, paddingRight: Theme.spacing.lg, paddingBottom: 60 }}>
+            <VerifiedOrgsRail />
+          </ScrollView>
+        ) : null}
+        </View>
       )}
     </View>
   );
@@ -520,6 +573,32 @@ function makeStyles(C: AppColors) {
       width: '100%',
       alignSelf: 'center',
     },
+    featured: {
+      backgroundColor: C.surface,
+      borderRadius: Theme.radius.xl,
+      borderWidth: 0.5,
+      borderColor: C.border2,
+      overflow: "hidden",
+      marginHorizontal: Theme.spacing.lg,
+      marginBottom: Theme.spacing.xl,
+    },
+    featuredMedia: {
+      aspectRatio: 16 / 9,
+      backgroundColor: C.emeraldBg,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    featuredTag: {
+      position: "absolute",
+      top: 12,
+      left: 12,
+      backgroundColor: C.emerald,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    featuredTagText: { color: "#fff", fontSize: 11, fontWeight: "700", letterSpacing: 0.6 },
     card: {
       flex: 1,
       backgroundColor: C.surface,

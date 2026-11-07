@@ -2,7 +2,7 @@ import React from 'react';
 import { Tabs, usePathname } from 'expo-router';
 import { View, Text, StyleSheet, Platform, Easing, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../lib/theme';
-import { DiscoverIcon, GemIcon, HomeIcon, OrgsIcon, SeedsIcon } from '../../components/Siqa';
+import { ChaiIcon, DiscoverIcon, GemIcon, HomeIcon, SeedsIcon } from '../../components/Siqa';
 import { DesktopSidebar } from '../../components/DesktopSidebar';
 import { DesktopTopBar } from '../../components/DesktopTopBar';
 import { useIsDesktopWeb, InDesktopShell } from '../../components/DesktopShell';
@@ -33,7 +33,7 @@ function TabIcon({ focused, label, icon }: TabIconProps) {
 // screens sideways like pages (old one out, new one in from the side you're
 // heading to). Detail screens inside the tab group (seed, org profile, watch…)
 // keep opening instantly.
-const SLIDE_TABS = new Set(['home', 'marketplace', 'gems', 'seeds', 'orgs']);
+const SLIDE_TABS = new Set(['home', 'marketplace', 'gems', 'seeds', 'chai']);
 
 export default function TabsLayout() {
   const { colors: C, isDark } = useTheme();
@@ -41,7 +41,10 @@ export default function TabsLayout() {
   const { width } = useWindowDimensions();
   const slide = !isDesktopWeb && !IS_MARKETPLACE_SITE;
   // Local & services lives under the Shop tab.
-  const onLocal = usePathname().startsWith('/local');
+  const pathname = usePathname();
+  const onLocal = pathname.startsWith('/local');
+  // Organizations live under the Seeds tab.
+  const onOrgs = pathname.startsWith('/orgs');
   // Swipe sideways between the main tabs (phone web/PWA).
   useTabSwipe(!isDesktopWeb && !IS_MARKETPLACE_SITE);
   // Same thing on the phone app.
@@ -144,7 +147,7 @@ export default function TabsLayout() {
           ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
           title: 'Seeds',
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Seeds" icon={<SeedsIcon color={focused ? C.emeraldLight : C.text3} />} />
+            <TabIcon focused={focused || onOrgs} label="Seeds" icon={<SeedsIcon color={focused || onOrgs ? C.emeraldLight : C.text3} />} />
           ),
           tabBarLabel: () => null,
         }}
@@ -166,13 +169,16 @@ export default function TabsLayout() {
       <Tabs.Screen name="product/[id]" options={{ href: null, title: 'Product' }} />
       <Tabs.Screen name="shop/[id]" options={{ href: null, title: 'Shop' }} />
       <Tabs.Screen name="org-listing/[id]" options={{ href: null, title: 'Organization' }} />
+      {/* Organizations moved inside the Seeds tab (Seeds | Organizations). */}
+      <Tabs.Screen name="orgs" options={{ href: null, title: 'Organizations' }} />
+      <Tabs.Screen name="chai/[id]" options={{ href: null, title: 'Chai' }} />
       <Tabs.Screen
-        name="orgs"
+        name="chai"
         options={{
           ...(IS_MARKETPLACE_SITE ? { href: null } : {}),
-          title: 'Orgs',
+          title: 'Chai',
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} label="Orgs" icon={<OrgsIcon color={focused ? C.gold : C.text3} />} />
+            <TabIcon focused={focused} label="Chai" icon={<ChaiIcon size={24} color={focused ? C.gold : C.text3} />} />
           ),
           tabBarLabel: () => null,
         }}

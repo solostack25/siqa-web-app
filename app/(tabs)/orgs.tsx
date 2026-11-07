@@ -24,6 +24,7 @@ import {
   ORG_CATEGORY_LABEL, ORG_FILTERS, categoryFromOrgType, type OrgCategory,
 } from '../../lib/orgCategories';
 import { MobileBrandBar } from '../../components/MobileBrandBar';
+import { SeedsOrgsSwitch, FollowOrgButton } from '../../components/SeedsOrgs';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
 
@@ -38,6 +39,7 @@ import { guardTabSwipe } from '../../components/useTabSwipe';
 
 type Org = {
   id: string;
+  profile_id: string | null;
   org_name: string;
   org_type: string | null;
   city: string | null;
@@ -147,7 +149,7 @@ function OrgsScreenInner() {
     const [orgRes, seedRes, endRes] = await Promise.all([
       supabase
         .from('organizations')
-        .select('id, org_name, org_type, city, state, tagline, mission, is_verified, ein_verified, logo_url, banner_url, stripe_onboarded, payment_method_url')
+        .select('id, profile_id, org_name, org_type, city, state, tagline, mission, is_verified, ein_verified, logo_url, banner_url, stripe_onboarded, payment_method_url')
         .eq('approval_status', 'approved')
         .order('org_name'),
       supabase
@@ -252,6 +254,7 @@ function OrgsScreenInner() {
       <ScrollView contentContainerStyle={{ paddingBottom: 72 }} keyboardShouldPersistTaps="handled">
         <MobileBrandBar />
         <View style={[styles.page, { paddingHorizontal: pad }]}>
+          <SeedsOrgsSwitch value="orgs" style={{ marginBottom: 16, marginTop: isDesktopWeb ? 0 : 4 }} />
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerText}>
@@ -459,6 +462,7 @@ function OrgsScreenInner() {
                               <TouchableOpacity style={[styles.ghostBtn, { flex: 1 }]} onPress={guardTabSwipe(() => openOrg(o))}>
                                 <Text style={styles.ghostBtnText}>View</Text>
                               </TouchableOpacity>
+                              <FollowOrgButton profileId={o.profile_id} />
                             </View>
                           </View>
                         );

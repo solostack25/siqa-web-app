@@ -177,6 +177,14 @@ export function shareShop(sellerId: string, shopName: string) {
   });
 }
 
+export function getChaiShareUrl(postId: string): string {
+  return `${getAppBaseUrl()}/chai/${postId}`;
+}
+
+export function shareChai(postId: string, title: string, text?: string) {
+  return shareLink({ url: getChaiShareUrl(postId), title, text: text ?? `${title}\nOn Siqa Chai` });
+}
+
 export function shareSeed(seedId: string, title?: string | null) {
   const label = title?.trim() || 'this Seed';
   return shareLink({
