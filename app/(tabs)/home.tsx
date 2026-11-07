@@ -21,7 +21,7 @@ import { useTheme, type AppColors } from "../../lib/theme";
 import { Glyph } from "../../components/Glyph";
 import { Theme } from "../../constants/theme";
 import { useIsDesktopWeb } from "../../components/DesktopShell";
-import { SearchIcon, ClearIcon } from "../../components/Siqa";
+import { SearchIcon, ClearIcon, GemIcon } from "../../components/Siqa";
 import { useSearchContext } from "../../contexts/SearchContext";
 import { brandStyles } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
@@ -339,7 +339,7 @@ function HomeScreenInner() {
           {shorts.length > 0 ? (
             <View style={styles.shortsSection}>
               <View style={styles.shortsLabelRow}>
-                <Glyph name="flash" size={16} color={C.gold} />
+                <GemIcon size={19} color={C.gold} />
                 <Text style={styles.shortsLabel}>Gems</Text>
               </View>
               <FlatList
