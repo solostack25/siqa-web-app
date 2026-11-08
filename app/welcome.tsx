@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Image, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,6 +7,7 @@ import { Icon, type SiqaIconName } from '../components/Icon';
 import { SeedsIcon } from '../components/Siqa';
 import { font, useDS } from '../lib/ds';
 import { setSkipWelcome, appStartPath } from '../lib/welcome';
+import { supabase } from '../lib/supabase';
 
 /**
  * siqa.us welcome page (web only), playful version: a warm greeting, a
@@ -118,6 +119,13 @@ export default function Welcome() {
   const pad = wide ? 40 : 20;
   const wrap = { width: '100%' as const, maxWidth: 1200, alignSelf: 'center' as const, paddingHorizontal: pad };
   const go = (href: string) => router.push(href as any);
+  // Signed-in people see "Open Siqa" instead of "Sign in".
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => subscription.unsubscribe();
+  }, []);
   const enterApp = () => {
     if (skipNext) setSkipWelcome();
     router.replace(appStartPath(wide) as any);
@@ -146,11 +154,11 @@ export default function Welcome() {
               <Text style={[{ color: B.ink, fontSize: 22, letterSpacing: -0.5 }, font(800, 'display')]}>Siqa</Text>
             </View>
             <Pressable
-              onPress={() => go('/(auth)/login')}
+              onPress={() => (signedIn ? router.replace(appStartPath(wide) as any) : go('/(auth)/login'))}
               accessibilityRole="button"
               style={({ pressed }) => [s.signIn, { backgroundColor: wide ? B.ink : '#ffffff' }, !wide && shadow('hairline'), pressed && s.pressed]}
             >
-              <Text style={[{ color: wide ? '#ffffff' : B.ink, fontSize: 14 }, font(700)]}>Sign in</Text>
+              <Text style={[{ color: wide ? '#ffffff' : B.ink, fontSize: 14 }, font(700)]}>{signedIn ? 'Open Siqa' : 'Sign in'}</Text>
             </Pressable>
           </View>
 
