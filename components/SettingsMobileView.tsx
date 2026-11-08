@@ -176,13 +176,14 @@ export function SettingsMobileView(p: {
         </View>
       )}
 
-      {match('privacy safety blocked accounts terms policy') && (
+      {match('privacy safety blocked accounts terms policy help support contact') && (
         <View style={{ gap: 4 }}>
           <Text style={s.groupTitle}>Privacy and safety</Text>
           {([
             ['blocked', 'Blocked accounts', 'ban-outline', 'rose', '/blocked'],
             ['privacy', 'Privacy policy', 'shield-checkmark-outline', 'sea', '/privacy'],
             ['terms', 'Terms of use', 'document-text-outline', 'ink', '/terms'],
+            ['support', 'Help and support', 'help-circle-outline', 'sea', '/support'],
           ] as const).map(([k, label, icon, t, href]) => (
             <TouchableOpacity key={k} style={s.row} onPress={() => router.push(href as any)} accessibilityRole="link">
               <View style={[s.rowIcon, { backgroundColor: tone(t)[0] }]}><Icon name={icon} size={19} color={tone(t)[1]} /></View>
