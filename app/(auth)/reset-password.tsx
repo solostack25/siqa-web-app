@@ -99,7 +99,7 @@ export default function ResetPasswordScreen() {
       <View style={styles.centeredWrap}>
         <Glyph name="checkmark-circle-outline" style={styles.doneEmoji} color={Colors.emeraldLight} />
         <Text style={styles.doneTitle}>Password updated!</Text>
-        <Text style={styles.doneSub}>Taking you to the app...</Text>
+        <Text style={[styles.doneSub, { textAlign: 'center', maxWidth: 380, paddingHorizontal: 24 }]}>Use it to sign in on the Siqa app or website. Taking you to Siqa…</Text>
       </View>
     );
   }

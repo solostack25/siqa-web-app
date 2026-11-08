@@ -35,12 +35,16 @@ export default function ForgotPasswordScreen() {
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
       email.trim(),
       {
-        // Web: come back to this same site (www.siqa.us or shop.siqa.us).
-        // The phone app link (siqa://) can't open in a browser.
+        // Always reset on the website. Web: come back to this same site
+        // (www.siqa.us or shop.siqa.us). Phone app: a siqa:// link opened the
+        // app without the reset session (the app never read the tokens), so
+        // saving failed; the web page works from any device, including when
+        // the email is opened on a computer. People then sign in to the app
+        // with the new password.
         redirectTo:
           Platform.OS === 'web' && typeof window !== 'undefined'
             ? `${canonicalOrigin()}/reset-password`
-            : 'siqa://reset-password',
+            : 'https://www.siqa.us/reset-password',
       }
     );
     setLoading(false);
@@ -60,7 +64,9 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.sentSub}>
             We sent a password reset link to{' '}
             <Text style={styles.sentEmail}>{email}</Text>.
-            {'\n\n'}Tap the link in the email to set a new password.
+            {'\n\n'}{Platform.OS === 'web'
+              ? 'Tap the link in the email to set a new password.'
+              : 'Tap the link in the email to set a new password on siqa.us, then come back here and sign in with it.'}
           </Text>
           <Button label="Back to Sign In" variant="secondary" onPress={() => router.replace('/(auth)/sign-in')} style={{ marginTop: 8, alignSelf: 'stretch' }} />
         </View>
