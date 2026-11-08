@@ -43,7 +43,7 @@ export const SITE_HOME = IS_MARKETPLACE_SITE ? '/marketplace' : '/';
 const BLOCKED_PREFIXES = [
   '/home', '/gems', '/watch', '/channel', '/speaker', '/browse', '/gem-upload',
   '/seeds', '/seed', '/seed-create', '/orgs', '/org-profile', '/org-register',
-  '/donate', '/donate-success', '/dashboard',
+  '/donate', '/donate-success', '/dashboard', '/prayer', '/salah-tracker',
 ];
 
 /** True when this path shouldn't be reachable on the current site. */

@@ -92,6 +92,7 @@ export function ProfileMobileView(p: {
     ...(p.seller ? [{ label: 'My store', icon: 'storefront-outline' as SiqaIconName, go: () => router.push('/seller-dashboard' as any) }] : []),
     { label: 'Business', icon: 'storefront-outline', go: () => router.push((p.hasBusiness ? '/local/inbox' : '/local/edit') as any) },
     { label: 'Orders', icon: 'bag-handle-outline', go: () => router.push('/orders' as any) },
+    { label: 'Salah Tracker', icon: 'checkmark-done-outline', go: () => router.push('/salah-tracker' as any) },
   ];
 
   // Everything you can make on Siqa, in one place (the + at the top).

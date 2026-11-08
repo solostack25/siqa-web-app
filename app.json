@@ -58,6 +58,12 @@
         {
           "locationWhenInUsePermission": "Siqa uses your location to show local businesses, organizations and events near you."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0A0F1C"
+        }
       ]
     ],
     "experiments": {
