@@ -4,6 +4,7 @@ import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../lib/supabase';
+import { finishSocialSignIn } from '../lib/socialAuth';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
@@ -48,7 +49,11 @@ function AppContent() {
     supabase.auth.getSession().then(() => setInitialized(true));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {}
+      (event, session) => {
+        // Apple/Google sign-ins come back through the URL on the web.
+        // Deferred: calling Supabase inside this callback can deadlock the client.
+        if (event === 'SIGNED_IN') setTimeout(() => { finishSocialSignIn(session).catch(() => {}); }, 0);
+      }
     );
 
     return () => subscription.unsubscribe();
