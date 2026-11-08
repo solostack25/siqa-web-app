@@ -25,6 +25,7 @@ import { SearchIcon, ClearIcon, GemIcon } from "../../components/Siqa";
 import { useSearchContext } from "../../contexts/SearchContext";
 import { brandStyles } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
+import { PrayerStrip } from '../../components/prayer/PrayerStrip';
 import { FeaturedVideoCard, TodaysChai, ChaiHeroCard, SeedsCloseToGoal, FromTheShop, SectionHeader, useHomeChai } from '../../components/home/HomeSections';
 
 type LongVideo = {
@@ -435,6 +436,8 @@ function HomeScreenInner() {
               </View>
             )}
           />
+
+          {isForYou ? <PrayerStrip pad={pad} /> : null}
 
           {featured ? (
             isDesktopWeb ? (

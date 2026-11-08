@@ -542,6 +542,9 @@ function DashboardScreenInner() {
               <Text style={styles.dtActionBtnText}>Speaker Studio ›</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/salah-tracker' as any)}>
+            <Text style={styles.dtActionBtnText}>Salah Tracker ›</Text>
+          </TouchableOpacity>
           {canCreateSeeds && (
             <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/seed-create' as any)}>
               <Text style={styles.dtActionBtnText}>+ Create Seed</Text>

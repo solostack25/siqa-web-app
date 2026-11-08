@@ -15,6 +15,8 @@ import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
 import { useOtaUpdates } from '../lib/useOtaUpdates';
 import { useFonts } from 'expo-font';
 import { FONT_FILES } from '../lib/ds';
+import { PrayerBanner } from '../components/prayer/PrayerBanner';
+import { usePrayerNotifications } from '../lib/prayerNotifications';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -157,11 +159,19 @@ function AppContent() {
         <Stack.Screen name="studio" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="welcome" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="apply-speaker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="prayer" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="salah-tracker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
+      {IS_MARKETPLACE_SITE ? null : <PrayerBanner />}
       <ToastHost />
     </StripeProvider>
     </View>
   );
+}
+
+function PrayerAlerts() {
+  usePrayerNotifications();
+  return null;
 }
 
 export default function RootLayout() {
@@ -172,6 +182,7 @@ export default function RootLayout() {
       <ThemeProvider>
         <SearchProvider>
           <AppContent />
+          {IS_MARKETPLACE_SITE ? null : <PrayerAlerts />}
         </SearchProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
