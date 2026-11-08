@@ -185,6 +185,59 @@ export function shareChai(postId: string, title: string, text?: string) {
   return shareLink({ url: getChaiShareUrl(postId), title, text: text ?? `${title}\nOn Siqa Chai` });
 }
 
+/** A quiz result: r = result id (personality) or tier name (trivia), s = score. */
+export type ChaiResultRef = { resultId: string; score?: number };
+
+function chaiResultQuery(ref: ChaiResultRef): string {
+  const q = new URLSearchParams({ r: ref.resultId });
+  if (typeof ref.score === 'number') q.set('s', String(ref.score));
+  return q.toString();
+}
+
+/** Link to a quiz that previews as the sharer's result card. */
+export function getChaiResultUrl(postId: string, ref: ChaiResultRef): string {
+  return `${getChaiShareUrl(postId)}?${chaiResultQuery(ref)}`;
+}
+
+/** The result as an image (story = 1080x1920 for Stories, og = 1200x630). */
+export function getChaiCardUrl(postId: string, ref: ChaiResultRef, format: 'story' | 'og' = 'story'): string {
+  return `${getAppBaseUrl()}/api/chai-card?id=${encodeURIComponent(postId)}&${chaiResultQuery(ref)}&f=${format}`;
+}
+
+/** Fetch the story image ahead of time: phones only allow sharing a file
+ *  right after the tap, so it has to be ready before the button is pressed. */
+export async function prefetchChaiCard(postId: string, ref: ChaiResultRef): Promise<File | null> {
+  if (Platform.OS !== 'web' || typeof fetch === 'undefined' || typeof File === 'undefined') return null;
+  try {
+    const r = await fetch(getChaiCardUrl(postId, ref));
+    if (!r.ok) return null;
+    return new File([await r.blob()], 'siqa-chai-result.png', { type: 'image/png' });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Share a quiz result. On phones (web) this attaches the result image so it
+ * can go straight to Instagram/WhatsApp Stories; everywhere else it shares
+ * the result link, which previews as the result card.
+ */
+export async function shareChaiResult(postId: string, title: string, text: string, ref: ChaiResultRef, image?: File | null) {
+  const url = getChaiResultUrl(postId, ref);
+  const nav: any = Platform.OS === 'web' && typeof navigator !== 'undefined' ? navigator : null;
+  if (image && nav?.share && nav?.canShare?.({ files: [image] })) {
+    try {
+      // Some apps drop `url` when a file is attached, so the link rides in the text.
+      await nav.share({ files: [image], title, text: `${text}\n${url}` });
+      return { shared: true, copied: false };
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return { shared: false, copied: false };
+      // NotAllowedError etc.: fall back to sharing the link.
+    }
+  }
+  return shareLink({ url, title, text });
+}
+
 export function shareSeed(seedId: string, title?: string | null) {
   const label = title?.trim() || 'this Seed';
   return shareLink({

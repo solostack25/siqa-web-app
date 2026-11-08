@@ -54,6 +54,10 @@
       "destination": "/api/og?type=speaker&id=:id"
     },
     {
+      "source": "/chai/:id",
+      "destination": "/api/og?type=chai&id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -72,6 +76,9 @@
   "functions": {
     "api/og.js": {
       "includeFiles": "dist/index.html"
+    },
+    "api/chai-card.js": {
+      "includeFiles": "public/{fonts/fredoka-600.ttf,fonts/fredoka-700.ttf,fonts/space-mono-700.ttf,icon-192.png}"
     }
   }
 }

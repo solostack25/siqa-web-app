@@ -3,7 +3,7 @@
 // then "What did you get?" discussion.
 
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Platform } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -15,14 +15,14 @@ import { ChaiDiscussion } from '../../../components/chai/ChaiDiscussion';
 import { focusedOnly } from '../../../components/FocusedOnly';
 import { useIsDesktopWeb } from '../../../components/DesktopShell';
 import { HEADER_TOP_PADDING } from '../../../constants/theme';
-import { shareChai } from '../../../lib/share';
+import { shareChai, shareChaiResult, prefetchChaiCard, getChaiCardUrl } from '../../../lib/share';
 import { goBack } from '../../../lib/goBack';
 import { Icon } from '../../../components/Icon';
 
 type Outcome = { name: string; description: string; resultId: string; score?: number; total?: number };
 
 function ChaiPostScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, r: sharedResult } = useLocalSearchParams<{ id: string; r?: string }>();
   const isDesktop = useIsDesktopWeb();
   const insets = useSafeAreaInsets();
   const [post, setPost] = useState<ChaiPost | null>(null);
@@ -39,6 +39,15 @@ function ChaiPostScreen() {
   const [breakdown, setBreakdown] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Result image, fetched ahead so "Share my result" can attach it on phones.
+  const [cardFile, setCardFile] = useState<File | null>(null);
+  useEffect(() => {
+    setCardFile(null);
+    if (!post || !outcome || post.kind === 'poll') return;
+    let live = true;
+    prefetchChaiCard(post.id, { resultId: outcome.resultId, score: outcome.score }).then((f) => { if (live) setCardFile(f); });
+    return () => { live = false; };
+  }, [post?.id, outcome?.resultId, outcome?.score]);
 
   useEffect(() => {
     if (!id) return;
@@ -104,7 +113,7 @@ function ChaiPostScreen() {
 
   const share = () => {
     if (!post) return;
-    if (outcome) shareChai(post.id, post.title, `I got "${outcome.name}" on "${post.title}". What do you get?`);
+    if (outcome) shareChaiResult(post.id, post.title, `I got "${outcome.name}" on "${post.title}". What do you get?`, { resultId: outcome.resultId, score: outcome.score }, cardFile);
     else shareChai(post.id, post.title);
   };
 
@@ -268,6 +277,15 @@ function ChaiPostScreen() {
               <ChunkyButton label="Share my result" onPress={share} grow />
               <ChunkyButton label="Retake" bg={chai.white} onPress={() => { setPicks({}); setStep(0); setStage('play'); }} />
             </View>
+            {Platform.OS === 'web' ? (
+              <Text
+                accessibilityRole="link"
+                onPress={() => window.open(getChaiCardUrl(post.id, { resultId: outcome.resultId, score: outcome.score }), '_blank')}
+                style={[chaiFont('mono'), { alignSelf: 'center', fontSize: 12, letterSpacing: 0.5, color: chai.ink2, textDecorationLine: 'underline' }]}
+              >
+                Save image for Stories
+              </Text>
+            ) : null}
             <View style={{ marginTop: 8 }}>
               <ChaiDiscussion postId={post.id} enabled={post.comments_enabled} title="What did you get?" placeholder="Tell everyone your result" refreshKey={refreshKey} />
             </View>
@@ -277,7 +295,10 @@ function ChaiPostScreen() {
     );
   }
 
-  // Intro
+  // Intro. Someone opening a shared result sees what their friend got.
+  const friendGot = typeof sharedResult === 'string' && sharedResult
+    ? (post.kind === 'personality' ? post.content.results?.find(x => x.id === sharedResult)?.name : post.content.tiers?.find(t => t.name === sharedResult)?.name) ?? null
+    : null;
   return (
     <View style={{ flex: 1, backgroundColor: chai.cream }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 56 }} keyboardShouldPersistTaps="handled">
@@ -288,6 +309,7 @@ function ChaiPostScreen() {
               <Text style={[chaiFont('displayBold'), { fontSize: 80, color: chai.ink }]}>?</Text>
             </View>
             <View style={{ padding: 18, gap: 8 }}>
+              {friendGot ? <View style={{ alignSelf: 'flex-start' }}><Tag bg={chai.saffron}>{`A FRIEND GOT ${friendGot.toUpperCase()}`}</Tag></View> : null}
               <Text style={[chaiFont('mono'), { fontSize: 11, letterSpacing: 1, color: chai.ink }]}>{quizMeta(post)}</Text>
               <Text style={[chaiFont('displayBold'), { fontSize: 30, lineHeight: 34, color: chai.ink }]} accessibilityRole="header">{post.title}</Text>
               {post.intro ? <Text style={{ fontSize: 15, lineHeight: 21, color: chai.ink }}>{post.intro}</Text> : null}
