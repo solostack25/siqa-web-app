@@ -11,6 +11,7 @@
 //   /product/:id          -> ?type=product&id=:id
 //   /seed/:id             -> ?type=seed&id=:id
 //   /speaker/:id          -> ?type=speaker&id=:id
+//   /chai/:id[?r=&s=]     -> ?type=chai&id=:id (r/s = a shared quiz result)
 // This function loads the built index.html, swaps in the right title,
 // description and image, and returns it. The browser URL is unchanged, so
 // people still land in the app exactly as before; link-preview bots just
@@ -50,14 +51,14 @@ module.exports = async function handler(req, res) {
   let meta = null;
   if (id && isSafeId(id)) {
     try {
-      meta = await lookup(type, id, origin, isMarketplace);
+      meta = await lookup(type, id, origin, isMarketplace, q);
     } catch {
       meta = null; // fall back to site defaults below
     }
   }
 
   const siteName = isMarketplace ? 'Siqa Marketplace' : 'Siqa';
-  const pageUrl = origin + (id && isSafeId(id) ? pathFor(type, id) : '/');
+  const pageUrl = origin + (id && isSafeId(id) ? pathFor(type, id, q) : '/');
   const tags = {
     title: meta?.title ? `${meta.title} | ${siteName}` : siteName,
     ogTitle: meta?.title || siteName,
@@ -99,13 +100,14 @@ function isSafeId(id) {
   return /^[A-Za-z0-9_-]{1,64}$/.test(id);
 }
 
-function pathFor(type, id) {
+function pathFor(type, id, q = {}) {
   switch (type) {
     case 'video': return `/watch/${id}`;
     case 'short': return `/gems?videoId=${id}`;
     case 'product': return `/product/${id}`;
     case 'seed': return `/seed/${id}`;
     case 'speaker': return `/speaker/${id}`;
+    case 'chai': return `/chai/${id}${chaiQuery(q)}`;
     default: return '/';
   }
 }
@@ -142,7 +144,7 @@ function cleanVideoDescription(raw) {
   return out.length >= 20 ? out : null;
 }
 
-async function lookup(type, id, origin, isMarketplace) {
+async function lookup(type, id, origin, isMarketplace, q = {}) {
   const eq = `id=eq.${encodeURIComponent(id)}`;
 
   if ((type === 'video' || type === 'short') && !isMarketplace) {
@@ -200,7 +202,30 @@ async function lookup(type, id, origin, isMarketplace) {
     };
   }
 
+  if (type === 'chai' && !isMarketplace) {
+    const p = await sb(`chai_posts?${eq}&select=kind,title,intro,content&limit=1`);
+    if (!p) return null;
+    const c = p.content || {};
+    const r = typeof q.r === 'string' ? q.r : '';
+    let got = null;
+    if (r && p.kind === 'personality') got = (c.results || []).find((x) => x.id === r)?.name || null;
+    if (r && p.kind === 'trivia' && (c.tiers || []).some((t) => t.name === r)) got = r;
+    return {
+      title: got ? `I got "${got}" — ${p.title}` : p.title,
+      description: got ? 'What do you get? Take the quiz on Siqa Chai.' : p.intro || 'Polls, quizzes and a little friendly debate on Siqa Chai.',
+      image: p.kind === 'poll' ? null : `${origin}/api/chai-card?id=${encodeURIComponent(id)}${chaiQuery(q).replace('?', '&')}&f=og`,
+    };
+  }
+
   return null;
+}
+
+// Keep only the result params (r = result id, s = score), safely encoded.
+function chaiQuery(q) {
+  const out = [];
+  if (typeof q.r === 'string' && q.r && q.r.length <= 120) out.push(`r=${encodeURIComponent(q.r)}`);
+  if (typeof q.s === 'string' && /^\d{1,3}$/.test(q.s)) out.push(`s=${q.s}`);
+  return out.length ? `?${out.join('&')}` : '';
 }
 
 function absolute(url, origin) {
