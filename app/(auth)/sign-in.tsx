@@ -18,6 +18,7 @@ import { Theme } from '../../constants/theme';
 import { IS_MARKETPLACE_SITE, SITE_HOME } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
+import { SocialSignIn } from '../../components/SocialSignIn';
 
 type Role = 'viewer' | 'speaker' | 'org';
 
@@ -106,6 +107,8 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
+          <SocialSignIn onError={setError} />
+
           {mode === 'signup' && (
             <>
               {/* Role selector (not on the Marketplace site - shoppers and
