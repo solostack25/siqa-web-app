@@ -82,7 +82,7 @@ function WatchScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
   const { videoId } = useLocalSearchParams<{ videoId: string }>();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isDesktopWeb = useIsDesktopWeb();
   const width = isDesktopWeb ? windowWidth - 220 : windowWidth;
   const isWide = width > 900;
@@ -262,35 +262,50 @@ function WatchScreen() {
       ? null
       : (document.getElementById('siqa-player')?.querySelector('video') as HTMLVideoElement | null) ?? null;
 
+  const playerMedia = (
+    <>
+      {video.platform === 'youtube' && video.platform_video_id ? (
+        <YouTubeEmbed videoId={video.platform_video_id} autoplay />
+      ) : (
+        <Video
+          source={{ uri: video.video_url }}
+          posterSource={video.thumbnail_url ? { uri: video.thumbnail_url } : undefined}
+          usePoster
+          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          style={styles.player}
+          shouldPlay
+        />
+      )}
+      {!isYouTube && <CastButton variant="overlay" media={castMedia} getVideoElement={getPlayerVideo} />}
+    </>
+  );
+
+  // Desktop: the player lives in the main column and scrolls with the page
+  // (YouTube-style). Its height is capped to ~62% of the window so the
+  // title, description and the start of the comments show below it, and
+  // Related videos run beside it from the top.
+  const wideMainWidth = Math.min(width, 1400) - 380 - Theme.spacing.lg * 2;
+  const widePlayerWidth = Math.max(
+    320,
+    Math.min(wideMainWidth, Math.round(windowHeight * 0.62 * (16 / 9))),
+  );
+
   return (
     <DesktopShell>
     <View style={styles.screen}>
-      {/* Player is intentionally OUTSIDE the ScrollView below — this is
-          what keeps it fixed/playing while everything else scrolls under
-          it, rather than scrolling away with the page. */}
-      <View style={[styles.playerWrapFixed, !isWide && { paddingTop: insets.top }]}>
-        <View style={styles.playerInner} nativeID="siqa-player">
-          {video.platform === 'youtube' && video.platform_video_id ? (
-            <YouTubeEmbed videoId={video.platform_video_id} autoplay />
-          ) : (
-            <Video
-              source={{ uri: video.video_url }}
-              posterSource={video.thumbnail_url ? { uri: video.thumbnail_url } : undefined}
-              usePoster
-              useNativeControls
-              resizeMode={ResizeMode.CONTAIN}
-              style={styles.player}
-              shouldPlay
-            />
-          )}
-          {!isYouTube && <CastButton variant="overlay" media={castMedia} getVideoElement={getPlayerVideo} />}
-          {!isWide && (
+      {/* Phones: player is OUTSIDE the ScrollView so it stays pinned and
+          playing while the details scroll under it. */}
+      {!isWide && (
+        <View style={[styles.playerWrapFixed, { paddingTop: insets.top }]}>
+          <View style={styles.playerInner} nativeID="siqa-player">
+            {playerMedia}
             <TouchableOpacity onPress={goBack} style={styles.playerBack} accessibilityLabel="Back" hitSlop={8}>
               <Icon name="chevron-back" size={22} color="#fff" />
             </TouchableOpacity>
-          )}
+          </View>
         </View>
-      </View>
+      )}
 
       {!isWide ? (
       <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -406,7 +421,13 @@ function WatchScreen() {
                 <Text style={styles.backArrow}>‹</Text>
                 <Text style={styles.backLabel}>Back</Text>
               </TouchableOpacity>
-  
+
+              <View style={styles.widePlayerWrap}>
+                <View style={[styles.widePlayer, { width: widePlayerWidth }]} nativeID="siqa-player">
+                  {playerMedia}
+                </View>
+              </View>
+
               <Text style={styles.title}>{video.title}</Text>
   
               <View style={[styles.creatorRow, !isWide && styles.creatorRowStacked]}>
@@ -502,6 +523,9 @@ function makeStyles(C: AppColors) {
   // it doesn't stretch to an absurd size on an ultrawide monitor; centered.
   playerWrapFixed: { backgroundColor: C.black, alignItems: 'center' },
   playerInner: { width: '100%', maxWidth: 1000, aspectRatio: 16 / 9 },
+  // Desktop player: rounded, black letterbox, centred in the main column.
+  widePlayerWrap: { alignItems: 'center', marginBottom: Theme.spacing.lg },
+  widePlayer: { aspectRatio: 16 / 9, backgroundColor: C.black, borderRadius: 12, overflow: 'hidden' },
   playerBack: {
     position: 'absolute', top: 10, left: 10, width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center',
