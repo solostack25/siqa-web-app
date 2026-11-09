@@ -281,14 +281,14 @@ function WatchScreen() {
     </>
   );
 
-  // Desktop: the player lives in the main column and scrolls with the page
-  // (YouTube-style). Its height is capped to ~62% of the window so the
-  // title, description and the start of the comments show below it, and
-  // Related videos run beside it from the top.
+  // Desktop: the player stays pinned at the top of the main column, capped
+  // to ~45% of the window height. The details + comments scroll in their own
+  // pane under it, and Related videos scroll in their own column on the right,
+  // so the video never moves and the rest gets most of the screen.
   const wideMainWidth = Math.min(width, 1400) - 380 - Theme.spacing.lg * 2;
   const widePlayerWidth = Math.max(
     320,
-    Math.min(wideMainWidth, Math.round(windowHeight * 0.62 * (16 / 9))),
+    Math.min(wideMainWidth, Math.round(windowHeight * 0.45 * (16 / 9))),
   );
 
   return (
@@ -414,20 +414,22 @@ function WatchScreen() {
         )}
       </ScrollView>
       ) : (
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-          <View style={isWide ? styles.wideContent : undefined}>
-            <View style={isWide ? styles.body : styles.bodyStacked}>
+      <View style={styles.wideSplit}>
+          <View style={styles.wideMain}>
+            {/* Pinned: back + player never scroll. */}
+            <View style={styles.widePinned}>
               <TouchableOpacity onPress={goBack} style={styles.backRow} hitSlop={8}>
                 <Text style={styles.backArrow}>‹</Text>
                 <Text style={styles.backLabel}>Back</Text>
               </TouchableOpacity>
-
               <View style={styles.widePlayerWrap}>
                 <View style={[styles.widePlayer, { width: widePlayerWidth }]} nativeID="siqa-player">
                   {playerMedia}
                 </View>
               </View>
+            </View>
 
+            <ScrollView style={styles.scrollArea} contentContainerStyle={styles.wideMainScroll}>
               <Text style={styles.title}>{video.title}</Text>
   
               <View style={[styles.creatorRow, !isWide && styles.creatorRowStacked]}>
@@ -489,9 +491,10 @@ function WatchScreen() {
               <View style={{ marginTop: 24 }}>
                 <WatchComments videoId={video.id} wide />
               </View>
-            </View>
-  
-            <View style={isWide ? styles.relatedWideCol : styles.bodyStacked}>
+            </ScrollView>
+          </View>
+
+          <ScrollView style={styles.relatedPane} contentContainerStyle={styles.relatedWideCol}>
               <Text style={styles.relatedLabel}>Related videos</Text>
               {related.map((r) => (
                 <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
@@ -507,9 +510,8 @@ function WatchScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
-            </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       )}
     </View>
     </DesktopShell>
@@ -524,7 +526,12 @@ function makeStyles(C: AppColors) {
   playerWrapFixed: { backgroundColor: C.black, alignItems: 'center' },
   playerInner: { width: '100%', maxWidth: 1000, aspectRatio: 16 / 9 },
   // Desktop player: rounded, black letterbox, centred in the main column.
-  widePlayerWrap: { alignItems: 'center', marginBottom: Theme.spacing.lg },
+  wideSplit: { flex: 1, flexDirection: 'row', maxWidth: 1400, alignSelf: 'center', width: '100%' },
+  wideMain: { flex: 1, minWidth: 0 },
+  widePinned: { paddingHorizontal: Theme.spacing.lg, paddingTop: Theme.spacing.lg },
+  wideMainScroll: { paddingHorizontal: Theme.spacing.lg, paddingBottom: 40 },
+  relatedPane: { width: 380, flexGrow: 0, flexShrink: 0 },
+  widePlayerWrap: { alignItems: 'center', marginBottom: Theme.spacing.md },
   widePlayer: { aspectRatio: 16 / 9, backgroundColor: C.black, borderRadius: 12, overflow: 'hidden' },
   playerBack: {
     position: 'absolute', top: 10, left: 10, width: 40, height: 40, borderRadius: 20,
