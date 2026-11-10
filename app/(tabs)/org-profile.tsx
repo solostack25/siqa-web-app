@@ -43,6 +43,8 @@ import { brandStyles, font } from '../../lib/ds';
 import { Button, IconButton } from '../../components/ui';
 import { OrgVideos } from '../../components/OrgVideos';
 import { OrgPosts } from '../../components/OrgPosts';
+import { OrgScholars } from '../../components/OrgScholars';
+import { OrgGemVideos } from '../../components/OrgGemVideos';
 import { focusedOnly } from '../../components/FocusedOnly';
 import { seedYouTubeId } from '../../components/SeedVideo';
 import { goBack } from '../../lib/goBack';
@@ -84,6 +86,7 @@ type Org = {
   payment_method_type: PaymentMethodType;
   payment_method_url: string | null;
   payment_method_label: string | null;
+  org_kind?: 'nonprofit' | 'content' | null;
 };
 
 type Doc990 = { id: string; tax_year: number; file_url: string; file_name: string | null; file_size_kb: number | null; status: string; created_at: string };
@@ -115,7 +118,7 @@ type Fundraiser = {
   zakat_eligible: boolean | null;
 };
 
-type Tab = 'overview' | 'posts' | 'videos' | 'seeds' | 'endorsements' | 'reviews' | 'about';
+type Tab = 'overview' | 'scholars' | 'posts' | 'videos' | 'seeds' | 'endorsements' | 'reviews' | 'about';
 
 function orgIcon(type: string | null): GlyphName {
   const map: Record<string, GlyphName> = {
@@ -166,6 +169,8 @@ function OrgProfileScreen() {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab || 'overview');
   const [videoCount, setVideoCount] = useState(0);
   const [postCount, setPostCount] = useState(0);
+  const [scholarCount, setScholarCount] = useState(0);
+  const [gemVideoCount, setGemVideoCount] = useState(0);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -535,7 +540,17 @@ function OrgProfileScreen() {
   const logoSize = wide ? 120 : 84;
   const coverHeight = Math.round(Math.max(140, Math.min(260, width * 0.26)));
 
-  const tabs: { key: Tab; label: string }[] = [
+  // Content publishers (Yaqeen-style) lead with their scholars and the
+  // Gems they publish, not Seeds and donor reviews.
+  const isContentOrg = org.org_kind === 'content';
+  const tabs: { key: Tab; label: string }[] = isContentOrg ? [
+    { key: 'overview', label: 'Overview' },
+    { key: 'scholars', label: `Scholars${scholarCount ? ` (${scholarCount})` : ''}` },
+    { key: 'videos', label: `Videos${gemVideoCount ? ` (${gemVideoCount})` : ''}` },
+    { key: 'posts', label: `Posts${postCount ? ` (${postCount})` : ''}` },
+    ...(fundraisers.length ? [{ key: 'seeds' as Tab, label: `Seeds (${fundraisers.length})` }] : []),
+    { key: 'about', label: 'About' },
+  ] : [
     { key: 'overview', label: 'Overview' },
     { key: 'posts', label: `Posts${postCount ? ` (${postCount})` : ''}` },
     { key: 'videos', label: `Videos${videoCount ? ` (${videoCount})` : ''}` },
@@ -860,9 +875,53 @@ function OrgProfileScreen() {
     />
   );
 
+  const scholarsBlock = (limit?: number) => (
+    <OrgScholars
+      key={`scholars-${org.id}-${limit ?? 'all'}`}
+      orgId={org.id}
+      canEdit={canEditOrg}
+      isAdmin={isAdmin}
+      limit={limit}
+      columns={cols + 1}
+      onSeeAll={() => setActiveTab('scholars')}
+      onChange={list => setScholarCount(list.length)}
+    />
+  );
+
+  // Content orgs: their videos are real Gems (public.videos.org_id).
+  const gemVideosBlock = (limit?: number) => (
+    <OrgGemVideos
+      key={`gemvideos-${org.id}-${limit ?? 'all'}`}
+      orgId={org.id}
+      orgName={org.org_name}
+      limit={limit}
+      columns={cols === 1 ? 1 : cols + 1}
+      onSeeAll={() => setActiveTab('videos')}
+      onCount={limit ? undefined : setGemVideoCount}
+    />
+  );
+
   // ── Layout per tab ───────────────────────────────────────────────────
 
+  function renderContentTab() {
+    if (activeTab === 'scholars') return <View style={styles.stack}>{scholarsBlock()}</View>;
+    if (activeTab === 'videos') return <View style={styles.stack}>{gemVideosBlock()}</View>;
+    if (activeTab === 'posts') return <View style={styles.stack}>{postsBlock()}</View>;
+    if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
+    if (activeTab === 'about') return <View style={styles.stack}>{aboutBlock}{trustBlock}{docsBlock}</View>;
+    if (cols === 1) {
+      return <View style={styles.stack}>{scholarsBlock(6)}{gemVideosBlock(6)}{postsBlock(2)}{aboutBlock}</View>;
+    }
+    return (
+      <View style={styles.row}>
+        <View style={[styles.stack, styles.colMain]}>{scholarsBlock(cols === 3 ? 8 : 6)}{gemVideosBlock(8)}{postsBlock(2)}</View>
+        <View style={[styles.stack, styles.colSide]}>{aboutBlock}{trustBlock}</View>
+      </View>
+    );
+  }
+
   function renderTab() {
+    if (isContentOrg) return renderContentTab();
     if (activeTab === 'posts') return <View style={styles.stack}>{postsBlock()}</View>;
     if (activeTab === 'videos') return <View style={styles.stack}>{videosBlock()}</View>;
     if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
@@ -937,7 +996,7 @@ function OrgProfileScreen() {
                 {org.banner_url ? (
                   <Image source={{ uri: org.banner_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
                 ) : (
-                  <View style={[StyleSheet.absoluteFill, { backgroundColor: C.emerald }]} />
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: isContentOrg ? '#0a0f1c' : C.emerald }]} />
                 )}
                 {canEditOrg && (
                   <View style={styles.coverEdit}>
@@ -955,7 +1014,7 @@ function OrgProfileScreen() {
                   style={[styles.logoWrap, { width: logoSize, height: logoSize, marginTop: -logoSize / 2 }]}
                   accessibilityLabel={canEditOrg ? 'Change logo' : undefined}
                 >
-                  <Avatar name={org.org_name} url={org.logo_url} size={logoSize - 8} tone="emerald" square />
+                  <Avatar name={org.org_name} url={org.logo_url} size={logoSize - 8} tone={isContentOrg ? 'gold' : 'emerald'} square />
                   {canEditOrg && (
                     <View style={styles.logoEdit}>
                       {uploadingLogo ? <ActivityIndicator color="#fff" size="small" /> : <Icon name="camera-outline" size={14} color="#fff" />}
@@ -967,6 +1026,12 @@ function OrgProfileScreen() {
                   <View style={styles.headerInfo}>
                     <View style={styles.nameRow}>
                       <Text style={styles.orgName}>{org.org_name}</Text>
+                      {isContentOrg && (
+                        <View style={[styles.verified, { backgroundColor: C.goldBg }]}>
+                          <Icon name="diamond-outline" size={13} color={C.gold} />
+                          <Text style={[styles.verifiedText, { color: C.gold }]}>Content publisher</Text>
+                        </View>
+                      )}
                       {org.is_verified && (
                         <View style={styles.verified}>
                           <Icon name="checkmark-circle" size={14} color={C.emerald} />
@@ -978,9 +1043,15 @@ function OrgProfileScreen() {
                     <Text style={styles.meta}>
                       {[location, org.org_type, org.ein_verified ? 'EIN verified' : null].filter(Boolean).join(' · ')}
                     </Text>
+                    {isContentOrg ? (
+                    <Text style={styles.meta}>
+                      <Text style={styles.metaStrong}>{scholarCount}</Text> scholar{scholarCount === 1 ? '' : 's'} · <Text style={styles.metaStrong}>{gemVideoCount.toLocaleString()}</Text> video{gemVideoCount === 1 ? '' : 's'}
+                    </Text>
+                    ) : (
                     <Text style={styles.meta}>
                       <Text style={styles.metaStrong}>{money(totals.raised)}</Text> raised · <Text style={styles.metaStrong}>{totals.donors.toLocaleString()}</Text> donors · <Text style={styles.metaStrong}>{fundraisers.length}</Text> active seed{fundraisers.length === 1 ? '' : 's'}
                     </Text>
+                    )}
                   </View>
                   <View style={[styles.actions, !wide && { width: '100%' }]}>
                     {/* One gold button per row: with a Seed to give to, Donate is the gold one. */}
@@ -1003,7 +1074,24 @@ function OrgProfileScreen() {
                 </View>
               </View>
 
-              {canEditOrg && (
+              {canEditOrg && isContentOrg && (
+                <View style={styles.ownerBar}>
+                  <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
+                    <Text style={styles.ownerTitle}>You manage this page</Text>
+                    <Text style={styles.ownerSub}>
+                      {org.approval_status !== 'approved'
+                        ? 'Siqa is reviewing your organization. Add your scholars in the meantime.'
+                        : 'Scholars choose “Post under ' + org.org_name + '” when they upload, and those videos show here and in Gems.'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => setActiveTab('scholars')} style={[styles.actionBtn, styles.actionBtnGold]}>
+                    <Icon name="people-outline" size={18} color={C.black} />
+                    <Text style={[styles.actionText, { color: C.black }]}>Manage scholars</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {canEditOrg && !isContentOrg && (
                 <View style={styles.ownerBar}>
                   <View style={{ flex: 1, minWidth: 200, gap: 2 }}>
                     <Text style={styles.ownerTitle}>You manage this page</Text>
