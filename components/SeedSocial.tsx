@@ -239,7 +239,7 @@ function EndorsementVideo({ url }: { url: string }) {
   const { Video, ResizeMode } = require('expo-av');
   return (
     <View style={{ aspectRatio: 16 / 9, borderRadius: 12, overflow: 'hidden', backgroundColor: '#000' }}>
-      <Video source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode={ResizeMode.CONTAIN} shouldPlay useNativeControls />
+      <Video videoStyle={{ width: '100%', height: '100%' }} source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode={ResizeMode.CONTAIN} shouldPlay useNativeControls />
     </View>
   );
 }

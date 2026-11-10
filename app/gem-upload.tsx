@@ -1321,7 +1321,7 @@ function GemUploadScreenContent() {
             <ScrollView style={styles.dtRight} contentContainerStyle={styles.dtRightContent}>
               <View style={styles.dtPreview}>
                 <View style={styles.dtPlayer}>
-                  <Video
+                  <Video videoStyle={{ width: '100%', height: '100%' }}
                     source={{ uri: video.uri }}
                     style={StyleSheet.absoluteFill}
                     resizeMode={ResizeMode.CONTAIN}
@@ -1455,7 +1455,7 @@ function GemUploadScreenContent() {
               {video ? (
                 <View style={[{ width: frameW, height: frameH, borderRadius: 22, overflow: 'hidden', backgroundColor: '#48525C' }, { boxShadow: '0px 24px 60px rgba(0,0,0,0.55), 0px 0px 0px 1px rgba(255,255,255,0.08)' } as any]}>
                   {previewPlaying || !thumbnail ? (
-                    <Video
+                    <Video videoStyle={{ width: '100%', height: '100%' }}
                       source={{ uri: video.uri }}
                       style={StyleSheet.absoluteFill}
                       resizeMode={ResizeMode.COVER}

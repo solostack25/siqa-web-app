@@ -281,6 +281,10 @@ function WatchScreen() {
           useNativeControls
           resizeMode={ResizeMode.CONTAIN}
           style={styles.player}
+          // expo-av on the web drops the video's absolute fill, so the
+          // <video> renders at its full pixel size inside the player and
+          // looks zoomed in. Size it to the player explicitly.
+          videoStyle={{ width: '100%', height: '100%' }}
           shouldPlay
         />
       )}
