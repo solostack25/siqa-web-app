@@ -53,7 +53,7 @@ export function SeedVideo({
     );
   }
   return (
-    <Video
+    <Video videoStyle={{ width: '100%', height: '100%' }}
       source={{ uri }}
       posterSource={poster ? { uri: poster } : undefined}
       usePoster={Boolean(poster)}

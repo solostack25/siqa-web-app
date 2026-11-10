@@ -500,7 +500,7 @@ function GemClip({
               onReadyForDisplay={() => setVideoLoading(false)}
             />
           ) : (
-            <Video
+            <Video videoStyle={{ width: '100%', height: '100%' }}
               ref={videoRef}
               source={{ uri: item.video_url }}
               style={StyleSheet.absoluteFill}

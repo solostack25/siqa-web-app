@@ -9,7 +9,7 @@ import {
   useWindowDimensions,
   TextInput,
 } from 'react-native';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { useTheme, type AppColors } from '../../lib/theme';
@@ -94,8 +94,29 @@ export default function BrowseScreen() {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadVideos = useCallback(async (cat: string, search: string) => {
-    setLoading(true);
+  // This screen stays mounted in the tab group, so coming back from a video
+  // fires the focus effect again. It must use the CURRENT search and
+  // category (refs), and only the newest request may update the list —
+  // otherwise an older, slower query can overwrite good results.
+  const categoryRef = useRef(category);
+  const searchRef = useRef(searchQuery);
+  categoryRef.current = category;
+  searchRef.current = searchQuery;
+  const requestId = useRef(0);
+  const lastLoaded = useRef<string | null>(null);
+
+  // A new search or category from Home / the top bar while this screen is
+  // already open should replace what's in the box.
+  useEffect(() => {
+    if (typeof params.search === 'string' && params.search !== searchRef.current) setSearchQuery(params.search);
+  }, [params.search]);
+  useEffect(() => {
+    if (typeof params.category === 'string' && params.category !== categoryRef.current) setCategory(params.category);
+  }, [params.category]);
+
+  const loadVideos = useCallback(async (cat: string, search: string, opts?: { quiet?: boolean }) => {
+    const myId = ++requestId.current;
+    if (!opts?.quiet) setLoading(true);
     let query = supabase
       .from('videos')
       .select(
@@ -128,19 +149,35 @@ export default function BrowseScreen() {
       query = query.or(orParts.join(','));
     }
 
-    const { data } = await query;
-    setVideos(shuffle((data as any[]) ?? []));
+    const { data, error } = await query;
+    if (myId !== requestId.current) return; // a newer search replaced this one
+    if (error) {
+      // Keep what's on screen rather than flashing "no videos" on a hiccup.
+      setLoading(false);
+      return;
+    }
+    const key = `${cat}|${search.trim()}`;
+    const rows = (data as any[]) ?? [];
+    // Same search as last time (e.g. coming back from a video): keep the
+    // order instead of reshuffling under the person.
+    setVideos(prev => {
+      if (lastLoaded.current === key && prev.length) {
+        const fresh = new Map(rows.map(r => [r.id, r]));
+        const kept = prev.filter(v => fresh.has(v.id)).map(v => fresh.get(v.id));
+        const added = rows.filter(r => !prev.some(v => v.id === r.id));
+        return [...added, ...kept];
+      }
+      return shuffle(rows);
+    });
+    lastLoaded.current = key;
     setLoading(false);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      loadVideos(category, searchQuery);
-      // Only re-run this on focus/category change — searchQuery changes
-      // are handled by the debounced effect below instead, so typing
-      // doesn't refire this on every keystroke via a focus dependency.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [category])
+      // Refresh quietly with whatever is in the box right now.
+      loadVideos(categoryRef.current, searchRef.current, { quiet: lastLoaded.current !== null });
+    }, [category, loadVideos])
   );
 
   // useFocusEffect only fires on focus events, not on state changes while
@@ -203,8 +240,8 @@ export default function BrowseScreen() {
         <ActivityIndicator color={C.gold} style={{ marginTop: Theme.spacing.xxxl }} />
       ) : videos.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No videos here yet</Text>
-          <Text style={styles.emptySubtitle}>Check back soon, or try a different category.</Text>
+          <Text style={styles.emptyTitle}>{searchQuery.trim() ? `No videos match “${searchQuery.trim()}”` : 'No videos here yet'}</Text>
+          <Text style={styles.emptySubtitle}>{searchQuery.trim() ? 'Try a different word, or clear the search.' : 'Check back soon, or try a different category.'}</Text>
         </View>
       ) : (
         <FlatList
