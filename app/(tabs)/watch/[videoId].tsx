@@ -27,6 +27,8 @@ import { Icon } from '../../../components/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { brandStyles } from '../../../lib/ds';
 import { Button, Chip } from '../../../components/ui';
+import { PlaylistSheet } from '../../../components/PlaylistSheet';
+import { WatchQueue, useWatchQueue } from '../../../components/WatchQueue';
 
 type VideoDetail = {
   id: string;
@@ -44,6 +46,8 @@ type VideoDetail = {
   speaker_id: string;
   platform: string | null;
   platform_video_id: string | null;
+  series_id?: string | null;
+  episode_number?: number | null;
   speakers: {
     id: string;
     display_name: string;
@@ -81,7 +85,7 @@ function timeAgo(ts: string | null) {
 function WatchScreen() {
   const { colors: C } = useTheme();
   const styles = makeStyles(C);
-  const { videoId } = useLocalSearchParams<{ videoId: string }>();
+  const { videoId, list } = useLocalSearchParams<{ videoId: string; list?: string }>();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isDesktopWeb = useIsDesktopWeb();
   const width = isDesktopWeb ? windowWidth - 220 : windowWidth;
@@ -95,6 +99,7 @@ function WatchScreen() {
   const [likeCount, setLikeCount] = useState(0);
   const [saved, setSaved] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!videoId) return;
@@ -105,7 +110,7 @@ function WatchScreen() {
       .select(
         `id, title, description, video_url, thumbnail_url, category, topics,
          view_count, like_count, comment_count, published_at, created_at, speaker_id,
-         platform, platform_video_id,
+         platform, platform_video_id, series_id, episode_number,
          speakers(id, display_name, is_verified, is_claimed, follower_count, profile_id, avatar_url)`
       )
       .eq('id', videoId)
@@ -164,6 +169,8 @@ function WatchScreen() {
     const t = setTimeout(() => recordView(videoId), VIEW_DELAY_MS);
     return () => clearTimeout(t);
   }, [videoId]);
+
+  const queue = useWatchQueue(video?.id, video?.series_id, typeof list === 'string' ? list : undefined);
 
   async function handleShare() {
     if (!video) return;
@@ -322,8 +329,15 @@ function WatchScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mPills}>
           <Chip icon={liked ? 'thumbs-up' : 'thumbs-up-outline'} label={likeCount > 0 ? likeCount.toLocaleString() : 'Like'} selected={liked} onPress={toggleLike} />
           <Chip icon={saved ? 'bookmark' : 'bookmark-outline'} label={saved ? 'Saved' : 'Save'} selected={saved} onPress={toggleSave} />
+          <Chip icon="list" label="Playlist" onPress={() => setPlaylistOpen(true)} />
           <Chip icon="share-outline" label="Share" onPress={handleShare} />
         </ScrollView>
+
+        {queue && queue.items.length > 0 ? (
+          <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+            <WatchQueue queue={queue} currentId={video.id} compact />
+          </View>
+        ) : null}
 
         <View style={styles.mBand} />
 
@@ -467,6 +481,8 @@ function WatchScreen() {
                     <Text style={styles.shareBtnText}>Share</Text>
                   </TouchableOpacity>
   
+                  <Button size="md" variant="secondary" icon="list" label="Playlist" onPress={() => setPlaylistOpen(true)} />
+
                   {/* Phones use the cast icon on the player instead (no room here). */}
                   {!isYouTube && isWide && <CastButton media={castMedia} getVideoElement={getPlayerVideo} />}
                 </View>
@@ -495,6 +511,11 @@ function WatchScreen() {
           </View>
 
           <ScrollView style={styles.relatedPane} contentContainerStyle={styles.relatedWideCol}>
+              {queue && queue.items.length > 0 ? (
+                <View style={{ marginBottom: 20 }}>
+                  <WatchQueue queue={queue} currentId={video.id} />
+                </View>
+              ) : null}
               <Text style={styles.relatedLabel}>Related videos</Text>
               {related.map((r) => (
                 <TouchableOpacity key={r.id} style={styles.relatedRow} onPress={() => router.push(`/watch/${r.id}`)}>
@@ -513,6 +534,7 @@ function WatchScreen() {
           </ScrollView>
         </View>
       )}
+      <PlaylistSheet videoId={video.id} visible={playlistOpen} onClose={() => setPlaylistOpen(false)} />
     </View>
     </DesktopShell>
   );

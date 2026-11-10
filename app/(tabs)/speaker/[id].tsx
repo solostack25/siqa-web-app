@@ -27,6 +27,7 @@ import { ClaimNotice, UnclaimedBadge } from '../../../components/ClaimNotice';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../../lib/ds';
 import { Button, BottomSheet, Chip, TextField } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
+import { SeriesGrid, useSeriesFor } from '../../../components/SeriesGrid';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
   return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
@@ -68,7 +69,7 @@ type Video = {
   org_id?: string | null;
 };
 
-type Tab = 'videos' | 'gems' | 'about';
+type Tab = 'videos' | 'gems' | 'series' | 'about';
 
 // Content orgs this speaker teaches with (speaker_affiliations).
 type Affil = {
@@ -148,6 +149,7 @@ function SpeakerProfileScreen() {
   // 'all' | 'own' | an org id — whose videos to show.
   const [source, setSource] = useState<string>('all');
   const [affilBusy, setAffilBusy] = useState<string | null>(null);
+  const speakerSeries = useSeriesFor({ speakerId: id });
   const [sort, setSort] = useState<Sort>('latest');
   const [showCount, setShowCount] = useState(12);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -505,6 +507,7 @@ function SpeakerProfileScreen() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'videos', label: `Videos · ${longVideos.length}` },
     { key: 'gems', label: `Gems · ${shortVideos.length}` },
+    ...(speakerSeries.rows.length ? [{ key: 'series' as Tab, label: `Series · ${speakerSeries.rows.length}` }] : []),
     { key: 'about', label: 'About' },
   ];
 
@@ -618,7 +621,9 @@ function SpeakerProfileScreen() {
   );
 
   let tabContent: React.ReactNode = null;
-  if (tab === 'videos') {
+  if (tab === 'series') {
+    tabContent = <SeriesGrid rows={speakerSeries.rows} loading={speakerSeries.loading} columns={isDesktopWeb ? 3 : 1} />;
+  } else if (tab === 'videos') {
     const list = sortedFor(longVideos);
     const featured = sort === 'latest' && isDesktopWeb ? list[0] : null;
     const rest = featured ? list.slice(1) : list;
@@ -889,7 +894,7 @@ function SpeakerProfileScreen() {
               ))}
             </View>
 
-            {sourceOptions.length && tab !== 'about' ? (
+            {sourceOptions.length && tab !== 'about' && tab !== 'series' ? (
               <View style={[styles.sourceRow, { marginHorizontal: pad }]} accessibilityRole="radiogroup" accessibilityLabel="Whose videos">
                 {sourceOptions.map(o => (
                   <Chip key={o.key} label={o.label} selected={source === o.key} onPress={() => { setSource(o.key); setShowCount(12); }} />

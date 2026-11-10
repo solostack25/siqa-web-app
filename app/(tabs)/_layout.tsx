@@ -164,6 +164,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="browse" options={{ href: null, title: 'Browse' }} />
       <Tabs.Screen name="watch/[videoId]" options={{ href: null, title: 'Watch' }} />
       <Tabs.Screen name="speaker/[id]" options={{ href: null, title: 'Speaker' }} />
+      <Tabs.Screen name="series/[id]" options={{ href: null, title: 'Series' }} />
+      <Tabs.Screen name="playlists" options={{ href: null, title: 'Playlists' }} />
+      <Tabs.Screen name="playlist/[id]" options={{ href: null, title: 'Playlist' }} />
       <Tabs.Screen name="org-profile" options={{ href: null, title: 'Organization' }} />
       <Tabs.Screen name="seed/[id]" options={{ href: null, title: 'Seed' }} />
       <Tabs.Screen name="product/[id]" options={{ href: null, title: 'Product' }} />

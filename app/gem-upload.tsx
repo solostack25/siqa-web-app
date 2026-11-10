@@ -39,6 +39,7 @@ import { BottomSheet, Button, IconButton, ListRow, OptionRow, Switch as DSSwitch
 import { font, radius, space, type as T, useDS } from '../lib/ds';
 import { brandStyles } from '../lib/ds';
 import { goBack } from '../lib/goBack';
+import { SeriesPicker, type SeriesRow } from '../components/SeriesPicker';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -238,6 +239,82 @@ function GemUploadScreenContent() {
     return () => { live = false; };
   }, [effectiveSpeakerId]);
   const postOrgName = postOrgs.find(o => o.id === postOrgId)?.org_name;
+
+  // ── Series ─────────────────────────────────────────────────────────
+  const [seriesList, setSeriesList] = useState<SeriesRow[]>([]);
+  const [seriesId, setSeriesId] = useState<string | null>(null);
+  const [episode, setEpisode] = useState('');
+  const [description, setDescription] = useState('');
+  const [creatingSeries, setCreatingSeries] = useState(false);
+  const selectedSeries = seriesList.find(x => x.id === seriesId) ?? null;
+  const orgNames = useMemo(() => Object.fromEntries(postOrgs.map(o => [o.id, o.org_name])), [postOrgs]);
+
+  async function loadSeries() {
+    if (!effectiveSpeakerId) { setSeriesList([]); return; }
+    const orgIds = postOrgs.map(o => o.id);
+    const filter = `and(speaker_id.eq.${effectiveSpeakerId},org_id.is.null)` + (orgIds.length ? `,org_id.in.(${orgIds.join(',')})` : '');
+    const { data } = await supabase
+      .from('series')
+      .select('id,title,description,cover_url,default_topics,default_format,default_visibility,default_fundraiser_id,speaker_id,org_id')
+      .or(filter)
+      .order('updated_at', { ascending: false });
+    setSeriesList((data as SeriesRow[]) ?? []);
+  }
+  useEffect(() => { setSeriesId(null); loadSeries(); }, [effectiveSpeakerId, postOrgs]);
+
+  // A series that belongs to an organization only takes videos posted under it.
+  useEffect(() => {
+    if (selectedSeries?.org_id && selectedSeries.org_id !== postOrgId) setSeriesId(null);
+    if (selectedSeries && !selectedSeries.org_id && postOrgId) setSeriesId(null);
+  }, [postOrgId]);
+
+  async function applySeries(sr: SeriesRow | null) {
+    if (!sr) { setSeriesId(null); return; }
+    setSeriesId(sr.id);
+    if (sr.org_id) setPostOrgId(sr.org_id);
+    setDescription(sr.description ?? '');
+    if (sr.default_topics?.length) setSelectedTopics(sr.default_topics);
+    if (sr.default_format) setContentFormat(sr.default_format);
+    if (sr.default_visibility) setVisibility(sr.default_visibility);
+    if (sr.default_fundraiser_id) { setPlantSeed(true); setFundraiserId(sr.default_fundraiser_id); }
+    const { data: last, count } = await supabase
+      .from('videos')
+      .select('episode_number', { count: 'exact' })
+      .eq('series_id', sr.id)
+      .order('episode_number', { ascending: false, nullsFirst: false })
+      .limit(1);
+    const next = Math.max((last?.[0] as any)?.episode_number ?? 0, count ?? 0) + 1;
+    setEpisode(String(next));
+    setSeriesList(prev => prev.map(x => x.id === sr.id ? { ...x, episodes: count ?? 0 } : x));
+    setCaption(cur => cur.trim() ? cur : `${sr.title}, Episode ${next}`);
+  }
+
+  async function createSeries(title: string, desc: string) {
+    if (!effectiveSpeakerId) return;
+    setCreatingSeries(true);
+    const { data, error } = await supabase
+      .from('series')
+      .insert({
+        speaker_id: effectiveSpeakerId,
+        org_id: postOrgId,
+        title,
+        description: desc || null,
+        default_topics: selectedTopics,
+        default_format: contentFormat === 'auto' ? null : contentFormat,
+        default_visibility: visibility,
+        default_fundraiser_id: plantSeed && fundraiserId.trim() ? fundraiserId.trim() : null,
+      })
+      .select('id,title,description,cover_url,default_topics,default_format,default_visibility,default_fundraiser_id,speaker_id,org_id')
+      .single();
+    setCreatingSeries(false);
+    if (error || !data) { notify('Could not create series', error?.message || 'Try again.'); return; }
+    const row = { ...(data as SeriesRow), episodes: 0 };
+    setSeriesList(prev => [row, ...prev]);
+    setSeriesId(row.id);
+    setEpisode('1');
+    setDescription(row.description ?? '');
+    setCaption(cur => cur.trim() ? cur : `${row.title}, Episode 1`);
+  }
 
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [speakerQuery, setSpeakerQuery] = useState('');
@@ -492,6 +569,9 @@ function GemUploadScreenContent() {
           setVisibility('public');
           setVideo(null);
           setThumbnail(null);
+          setSeriesId(null);
+          setDescription('');
+          setEpisode('');
         },
       },
     ]);
@@ -800,8 +880,9 @@ function GemUploadScreenContent() {
       const basePayload: Record<string, any> = {
         speaker_id: finalSpeakerId,
         ...(postOrgId ? { org_id: postOrgId } : null),
+        ...(seriesId ? { series_id: seriesId, episode_number: episode ? parseInt(episode, 10) : null } : null),
         title: cleanCaption,
-        description: cleanCaption,
+        description: description.trim() || cleanCaption,
         video_url: videoUrl,
         platform: 'bunny',
         thumbnail_url: thumbnailUrl,
@@ -832,6 +913,18 @@ function GemUploadScreenContent() {
       }
 
       if (insert.error) throw insert.error;
+
+      // The next episode starts from what was used this time.
+      if (seriesId) {
+        await supabase.from('series').update({
+          description: description.trim() || selectedSeries?.description || null,
+          default_topics: selectedTopics,
+          default_format: finalFormat,
+          default_visibility: visibility,
+          default_fundraiser_id: plantSeed && fundraiserId.trim() ? fundraiserId.trim() : null,
+          ...(!selectedSeries?.cover_url && thumbnailUrl ? { cover_url: thumbnailUrl } : null),
+        }).eq('id', seriesId);
+      }
 
       await AsyncStorage.removeItem(DRAFT_KEY);
       setProgressPct(100);
@@ -1204,6 +1297,21 @@ function GemUploadScreenContent() {
               <Text style={styles.dtSection}>Details</Text>
               {progressBox}
               {captionCard}
+              <View style={styles.card}>
+                <SeriesPicker
+                  series={seriesList}
+                  selectedId={seriesId}
+                  onPick={applySeries}
+                  onCreate={createSeries}
+                  creating={creatingSeries}
+                  episode={episode}
+                  onEpisode={setEpisode}
+                  description={description}
+                  onDescription={setDescription}
+                  disabled={uploading}
+                  orgNames={orgNames}
+                />
+              </View>
               {thumbnailCard}
               {speakerCard}
               {topicsCard}
@@ -1437,6 +1545,21 @@ function GemUploadScreenContent() {
                 {video && fileTitle && !caption.trim() ? (
                   <Chip label="Use file name" onPress={() => setCaption(fileTitle)} disabled={uploading} />
                 ) : null}
+              </View>
+              <View style={{ paddingVertical: 8 }}>
+                <SeriesPicker
+                  series={seriesList}
+                  selectedId={seriesId}
+                  onPick={(sr) => { applySeries(sr); if (sr) setSheetOpen(true); }}
+                  onCreate={createSeries}
+                  creating={creatingSeries}
+                  episode={episode}
+                  onEpisode={setEpisode}
+                  description={description}
+                  onDescription={setDescription}
+                  disabled={uploading}
+                  orgNames={orgNames}
+                />
               </View>
             </View>
 
