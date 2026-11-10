@@ -183,6 +183,10 @@ function GemUploadScreenContent() {
   const [speakers, setSpeakers] = useState<SpeakerOption[]>([]);
   const [selectedSpeakerId, setSelectedSpeakerId] = useState<string | null>(null);
   const [seeds, setSeeds] = useState<SeedOption[]>([]);
+  // Content orgs this speaker is a confirmed scholar of. Posting under one
+  // makes the org the video's owner (videos.org_id); null = own channel.
+  const [postOrgs, setPostOrgs] = useState<{ id: string; org_name: string }[]>([]);
+  const [postOrgId, setPostOrgId] = useState<string | null>(null);
 
   const [video, setVideo] = useState<PickedVideo | null>(null);
   const [thumbnail, setThumbnail] = useState<PickedImage | null>(null);
@@ -211,7 +215,30 @@ function GemUploadScreenContent() {
   const [capturingFrame, setCapturingFrame] = useState(false);
   // Phone layout (brand kit v2): which bottom sheet is open, and preview playback.
   const ds = useDS();
-  const [sheet, setSheet] = useState<null | 'speaker' | 'topics' | 'visibility' | 'format' | 'seed' | 'cover'>(null);
+  const [sheet, setSheet] = useState<null | 'speaker' | 'topics' | 'visibility' | 'format' | 'seed' | 'cover' | 'owner'>(null);
+
+  const effectiveSpeakerId = isAdmin ? selectedSpeakerId : speakerId;
+  useEffect(() => {
+    let live = true;
+    setPostOrgId(null);
+    if (!effectiveSpeakerId) { setPostOrgs([]); return; }
+    (async () => {
+      const { data } = await supabase
+        .from('speaker_affiliations')
+        .select('org_id, organizations(id, org_name, org_kind, approval_status)')
+        .eq('speaker_id', effectiveSpeakerId)
+        .eq('status', 'confirmed');
+      if (!live) return;
+      const list = ((data as any[]) || [])
+        .map(r => r.organizations)
+        .filter((o: any) => o && o.org_kind === 'content' && o.approval_status === 'approved')
+        .map((o: any) => ({ id: o.id as string, org_name: o.org_name as string }));
+      setPostOrgs(list);
+    })();
+    return () => { live = false; };
+  }, [effectiveSpeakerId]);
+  const postOrgName = postOrgs.find(o => o.id === postOrgId)?.org_name;
+
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [speakerQuery, setSpeakerQuery] = useState('');
   const scrubBarWidth = useRef(0);
@@ -772,6 +799,7 @@ function GemUploadScreenContent() {
 
       const basePayload: Record<string, any> = {
         speaker_id: finalSpeakerId,
+        ...(postOrgId ? { org_id: postOrgId } : null),
         title: cleanCaption,
         description: cleanCaption,
         video_url: videoUrl,
@@ -1207,6 +1235,24 @@ function GemUploadScreenContent() {
                   </TouchableOpacity>
                 </View>
               </View>
+              {postOrgs.length ? (
+                <View style={styles.card}>
+                  <Text style={styles.label}>Post under</Text>
+                  <View style={styles.visibilityRow}>
+                    {[{ id: null as string | null, org_name: 'My channel' }, ...postOrgs].map((o) => (
+                      <TouchableOpacity
+                        key={o.id ?? 'own'}
+                        style={[styles.visCard, postOrgId === o.id && styles.visCardActive]}
+                        onPress={() => setPostOrgId(o.id)}
+                        disabled={uploading}
+                      >
+                        <Text style={[styles.visTitle, postOrgId === o.id && styles.visTitleActive]}>{o.org_name}</Text>
+                        <Text style={styles.visSub}>{o.id ? 'Owned by the organization' : 'Yours'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
               {visibilityCard}
               {formatCard}
             </ScrollView>
@@ -1400,6 +1446,9 @@ function GemUploadScreenContent() {
               {isAdmin ? (
                 <ListRow icon="person-outline" label="Posting as" value={speakerName} onPress={() => setSheet('speaker')} disabled={uploading} />
               ) : null}
+              {postOrgs.length ? (
+                <ListRow icon="business-outline" label="Post under" value={postOrgName ?? 'My channel'} onPress={() => setSheet('owner')} disabled={uploading} />
+              ) : null}
               <ListRow icon="pricetag-outline" label="Topics" value={selectedTopics.join(', ') || 'None'} onPress={() => setSheet('topics')} disabled={uploading} />
               <ListRow icon="eye-outline" label="Who can see" value={visibility === 'public' ? 'Everyone' : 'Followers'} onPress={() => setSheet('visibility')} disabled={uploading} />
               <ListRow
@@ -1467,6 +1516,13 @@ function GemUploadScreenContent() {
               <Chip key={topic} label={topic} selected={selectedTopics.includes(topic)} onPress={() => toggleTopic(topic)} />
             ))}
           </View>
+        </BottomSheet>
+
+        <BottomSheet visible={sheet === 'owner'} onClose={() => setSheet(null)} title="Post under">
+          <OptionRow label="My channel" sub="This video is yours" icon="person-outline" selected={!postOrgId} onPress={() => { setPostOrgId(null); setSheet(null); }} last={!postOrgs.length} />
+          {postOrgs.map((o, i) => (
+            <OptionRow key={o.id} label={o.org_name} sub="Owned by the organization, shown on its page" icon="business-outline" selected={postOrgId === o.id} onPress={() => { setPostOrgId(o.id); setSheet(null); }} last={i === postOrgs.length - 1} />
+          ))}
         </BottomSheet>
 
         <BottomSheet visible={sheet === 'visibility'} onClose={() => setSheet(null)} title="Who can see">

@@ -25,7 +25,7 @@ import { useBlocked, blockUser, unblockUser } from '../../../lib/blocks';
 import ImageCropModal from '../../../components/ImageCropModal';
 import { ClaimNotice, UnclaimedBadge } from '../../../components/ClaimNotice';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../../lib/ds';
-import { Button, BottomSheet, TextField } from '../../../components/ui';
+import { Button, BottomSheet, Chip, TextField } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
@@ -65,9 +65,18 @@ type Video = {
   duration_secs: number | null;
   format: string | null;
   published_at: string | null;
+  org_id?: string | null;
 };
 
 type Tab = 'videos' | 'gems' | 'about';
+
+// Content orgs this speaker teaches with (speaker_affiliations).
+type Affil = {
+  id: string;
+  status: 'pending' | 'confirmed' | 'declined' | 'ended';
+  title: string | null;
+  organizations: { id: string; org_name: string; logo_url: string | null; org_kind: string | null } | null;
+};
 type Sort = 'latest' | 'popular' | 'oldest';
 
 function formatRaised(cents: number | null) {
@@ -135,6 +144,10 @@ function SpeakerProfileScreen() {
   const [followBusy, setFollowBusy] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('videos');
+  const [affils, setAffils] = useState<Affil[]>([]);
+  // 'all' | 'own' | an org id — whose videos to show.
+  const [source, setSource] = useState<string>('all');
+  const [affilBusy, setAffilBusy] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>('latest');
   const [showCount, setShowCount] = useState(12);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -185,7 +198,7 @@ function SpeakerProfileScreen() {
 
     const { data: vids } = await supabase
       .from('videos')
-      .select('id, title, thumbnail_url, view_count, like_count, duration_secs, format, published_at')
+      .select('id, title, thumbnail_url, view_count, like_count, duration_secs, format, published_at, org_id')
       .eq('speaker_id', speakerId)
       .eq('is_published', true)
       .lte('published_at', new Date().toISOString())
@@ -195,6 +208,14 @@ function SpeakerProfileScreen() {
 
     const list = (vids as Video[]) ?? [];
     setVideos(list);
+    setSource('all');
+    const { data: aff } = await supabase
+      .from('speaker_affiliations')
+      .select('id, status, title, organizations(id, org_name, logo_url, org_kind)')
+      .eq('speaker_id', speakerId)
+      .in('status', ['pending', 'confirmed'])
+      .order('created_at', { ascending: true });
+    setAffils(((aff as any) as Affil[]) ?? []);
     // Land on whichever tab actually has content.
     if (!list.some(v => v.format === 'long') && list.some(v => v.format === 'short')) setTab('gems');
     setLoading(false);
@@ -362,8 +383,43 @@ function SpeakerProfileScreen() {
     if (gemId) uploadGemThumbnail(gemId, blobUrl);
   }
 
-  const longVideos = useMemo(() => videos.filter(v => v.format !== 'short'), [videos]);
-  const shortVideos = useMemo(() => videos.filter(v => v.format === 'short'), [videos]);
+  const confirmedAffils = affils.filter(a => a.status === 'confirmed' && a.organizations);
+  const pendingAffils = affils.filter(a => a.status === 'pending' && a.organizations);
+  // Own channel vs. videos an organization owns (videos.org_id).
+  const orgNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    affils.forEach(a => { if (a.organizations) m.set(a.organizations.id, a.organizations.org_name); });
+    return m;
+  }, [affils]);
+  const sourceOptions = useMemo(() => {
+    const orgIds = [...new Set(videos.map(v => v.org_id).filter(Boolean) as string[])];
+    if (!orgIds.length) return [];
+    return [
+      { key: 'all', label: 'All' },
+      { key: 'own', label: 'Own channel' },
+      ...orgIds.map(id => ({ key: id, label: `With ${orgNameById.get(id) ?? 'organization'}` })),
+    ];
+  }, [videos, orgNameById]);
+  const sourceVideos = useMemo(() => (
+    source === 'all' ? videos
+      : source === 'own' ? videos.filter(v => !v.org_id)
+      : videos.filter(v => v.org_id === source)
+  ), [videos, source]);
+  const longVideos = useMemo(() => sourceVideos.filter(v => v.format !== 'short'), [sourceVideos]);
+  const shortVideos = useMemo(() => sourceVideos.filter(v => v.format === 'short'), [sourceVideos]);
+
+  async function respondAffil(a: Affil, accept: boolean) {
+    setAffilBusy(a.id);
+    const { error } = await supabase
+      .from('speaker_affiliations')
+      .update({ status: accept ? 'confirmed' : 'declined' })
+      .eq('id', a.id);
+    setAffilBusy(null);
+    if (error) { Alert.alert('Something went wrong', error.message); return; }
+    setAffils(prev => accept
+      ? prev.map(x => x.id === a.id ? { ...x, status: 'confirmed' } : x)
+      : prev.filter(x => x.id !== a.id));
+  }
   const totalViews = useMemo(() => videos.reduce((s, v) => s + (v.view_count ?? 0), 0), [videos]);
 
   const sortedFor = (list: Video[]) => {
@@ -755,6 +811,23 @@ function SpeakerProfileScreen() {
                     </View>
                   )}
                 </View>
+                {confirmedAffils.map(a => (
+                  <TouchableOpacity
+                    key={a.id}
+                    onPress={() => router.push({ pathname: '/org-profile', params: { id: a.organizations!.id } } as any)}
+                    accessibilityRole="link"
+                    style={styles.affilRow}
+                  >
+                    <View style={styles.affilLogo}>
+                      {a.organizations!.logo_url
+                        ? <Image source={{ uri: a.organizations!.logo_url }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                        : <Text style={styles.affilLogoText}>{a.organizations!.org_name.slice(0, 1)}</Text>}
+                    </View>
+                    <Text style={styles.subline} numberOfLines={1}>
+                      {[a.title, a.organizations!.org_name].filter(Boolean).join(', ')}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
                 {location ? <Text style={styles.subline}>{location}</Text> : null}
                 <View style={styles.statsRow}>
                   {stats.map(s => (
@@ -785,6 +858,22 @@ function SpeakerProfileScreen() {
               </View>
             )}
 
+            {/* An organization asked to list this speaker as one of its scholars. */}
+            {isOwner && pendingAffils.map(a => (
+              <View key={a.id} style={[styles.affilInvite, { marginHorizontal: pad }]}>
+                <View style={{ flex: 1, minWidth: 220, gap: 2 }}>
+                  <Text style={styles.affilInviteTitle}>{a.organizations!.org_name} added you as a scholar</Text>
+                  <Text style={styles.affilInviteSub}>
+                    {a.title ? `Role: ${a.title}. ` : ''}If you confirm, you'll show on their page and can post videos under their name.
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Button size="md" variant="secondary" label="Decline" disabled={affilBusy === a.id} onPress={() => respondAffil(a, false)} />
+                  <Button size="md" label="Confirm" loading={affilBusy === a.id} onPress={() => respondAffil(a, true)} />
+                </View>
+              </View>
+            ))}
+
             {/* Tabs */}
             <View style={[styles.tabRow, { marginHorizontal: pad }]} accessibilityRole="tablist">
               {tabs.map(t => (
@@ -799,6 +888,14 @@ function SpeakerProfileScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {sourceOptions.length && tab !== 'about' ? (
+              <View style={[styles.sourceRow, { marginHorizontal: pad }]} accessibilityRole="radiogroup" accessibilityLabel="Whose videos">
+                {sourceOptions.map(o => (
+                  <Chip key={o.key} label={o.label} selected={source === o.key} onPress={() => { setSource(o.key); setShowCount(12); }} />
+                ))}
+              </View>
+            ) : null}
 
             <View style={{ paddingHorizontal: pad, paddingTop: 20 }}>{tabContent}</View>
           </View>
@@ -919,7 +1016,14 @@ function makeStyles(C: AppColors, desktop: boolean) {
       paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999,
     },
     verifiedText: { color: C.emerald, fontSize: 12, fontWeight: '700' },
-    subline: { fontSize: 14, color: C.text2 },
+    subline: { fontSize: 14, color: C.text2, flexShrink: 1 },
+    affilRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2, minHeight: 24 },
+    affilLogo: { width: 20, height: 20, borderRadius: 6, backgroundColor: '#0a0f1c', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+    affilLogoText: { color: '#d4ac73', fontSize: 11, fontWeight: '800' },
+    affilInvite: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginTop: 20, padding: 16, borderRadius: 16, backgroundColor: C.goldBg },
+    affilInviteTitle: { fontSize: 15, fontWeight: '700', color: C.text },
+    affilInviteSub: { fontSize: 13, color: C.text2, lineHeight: 18 },
+    sourceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
     statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 6 },
     statText: { fontSize: 14, color: C.text2 },
     statVal: { fontSize: 15, fontWeight: '700', color: C.text },
