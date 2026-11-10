@@ -119,6 +119,7 @@ export function DesktopSidebar() {
   const youItems: YouItem[] = [
     ...(speaker && !IS_MARKETPLACE_SITE ? [{ key: 'myprofile', label: 'My Public Profile', path: `/speaker/${speaker.id}`, matchPrefixes: [`/speaker/${speaker.id}`], icon: 'person-circle-outline' }] : []),
     ...(speaker && !IS_MARKETPLACE_SITE ? [{ key: 'studio', label: 'Speaker Studio', path: '/studio', matchPrefixes: ['/studio'], icon: 'stats-chart-outline' }] : []),
+    ...(!IS_MARKETPLACE_SITE ? [{ key: 'playlists', label: 'Playlists', path: '/playlists', matchPrefixes: ['/playlists', '/playlist/'], icon: 'list-outline' }] : []),
     { key: 'cart', label: 'Cart', path: '/cart', matchPrefixes: ['/cart'], icon: 'cart-outline' },
     { key: 'orders', label: 'My Orders', path: '/orders', matchPrefixes: ['/orders'], icon: 'receipt-outline' },
     { key: 'messages', label: 'Messages', path: '/messages', matchPrefixes: ['/messages'], icon: 'chatbubble-outline' },

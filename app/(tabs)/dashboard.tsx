@@ -657,6 +657,17 @@ function DashboardScreenInner() {
             )}
 
             {activeTab === 'saved' && (
+              <TouchableOpacity
+                onPress={() => router.push('/playlists' as any)}
+                accessibilityRole="link"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 14, marginBottom: 14, borderRadius: 14, backgroundColor: C.surface2 }}
+              >
+                <Icon name="list" size={20} color={C.text} />
+                <Text style={{ flex: 1, color: C.text, fontSize: 15, fontWeight: '700' }}>Your playlists</Text>
+                <Icon name="chevron-forward" size={16} color={C.text3} />
+              </TouchableOpacity>
+            )}
+            {activeTab === 'saved' && (
               savedGems.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Glyph name="bookmark-outline" style={styles.emptyEmoji} />
