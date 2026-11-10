@@ -187,7 +187,10 @@ export default function CheckoutScreen() {
   }
 
   const hasPhysical = lineItems.some(i => !i.is_digital);
-  const iosDigital = Platform.OS === 'ios' && lineItems.some(i => i.is_digital);
+  // Digital downloads can't be paid for with Stripe inside the iPhone or
+  // Android app (App Store 3.1.1 / Google Play Payments policy), so both
+  // finish on siqa.us in the browser. Physical goods are fine in-app.
+  const iosDigital = Platform.OS !== 'web' && lineItems.some(i => i.is_digital);
   const itemsTotal = lineItems.reduce((sum, i) => sum + i.price_cents * i.quantity, 0);
   const addressComplete = hasPhysical
     ? Boolean(address.name.trim() && address.line1.trim() && address.city.trim() && address.state.trim().length === 2 && address.postal_code.trim().length >= 5)

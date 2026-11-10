@@ -80,6 +80,21 @@ export default function DonateScreen() {
       });
     })();
   }, [needsLookup, fundraiserId]);
+  // Donations only go to orgs whose 501(c)(3) status Siqa has confirmed
+  // (the server enforces this too). null = still checking.
+  const [taxOk, setTaxOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!fundraiserId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('fundraisers')
+        .select('organizations ( tax_exempt_status )')
+        .eq('id', fundraiserId)
+        .maybeSingle();
+      const org: any = Array.isArray((data as any)?.organizations) ? (data as any).organizations[0] : (data as any)?.organizations;
+      setTaxOk(org?.tax_exempt_status === 'verified');
+    })();
+  }, [fundraiserId]);
   const src = loadedSeed ?? params;
   const title = src.title ?? '';
   const orgStripeAccountId = src.orgStripeAccountId;
@@ -129,9 +144,10 @@ export default function DonateScreen() {
     };
   }
 
-  const isAltPay = !!paymentMethodUrl && paymentMethodType !== 'stripe';
+  const isAltPay = taxOk !== false && !!paymentMethodUrl && paymentMethodType !== 'stripe';
   const lookingUp = needsLookup && !loadedSeed;
-  const isNoPayment = !lookingUp && !orgStripeAccountId && !paymentMethodUrl;
+  const notTaxExempt = taxOk === false;
+  const isNoPayment = notTaxExempt || (!lookingUp && !orgStripeAccountId && !paymentMethodUrl);
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { colors: C, isDark } = useTheme();
@@ -406,7 +422,9 @@ if (fnError) throw new Error(fnError);
         {isNoPayment && (
           <View style={styles.noPayNotice}>
             <Text style={styles.noPayNoticeText}>
-              <Glyph name="warning-outline" style={styles.noPayNoticeText} />{' '}This organization hasn't set up payments yet. Contact them directly to donate.
+              <Glyph name="warning-outline" style={styles.noPayNoticeText} />{' '}{notTaxExempt
+                ? "This organization can't take donations on Siqa until its 501(c)(3) status is confirmed. Contact them directly to give."
+                : "This organization hasn't set up payments yet. Contact them directly to donate."}
             </Text>
           </View>
         )}

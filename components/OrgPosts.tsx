@@ -27,6 +27,7 @@ import { Avatar, Card, CardTitle, PrimaryButton, timeAgo } from './SeedSocial';
 import { Button } from './ui';
 import { Icon } from './Icon';
 import { showToast } from './Toast';
+import { ReportButton } from './ReportButton';
 
 const MAX_PHOTOS = 4;
 const LIVE_SEED = ['active', 'published', 'approved', 'live'];
@@ -283,7 +284,9 @@ function PostCard({
           <TouchableOpacity onPress={() => setMenu(m => !m)} style={styles.iconBtn} accessibilityLabel="Post options">
             <Icon name="ellipsis-horizontal" size={20} color={C.text2} />
           </TouchableOpacity>
-        ) : null}
+        ) : (
+          <ReportButton targetType="org_post" targetId={p.id} what="this post" />
+        )}
       </View>
 
       {menu ? (

@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: fundraiser, error: fundraiserError } = await supabase
       .from('fundraisers')
-      .select('id,title,org_id,status,organizations(id,org_name,is_verified,stripe_account_id,stripe_onboarded)')
+      .select('id,title,org_id,status,organizations(id,org_name,is_verified,tax_exempt_status,stripe_account_id,stripe_onboarded)')
       .eq('id', fundraiserId)
       .single();
 
@@ -97,6 +97,12 @@ Deno.serve(async (req: Request) => {
 
     if (!org?.is_verified) {
       return json({ error: 'This organization is not verified for donations' }, 400);
+    }
+
+    // App store rules: donations only for validated tax-exempt charities.
+    // Siqa checks 501(c)(3) proof before an org can receive gifts.
+    if (org?.tax_exempt_status !== 'verified') {
+      return json({ error: "This organization's 501(c)(3) status hasn't been confirmed yet, so it can't receive donations on Siqa." }, 400);
     }
 
     // Without a connected account the money would land in Siqa's own

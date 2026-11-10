@@ -27,6 +27,7 @@ import { Button, IconButton, Stepper } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 import { goBack } from '../../../lib/goBack';
 import { categoryPath, imageFor, priceRange, variantKey, type Variations } from '../../../lib/productTaxonomy';
+import { ReportButton } from '../../../components/ReportButton';
 
 // Product page laid out like an Etsy listing: gallery with a thumbnail
 // rail on the left, a purchase panel on the right (price, title, shop and
@@ -624,6 +625,10 @@ function ProductDetailScreen() {
           <Text style={styles.policyText}>{returnsText || 'Contact the seller about returns or exchanges.'}</Text>
         </View>
       )}
+
+      <View style={{ alignSelf: 'flex-start' }}>
+        <ReportButton variant="link" label="Report this item" targetType="product" targetId={product.id} what="this item" />
+      </View>
 
       {/* Meet your seller */}
       {seller && (

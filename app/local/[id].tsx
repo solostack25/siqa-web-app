@@ -17,6 +17,7 @@ import {
   categoryLabel, initialsOf, isFeatured, placeLine, tintFor, withProtocol, type BusinessListing,
 } from '../../lib/businessCategories';
 import { brandStyles, font, buttonStyles, dsStatic } from '../../lib/ds';
+import { ReportButton } from '../../components/ReportButton';
 
 export default function LocalListingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -301,6 +302,7 @@ export default function LocalListingScreen() {
             >
               <Text style={styles.link}>Share this listing</Text>
             </TouchableOpacity>
+            <ReportButton variant="link" label="Report this listing" targetType="business" targetId={l.id} what="this listing" />
           </View>
 
           <View style={styles.sideCol}>

@@ -33,6 +33,7 @@ import { priceRange, type Variations } from '../../../lib/productTaxonomy';
 import { font, radius, space, type, useDS } from '../../../lib/ds';
 import { HEADER_TOP_PADDING } from '../../../constants/theme';
 import { goBack } from '../../../lib/goBack';
+import { ReportButton } from '../../../components/ReportButton';
 
 type Shop = {
   id: string; user_id: string; shop_name: string; bio: string | null; avatar_url: string | null; banner_url: string | null;
@@ -376,6 +377,7 @@ function ShopScreen() {
         accessibilityLabel={following ? `Unfollow ${shop.shop_name}` : `Follow ${shop.shop_name}`}
       />
       <Button label="Message" variant="secondary" size="md" icon="chatbubble-outline" loading={messageBusy} grow={!isDesktop} onPress={messageShop} />
+      <ReportButton targetType="shop" targetId={shop.id} what="this shop" />
       {isDesktop ? <IconButton icon="share-outline" label="Share shop" variant="soft" onPress={() => shareShop(shop.id, shop.shop_name)} /> : null}
     </View>
   );
