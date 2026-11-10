@@ -11,6 +11,7 @@ import { Colors } from '../constants/colors';
 import { SearchProvider } from '../contexts/SearchContext';
 import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
 import { ToastHost } from '../components/Toast';
+import { TermsGate } from '../components/TermsGate';
 import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
 import { useOtaUpdates } from '../lib/useOtaUpdates';
 import { useFonts } from 'expo-font';
@@ -149,6 +150,7 @@ function AppContent() {
         <Stack.Screen name="admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="privacy" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="terms" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="delete-account" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="support" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="blocked" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="chai-admin" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
@@ -163,6 +165,7 @@ function AppContent() {
         <Stack.Screen name="salah-tracker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
       {IS_MARKETPLACE_SITE ? null : <PrayerBanner />}
+      <TermsGate />
       <ToastHost />
     </StripeProvider>
     </View>

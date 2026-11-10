@@ -64,12 +64,37 @@ type SpeakerRow = {
 
 type OrgRow = {
   id: string;
-  name: string | null;
+  org_name: string | null;
+  org_kind?: string | null;
+  tax_exempt_status?: string | null;
   is_verified: boolean | null;
   created_at?: string | null;
 };
 
-const REPORT_KIND: Record<string, string> = { comment: 'Video comment', chai_comment: 'Chai comment', thread: 'Conversation', message: 'Message', gem: 'Gem', profile: 'Profile' };
+const REPORT_KIND: Record<string, string> = {
+  comment: 'Video comment', chai_comment: 'Chai comment', thread: 'Conversation', message: 'Message', gem: 'Gem', profile: 'Profile',
+  video: 'Video', speaker: 'Speaker profile', org: 'Organization', org_post: 'Organization post', product: 'Marketplace item',
+  shop: 'Shop', seed: 'Seed', business: 'Business listing', series: 'Series', playlist: 'Playlist',
+};
+
+// Where to look at the reported thing.
+function reportLink(r: { target_type?: string | null; target_id?: string | null; video_id?: string | null }): string | null {
+  const id = r.target_id;
+  switch (r.target_type) {
+    case 'video': return id ? `/watch/${id}` : null;
+    case 'gem': return r.video_id ? `/gems?videoId=${r.video_id}` : null;
+    case 'comment': return r.video_id ? `/watch/${r.video_id}` : null;
+    case 'speaker': return id ? `/speaker/${id}` : null;
+    case 'org': return id ? `/org-profile?id=${id}` : null;
+    case 'product': return id ? `/product/${id}` : null;
+    case 'shop': return id ? `/shop/${id}` : null;
+    case 'seed': return id ? `/seed/${id}` : null;
+    case 'business': return id ? `/local/${id}` : null;
+    case 'series': return id ? `/series/${id}` : null;
+    case 'playlist': return id ? `/playlist/${id}` : null;
+    default: return null;
+  }
+}
 
 type ReportRow = {
   id: string;
@@ -121,6 +146,7 @@ export default function AdminScreen() {
   const [videos, setVideos] = useState<QueueVideo[]>([]);
   const [speakers, setSpeakers] = useState<SpeakerRow[]>([]);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [taxQueue, setTaxQueue] = useState<OrgRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [applications, setApplications] = useState<SpeakerApplication[]>([]);
   const [pendingSellers, setPendingSellers] = useState<MarketplaceSellerRow[]>([]);
@@ -178,7 +204,7 @@ export default function AdminScreen() {
           .limit(30),
         supabase
           .from('organizations')
-          .select('id, name, is_verified, created_at')
+          .select('id, org_name, org_kind, is_verified, created_at')
           .or('is_verified.eq.false,is_verified.is.null')
           .order('created_at', { ascending: false })
           .limit(30),
@@ -199,6 +225,13 @@ export default function AdminScreen() {
       if (videosRes.data) setVideos(videosRes.data as any);
       if (speakersRes.data) setSpeakers(speakersRes.data as any);
       if (orgsRes.data) setOrgs(orgsRes.data as any);
+      const { data: taxRows } = await supabase
+        .from('organizations')
+        .select('id, org_name, tax_exempt_status')
+        .eq('tax_exempt_status', 'pending')
+        .order('tax_exempt_submitted_at', { ascending: true })
+        .limit(50);
+      setTaxQueue((taxRows as any) ?? []);
       if (appsRes.data) setApplications(appsRes.data as any);
       if (sellersRes.data) setPendingSellers(sellersRes.data as any);
       if (claimsRes.data) setClaims(claimsRes.data as any);
@@ -585,9 +618,20 @@ export default function AdminScreen() {
         ))}
       </QueueSection>
 
+      <QueueSection title="501(c)(3) proof to check" count={taxQueue.length} C={C}>
+        {taxQueue.length === 0 ? <Empty text="No 501(c)(3) proof waiting. Donations stay off for an org until you confirm it on its profile." C={C} /> : taxQueue.map((o) => (
+          <SimpleRow key={o.id} title={o.org_name || 'Unnamed organization'} sub="Proof uploaded · confirm or reject on their profile" action="Review" busy={false} onPress={() => router.push({ pathname: '/org-profile', params: { id: o.id } } as any)} C={C} />
+        ))}
+      </QueueSection>
+
       <QueueSection title="Organization Verification" count={orgs.length} C={C}>
         {orgs.length === 0 ? <Empty text="No organizations waiting for verification." C={C} /> : orgs.map((o) => (
-          <SimpleRow key={o.id} title={o.name || 'Unnamed organization'} sub="Organization profile" action="Verify" busy={busyId === o.id} onPress={() => verifyOrg(o.id)} C={C} />
+          <View key={o.id}>
+            <SimpleRow title={o.org_name || 'Unnamed organization'} sub={o.org_kind === 'content' ? 'Content publisher · videos reach Gems once verified' : 'Nonprofit'} action="Verify" busy={busyId === o.id} onPress={() => verifyOrg(o.id)} C={C} />
+            <TouchableOpacity style={{ alignSelf: 'flex-end', paddingHorizontal: 12, paddingBottom: 10 }} onPress={() => router.push({ pathname: '/org-profile', params: { id: o.id } } as any)}>
+              <Text style={{ color: C.text, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' }}>Open profile</Text>
+            </TouchableOpacity>
+          </View>
         ))}
       </QueueSection>
 
@@ -621,6 +665,11 @@ export default function AdminScreen() {
               onPress={() => closeReport(r.id)}
               C={C}
             />
+            {reportLink(r) ? (
+              <TouchableOpacity style={{ alignSelf: 'flex-end', paddingHorizontal: 12, paddingBottom: 6 }} onPress={() => router.push(reportLink(r) as any)}>
+                <Text style={{ color: C.text, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' }}>Open reported {(REPORT_KIND[r.target_type || ''] ?? 'item').toLowerCase()}</Text>
+              </TouchableOpacity>
+            ) : null}
             {(r.target_type === 'comment' || r.target_type === 'chai_comment') && r.target_id ? (
               <TouchableOpacity style={{ alignSelf: 'flex-end', paddingHorizontal: 12, paddingBottom: 10 }} disabled={busyId === r.id} onPress={() => removeReported(r)}>
                 <Text style={{ color: C.danger, fontWeight: '700', fontSize: 13 }}>Remove comment and close</Text>

@@ -29,6 +29,7 @@ import { brandStyles } from '../../../lib/ds';
 import { Button, Chip } from '../../../components/ui';
 import { PlaylistSheet } from '../../../components/PlaylistSheet';
 import { WatchQueue, useWatchQueue } from '../../../components/WatchQueue';
+import { ReportButton } from '../../../components/ReportButton';
 
 type VideoDetail = {
   id: string;
@@ -335,6 +336,7 @@ function WatchScreen() {
           <Chip icon={saved ? 'bookmark' : 'bookmark-outline'} label={saved ? 'Saved' : 'Save'} selected={saved} onPress={toggleSave} />
           <Chip icon="list" label="Playlist" onPress={() => setPlaylistOpen(true)} />
           <Chip icon="share-outline" label="Share" onPress={handleShare} />
+          <ReportButton variant="chip" targetType="video" targetId={video.id} videoId={video.id} reportedUserId={video.speakers?.profile_id} what="this video" />
         </ScrollView>
 
         {queue && queue.items.length > 0 ? (
@@ -486,6 +488,7 @@ function WatchScreen() {
                   </TouchableOpacity>
   
                   <Button size="md" variant="secondary" icon="list" label="Playlist" onPress={() => setPlaylistOpen(true)} />
+                  <ReportButton variant="button" targetType="video" targetId={video.id} videoId={video.id} reportedUserId={video.speakers?.profile_id} what="this video" />
 
                   {/* Phones use the cast icon on the player instead (no room here). */}
                   {!isYouTube && isWide && <CastButton media={castMedia} getVideoElement={getPlayerVideo} />}

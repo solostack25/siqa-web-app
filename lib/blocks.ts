@@ -87,9 +87,14 @@ export async function unblockUser(profileId: string): Promise<boolean> {
 
 export const REPORT_REASONS = ['Spam or scam', 'Hateful or abusive', 'Harassment', 'False or misleading', 'Something else'];
 
+/** Everything people can report. Admin › Reports labels and links each kind. */
+export type ReportTarget =
+  | 'comment' | 'chai_comment' | 'message' | 'thread' | 'gem' | 'profile'
+  | 'video' | 'speaker' | 'org' | 'org_post' | 'product' | 'shop' | 'seed' | 'business' | 'series' | 'playlist';
+
 /** File a report for the Admin › Reports queue. Returns an error message or null. */
 export async function reportContent(r: {
-  targetType: 'comment' | 'chai_comment' | 'message' | 'thread' | 'gem' | 'profile';
+  targetType: ReportTarget;
   targetId?: string | null;
   reportedUserId?: string | null;
   videoId?: string | null;

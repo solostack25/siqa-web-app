@@ -46,9 +46,11 @@ import { OrgPosts } from '../../components/OrgPosts';
 import { OrgScholars } from '../../components/OrgScholars';
 import { OrgGemVideos } from '../../components/OrgGemVideos';
 import { SeriesGrid, useSeriesFor } from '../../components/SeriesGrid';
+import { TaxExemptCard } from '../../components/TaxExemptCard';
 import { focusedOnly } from '../../components/FocusedOnly';
 import { seedYouTubeId } from '../../components/SeedVideo';
 import { goBack } from '../../lib/goBack';
+import { ReportButton } from '../../components/ReportButton';
 // expo-haptics is native-only — no-op on web
 const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
 
@@ -88,6 +90,9 @@ type Org = {
   payment_method_url: string | null;
   payment_method_label: string | null;
   org_kind?: 'nonprofit' | 'content' | null;
+  tax_exempt_status?: 'none' | 'pending' | 'verified' | 'rejected' | null;
+  tax_exempt_doc_url?: string | null;
+  tax_exempt_note?: string | null;
 };
 
 type Doc990 = { id: string; tax_year: number; file_url: string; file_name: string | null; file_size_kb: number | null; status: string; created_at: string };
@@ -991,6 +996,7 @@ function OrgProfileScreen() {
             <Icon name="arrow-back" size={20} color={C.text} />
           </TouchableOpacity>
           <Text style={styles.topTitle} numberOfLines={1}>{org.org_name}</Text>
+          {!canEditOrg ? <ReportButton targetType="org" targetId={org.id} reportedUserId={org.profile_id} what="this organization" /> : null}
           <TouchableOpacity onPress={share} style={styles.iconBtn} accessibilityLabel="Share">
             <Icon name="share-outline" size={19} color={C.text} />
           </TouchableOpacity>
@@ -1148,6 +1154,11 @@ function OrgProfileScreen() {
               </View>
             </View>
 
+            {(canEditOrg || isAdmin) && (!isContentOrg || fundraisers.length > 0 || org.tax_exempt_status !== 'none') ? (
+              <View style={[styles.stack, { marginBottom: 16 }]}>
+                <TaxExemptCard org={org} isAdmin={isAdmin} canEdit={canEditOrg} onChanged={() => loadOrg(org.id)} />
+              </View>
+            ) : null}
             {renderTab()}
             <View style={{ height: 48 }} />
           </View>

@@ -45,6 +45,7 @@ import { brandStyles } from '../../../lib/ds';
 import { Button, IconButton } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 import { goBack } from '../../../lib/goBack';
+import { ReportButton } from '../../../components/ReportButton';
 
 type SeedDetail = {
   id: string;
@@ -470,6 +471,7 @@ function SeedDetailScreen() {
         <View style={styles.topBar}>
           <IconButton icon="arrow-back" label="Back" variant="soft" onPress={() => goBack('/seeds')} />
           <View style={{ flex: 1 }} />
+          <ReportButton targetType="seed" targetId={seed.id} what="this Seed" />
           <IconButton icon="share-outline" label="Share" variant="soft" onPress={handleShare} />
         </View>
 

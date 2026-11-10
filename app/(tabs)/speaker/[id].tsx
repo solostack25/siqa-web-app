@@ -28,6 +28,7 @@ import { brandStyles, font, buttonStyles, dsStatic } from '../../../lib/ds';
 import { Button, BottomSheet, Chip, TextField } from '../../../components/ui';
 import { focusedOnly } from '../../../components/FocusedOnly';
 import { SeriesGrid, useSeriesFor } from '../../../components/SeriesGrid';
+import { ReportButton } from '../../../components/ReportButton';
 
 async function uploadImageToBunny(uri: string, path: string): Promise<string> {
   return uploadFileToBunny({ uri, fileName: path, mimeType: 'image/jpeg' });
@@ -552,6 +553,9 @@ function SpeakerProfileScreen() {
         >
           <Icon name="ban-outline" size={18} color={blockedSet.has(speaker.profile_id) ? C.danger : C.text} />
         </TouchableOpacity>
+      ) : null}
+      {!isOwner ? (
+        <ReportButton targetType="speaker" targetId={speaker.id} reportedUserId={speaker.profile_id} what="this profile" />
       ) : null}
     </View>
   );
