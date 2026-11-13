@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useEffect, useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { showToast } from '../components/Toast';
 import { useTheme, type AppColors } from '../lib/theme';
@@ -19,6 +19,16 @@ import { Icon } from '../components/Icon';
 import { DesktopShell } from '../components/DesktopShell';
 import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
 import { goBack } from '../lib/goBack';
+import {
+  SELLER_PLANS,
+  SELLER_PLAN_COLUMNS,
+  hasLivePlan,
+  planLabel,
+  PLANS_PURCHASABLE_HERE,
+  sellerPlanRequest,
+  type PlanTier,
+  type SellerPlanFields,
+} from '../lib/sellerPlans';
 
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
@@ -29,7 +39,9 @@ type SellerState = {
   bio: string | null;
   approval_status: string;
   stripe_onboarded: boolean;
-};
+} & SellerPlanFields;
+
+const SELLER_COLUMNS = `id, shop_name, bio, approval_status, stripe_onboarded, ${SELLER_PLAN_COLUMNS}`;
 
 export default function SellScreen() {
   const { colors: C } = useTheme();
@@ -43,6 +55,13 @@ export default function SellScreen() {
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [pickedTier, setPickedTier] = useState<PlanTier>('starter');
+  const [planBusy, setPlanBusy] = useState(false);
+  const [waitingForPlan, setWaitingForPlan] = useState(false);
+  // ?change=1 (from the seller dashboard) opens the plan picker for an
+  // existing shop; ?plan=success is Stripe Checkout sending the seller back.
+  const params = useLocalSearchParams<{ change?: string; plan?: string }>();
+  const changingPlan = params.change === '1';
 
   useEffect(() => {
     load();
@@ -59,7 +78,7 @@ export default function SellScreen() {
 
     const { data } = await supabase
       .from('marketplace_sellers')
-      .select('id, shop_name, bio, approval_status, stripe_onboarded')
+      .select(SELLER_COLUMNS)
       .eq('user_id', session.user.id)
       .maybeSingle();
 
@@ -67,8 +86,66 @@ export default function SellScreen() {
       setSeller(data as any);
       setShopName(data.shop_name ?? '');
       setBio(data.bio ?? '');
+      if (data.plan_tier) setPickedTier(data.plan_tier as PlanTier);
+      if (params.plan === 'success' && !hasLivePlan(data as any)) waitForPlan(data.id);
+      if (params.plan === 'cancelled') showToast('Checkout cancelled — no charge was made.');
     }
     setLoading(false);
+  }
+
+  // Stripe confirms the subscription by webhook a few seconds after checkout.
+  async function waitForPlan(sellerId: string) {
+    setWaitingForPlan(true);
+    for (let i = 0; i < 15; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const { data } = await supabase.from('marketplace_sellers').select(SELLER_COLUMNS).eq('id', sellerId).maybeSingle();
+      if (data && hasLivePlan(data as any)) {
+        setSeller(data as any);
+        setWaitingForPlan(false);
+        showToast('Your plan is active');
+        return;
+      }
+    }
+    setWaitingForPlan(false);
+    showToast('Payment received — your plan will show up in a minute. Refresh if it doesn\u2019t.');
+  }
+
+  async function openUrl(url: string) {
+    if (Platform.OS === 'web') window.location.href = url;
+    else await Linking.openURL(url);
+  }
+
+  async function choosePlan() {
+    if (!seller) return;
+    setPlanBusy(true);
+    try {
+      const live = hasLivePlan(seller) && !seller.plan_exempt;
+      const data = await sellerPlanRequest({ action: live ? 'change' : 'checkout', sellerId: seller.id, tier: pickedTier });
+      if (data.error) throw new Error(data.error);
+      if (data.url) return openUrl(data.url);
+      showToast('Plan updated');
+      // The webhook applies the new limit; give it a moment, then refresh.
+      setTimeout(load, 2500);
+      if (changingPlan) router.replace('/seller-dashboard' as any);
+    } catch (err: any) {
+      showToast(err?.message || 'Could not start checkout. Please try again.');
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
+  async function manageBilling() {
+    if (!seller) return;
+    setPlanBusy(true);
+    try {
+      const data = await sellerPlanRequest({ action: 'portal', sellerId: seller.id });
+      if (data.error) throw new Error(data.error);
+      if (data.url) await openUrl(data.url);
+    } catch (err: any) {
+      showToast(err?.message || 'Could not open billing.');
+    } finally {
+      setPlanBusy(false);
+    }
   }
 
   async function saveShop() {
@@ -82,7 +159,7 @@ export default function SellScreen() {
       const { data, error } = await supabase
         .from('marketplace_sellers')
         .insert({ user_id: userId, shop_name: shopName.trim(), bio: bio.trim() || null })
-        .select('id, shop_name, bio, approval_status, stripe_onboarded')
+        .select(SELLER_COLUMNS)
         .single();
       if (error) {
         showToast(`Couldn't create your shop: ${error.message}`);
@@ -138,7 +215,11 @@ export default function SellScreen() {
     );
   }
 
-  const step = !seller ? 1 : seller.approval_status !== 'approved' ? 2 : !seller.stripe_onboarded ? 3 : 4;
+  const step = !seller ? 1
+    : seller.approval_status !== 'approved' ? 2
+    : !hasLivePlan(seller) || changingPlan ? 3
+    : !seller.stripe_onboarded ? 4
+    : 5;
 
   return (
     <DesktopShell>
@@ -151,7 +232,7 @@ export default function SellScreen() {
       </View>
 
       <View style={styles.progressRow}>
-        {['Shop', 'Approval', 'Payments', 'Done'].map((label, i) => (
+        {['Shop', 'Approval', 'Plan', 'Payments', 'Done'].map((label, i) => (
           <View key={label} style={styles.progressItem}>
             <View style={[styles.progressDot, step > i + 1 && styles.progressDotDone, step === i + 1 && styles.progressDotActive]}>
               <Text style={[styles.progressDotText, (step > i + 1 || step === i + 1) && styles.progressDotTextActive]}>
@@ -203,7 +284,84 @@ export default function SellScreen() {
             "{seller.shop_name}" is under review by the Siqa team. You'll be able to connect payments and list products once it's approved — usually within a day or two.
           </Text>
         </View>
+      ) : step === 3 && !PLANS_PURCHASABLE_HERE ? (
+        // Native apps: no prices, no purchase button, no link (store rules).
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Seller plan</Text>
+          <Text style={styles.cardSub}>
+            {hasLivePlan(seller)
+              ? `Your shop is on the ${planLabel(seller)} plan. Seller plans are managed on the Siqa website.`
+              : 'Your shop needs an active seller plan before products go live. Seller plans are set up on the Siqa website, not in the app. Once it\u2019s active, come back and tap Refresh.'}
+          </Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => { setLoading(true); load(); }}>
+            <Text style={styles.primaryBtnText}>Refresh</Text>
+          </TouchableOpacity>
+          {hasLivePlan(seller) ? (
+            <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace('/seller-dashboard' as any)}>
+              <Text style={styles.linkBtnText}>Back to my store</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : step === 3 ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>{changingPlan && hasLivePlan(seller) ? 'Change your plan' : 'Choose your plan'}</Text>
+          <Text style={styles.cardSub}>
+            {changingPlan && hasLivePlan(seller)
+              ? `You're on ${planLabel(seller)}. Changes take effect now and are prorated on your next bill.`
+              : 'A monthly plan based on how many products you have live. Change or cancel any time.'}
+          </Text>
+
+          {waitingForPlan ? (
+            <View style={styles.waiting}>
+              <ActivityIndicator color={C.gold} />
+              <Text style={styles.cardSub}>Confirming your payment with Stripe…</Text>
+            </View>
+          ) : (
+            <>
+              {SELLER_PLANS.map(p => {
+                const on = pickedTier === p.tier;
+                const current = hasLivePlan(seller) && seller.plan_tier === p.tier;
+                return (
+                  <TouchableOpacity
+                    key={p.tier}
+                    style={[styles.planCard, on && styles.planCardOn]}
+                    onPress={() => setPickedTier(p.tier)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                  >
+                    <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.planTitle}>{p.title}{current ? '  · Current' : ''}</Text>
+                      <Text style={styles.planBlurb}>{p.blurb}</Text>
+                    </View>
+                    <Text style={styles.planPrice}>${p.price}<Text style={styles.planPer}>/mo</Text></Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, { marginTop: 8 }, (planBusy || (hasLivePlan(seller) && seller.plan_tier === pickedTier)) && styles.btnDisabled]}
+                onPress={choosePlan}
+                disabled={planBusy || (hasLivePlan(seller) && seller.plan_tier === pickedTier)}
+              >
+                {planBusy ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : (
+                  <Text style={styles.primaryBtnText}>
+                    {hasLivePlan(seller) && !seller.plan_exempt
+                      ? `Switch to $${SELLER_PLANS.find(p => p.tier === pickedTier)!.price}/month`
+                      : `Continue to payment · $${SELLER_PLANS.find(p => p.tier === pickedTier)!.price}/month`}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              {hasLivePlan(seller) && !seller.plan_exempt ? (
+                <TouchableOpacity style={styles.linkBtn} onPress={manageBilling} disabled={planBusy}>
+                  <Text style={styles.linkBtnText}>Update card, see invoices or cancel</Text>
+                </TouchableOpacity>
+              ) : null}
+              <Text style={styles.fineprint}>Billed monthly by Stripe. Products over your plan's limit stay saved but hidden until you upgrade.</Text>
+            </>
+          )}
+        </View>
+      ) : step === 4 ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Connect payments</Text>
           <Text style={styles.cardSub}>
@@ -272,6 +430,23 @@ function makeStyles(C: AppColors) {
       paddingHorizontal: 14, paddingVertical: 12, color: C.text, fontSize: 14, marginBottom: 14,
     },
     textArea: { minHeight: 90, textAlignVertical: 'top' },
+
+    waiting: { alignItems: 'center', gap: 10, paddingVertical: 16 },
+    planCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10,
+      borderRadius: Theme.radius.lg, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg2,
+    },
+    planCardOn: { borderColor: C.gold, backgroundColor: C.surface2 },
+    radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: C.border2, alignItems: 'center', justifyContent: 'center' },
+    radioOn: { borderColor: C.gold },
+    radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.gold },
+    planTitle: { fontSize: 15, fontWeight: '700', color: C.text },
+    planBlurb: { fontSize: 12, color: C.text2, marginTop: 2 },
+    planPrice: { fontSize: 20, fontWeight: '800', color: C.text },
+    planPer: { fontSize: 12, fontWeight: '600', color: C.text3 },
+    linkBtn: { alignItems: 'center', paddingVertical: 12 },
+    linkBtnText: { fontSize: 13, fontWeight: '700', color: C.gold },
+    fineprint: { fontSize: 11, color: C.text3, textAlign: 'center', marginTop: 8, lineHeight: 16 },
 
     primaryBtn: buttonStyles('primary', 'lg').box,
     btnDisabled: { opacity: 0.6 },

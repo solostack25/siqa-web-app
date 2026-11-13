@@ -19,6 +19,7 @@ import { uploadMarketplaceImage } from '../lib/supabaseStorage';
 import { useTheme } from '../lib/theme';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { PLANS_PURCHASABLE_HERE } from '../lib/sellerPlans';
 import { showToast } from '../components/Toast';
 import { DesktopShell } from '../components/DesktopShell';
 import { BottomSheet, Button, Chip, IconButton, ListRow, OptionRow, SegmentedControl, Stepper, Switch as DSSwitch, TextField } from '../components/ui';
@@ -275,13 +276,28 @@ export default function ListingCreateScreen() {
       variations,
       images,
     };
-    const { error } = isEdit
-      ? await supabase.from('marketplace_products').update(row).eq('id', editId).eq('seller_id', sellerId)
-      : await supabase.from('marketplace_products').insert({ ...row, seller_id: sellerId });
+    // New products over the shop's plan limit (or with no plan yet) are
+    // saved as 'paused' by the database and go live when the plan allows.
+    let savedStatus: string | null = null;
+    let error: { message: string } | null = null;
+    if (isEdit) {
+      ({ error } = await supabase.from('marketplace_products').update(row).eq('id', editId).eq('seller_id', sellerId));
+    } else {
+      const res = await supabase.from('marketplace_products').insert({ ...row, seller_id: sellerId }).select('status').single();
+      error = res.error;
+      savedStatus = (res.data as { status: string } | null)?.status ?? null;
+    }
     setSaving(false);
 
     if (error) {
       showToast(`Couldn't save: ${error.message}`);
+      return;
+    }
+    if (savedStatus === 'paused' && sellerApproved) {
+      showToast(PLANS_PURCHASABLE_HERE
+        ? 'Listing saved but hidden — your seller plan is full or not active. Upgrade to put it live.'
+        : 'Listing saved but hidden — your seller plan is full or not active.');
+      router.replace({ pathname: '/sell', params: { change: '1' } } as any);
       return;
     }
     // Navigate straight away — on web the old confirmation dialog never

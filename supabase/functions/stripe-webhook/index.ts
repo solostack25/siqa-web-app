@@ -286,6 +286,52 @@ async function reverseCheckout(supabase: SupabaseClient, charge: Stripe.Charge) 
   }
 }
 
+// ─── Seller plans (subscriptions) ───────────────────────────────────────────
+// Created by the seller-subscription function. Whatever Stripe says about the
+// subscription is copied onto the shop, then apply_seller_plan_limit hides or
+// restores products to match the plan's product limit.
+
+const TIER_BY_LOOKUP: Record<string, string> = {
+  siqa_seller_starter_monthly: 'starter',
+  siqa_seller_growth_monthly: 'growth',
+  siqa_seller_pro_monthly: 'pro',
+};
+
+async function syncSellerPlan(supabase: SupabaseClient, subOrId: Stripe.Subscription | string) {
+  // Always re-read from Stripe: events can arrive out of order.
+  const sub = await stripe.subscriptions.retrieve(typeof subOrId === 'string' ? subOrId : subOrId.id);
+  if (sub.metadata?.kind !== 'seller_plan') return;
+  const sellerId = sub.metadata.marketplace_seller_id;
+  if (!sellerId) return;
+
+  const price = sub.items.data[0]?.price;
+  const tier = (price?.lookup_key && TIER_BY_LOOKUP[price.lookup_key]) || sub.metadata.tier || null;
+  const ended = sub.status === 'canceled' || sub.status === 'incomplete_expired';
+
+  // A shop that cancelled and re-subscribed has a new subscription; don't let
+  // a late event for the old one overwrite it.
+  const { data: seller } = await supabase
+    .from('marketplace_sellers')
+    .select('stripe_subscription_id, plan_status')
+    .eq('id', sellerId)
+    .maybeSingle();
+  if (!seller) return;
+  if (seller.stripe_subscription_id && seller.stripe_subscription_id !== sub.id
+      && ['active', 'trialing', 'past_due'].includes(seller.plan_status)) return;
+
+  await supabase.from('marketplace_sellers').update({
+    stripe_subscription_id: sub.id,
+    stripe_customer_id: typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+    plan_tier: ended ? null : tier,
+    plan_status: sub.status, // active | trialing | past_due | unpaid | canceled | incomplete…
+    plan_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+    plan_cancel_at_period_end: Boolean(sub.cancel_at_period_end),
+  }).eq('id', sellerId);
+
+  const { error } = await supabase.rpc('apply_seller_plan_limit', { p_seller_id: sellerId });
+  if (error) throw new Error(`apply_seller_plan_limit failed: ${error.message}`);
+}
+
 // ─── Webhook ────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -435,6 +481,21 @@ Deno.serve(async (req) => {
             .eq('status', 'pending');
         }
       }
+    }
+
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.mode === 'subscription' && session.metadata?.kind === 'seller_plan' && session.subscription) {
+        await syncSellerPlan(supabase, session.subscription as string | Stripe.Subscription);
+      }
+    }
+
+    if (
+      event.type === 'customer.subscription.created' ||
+      event.type === 'customer.subscription.updated' ||
+      event.type === 'customer.subscription.deleted'
+    ) {
+      await syncSellerPlan(supabase, event.data.object as Stripe.Subscription);
     }
 
     if (event.type === 'charge.refunded') {
