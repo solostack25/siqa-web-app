@@ -19,6 +19,7 @@ import { uploadMarketplaceImage } from '../lib/supabaseStorage';
 import { useTheme } from '../lib/theme';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { Icon } from '../components/Icon';
+import { PLANS_PURCHASABLE_HERE } from '../lib/sellerPlans';
 import { showToast } from '../components/Toast';
 import { DesktopShell } from '../components/DesktopShell';
 import { BottomSheet, Button, Chip, IconButton, ListRow, OptionRow, SegmentedControl, Stepper, Switch as DSSwitch, TextField } from '../components/ui';
@@ -293,7 +294,9 @@ export default function ListingCreateScreen() {
       return;
     }
     if (savedStatus === 'paused' && sellerApproved) {
-      showToast('Listing saved but hidden — your seller plan is full or not active. Upgrade to put it live.');
+      showToast(PLANS_PURCHASABLE_HERE
+        ? 'Listing saved but hidden — your seller plan is full or not active. Upgrade to put it live.'
+        : 'Listing saved but hidden — your seller plan is full or not active.');
       router.replace({ pathname: '/sell', params: { change: '1' } } as any);
       return;
     }

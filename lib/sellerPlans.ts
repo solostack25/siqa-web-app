@@ -4,6 +4,14 @@ import { supabase } from './supabase';
 const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
 
+/**
+ * App Store / Play Store: the native apps never sell or price seller plans,
+ * show no buy button and no link to buy elsewhere (Apple 3.1.1 / 3.1.1(a),
+ * Google Play billing). Plans are bought and changed on the website only;
+ * the apps just read the plan and say it's managed on the Siqa website.
+ */
+export const PLANS_PURCHASABLE_HERE = Platform.OS === 'web';
+
 export type PlanTier = 'starter' | 'growth' | 'pro';
 
 /** Must match seller_listing_limit() in the DB and PLANS in the seller-subscription function. */
@@ -40,7 +48,7 @@ export function planLabel(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status' 
   if (s.plan_exempt) return 'Comped by Siqa';
   const p = SELLER_PLANS.find(x => x.tier === s.plan_tier);
   if (!p || !LIVE_PLAN_STATUSES.includes(s.plan_status)) return 'No plan';
-  return `$${p.price}/mo · ${p.title}`;
+  return PLANS_PURCHASABLE_HERE ? `$${p.price}/mo · ${p.title}` : p.title;
 }
 
 /** Call the seller-subscription edge function. */

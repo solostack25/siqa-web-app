@@ -29,7 +29,7 @@ import { font, radius, space, type, useDS, type DS } from '../lib/ds';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { goBack } from '../lib/goBack';
 import { shareShop } from '../lib/share';
-import { SELLER_PLAN_COLUMNS, hasLivePlan, planLabel, planLimit, type SellerPlanFields } from '../lib/sellerPlans';
+import { PLANS_PURCHASABLE_HERE, SELLER_PLAN_COLUMNS, hasLivePlan, planLabel, planLimit, type SellerPlanFields } from '../lib/sellerPlans';
 
 type Seller = {
   id: string; shop_name: string; bio: string | null; avatar_url: string | null; banner_url: string | null;
@@ -410,9 +410,9 @@ export default function MyStoreScreen() {
   const liveCount = products.filter(p => p.status === 'active').length;
   const pausedCount = products.filter(p => p.status === 'paused').length;
   const planNoticeCopy = seller.approval_status !== 'approved' ? null
-    : !livePlan ? { title: 'Choose a seller plan', sub: 'Pick a monthly plan to put your products live. From $5/month.', change: false }
-    : seller.plan_status === 'past_due' ? { title: 'Your plan payment failed', sub: 'Update your card to keep your products live.', change: true }
-    : pausedCount > 0 ? { title: `${pausedCount} product${pausedCount === 1 ? '' : 's'} hidden by your plan`, sub: `Your plan allows ${limit} live. Upgrade to show them.`, change: true }
+    : !livePlan ? { title: PLANS_PURCHASABLE_HERE ? 'Choose a seller plan' : 'Seller plan needed', sub: PLANS_PURCHASABLE_HERE ? 'Pick a monthly plan to put your products live. From $5/month.' : 'Products go live once your shop has a seller plan. Plans are managed on the Siqa website.', change: false }
+    : seller.plan_status === 'past_due' ? { title: 'Your plan payment failed', sub: PLANS_PURCHASABLE_HERE ? 'Update your card to keep your products live.' : 'Billing is managed on the Siqa website.', change: true }
+    : pausedCount > 0 ? { title: `${pausedCount} product${pausedCount === 1 ? '' : 's'} hidden by your plan`, sub: PLANS_PURCHASABLE_HERE ? `Your plan allows ${limit} live. Upgrade to show them.` : `Your plan allows ${limit} live. Plans are managed on the Siqa website.`, change: true }
     : null;
   const planNotice = planNoticeCopy ? (
     <Pressable

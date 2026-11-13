@@ -24,6 +24,7 @@ import {
   SELLER_PLAN_COLUMNS,
   hasLivePlan,
   planLabel,
+  PLANS_PURCHASABLE_HERE,
   sellerPlanRequest,
   type PlanTier,
   type SellerPlanFields,
@@ -282,6 +283,24 @@ export default function SellScreen() {
           <Text style={styles.cardSub}>
             "{seller.shop_name}" is under review by the Siqa team. You'll be able to connect payments and list products once it's approved — usually within a day or two.
           </Text>
+        </View>
+      ) : step === 3 && !PLANS_PURCHASABLE_HERE ? (
+        // Native apps: no prices, no purchase button, no link (store rules).
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Seller plan</Text>
+          <Text style={styles.cardSub}>
+            {hasLivePlan(seller)
+              ? `Your shop is on the ${planLabel(seller)} plan. Seller plans are managed on the Siqa website.`
+              : 'Your shop needs an active seller plan before products go live. Seller plans are set up on the Siqa website, not in the app. Once it\u2019s active, come back and tap Refresh.'}
+          </Text>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => { setLoading(true); load(); }}>
+            <Text style={styles.primaryBtnText}>Refresh</Text>
+          </TouchableOpacity>
+          {hasLivePlan(seller) ? (
+            <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace('/seller-dashboard' as any)}>
+              <Text style={styles.linkBtnText}>Back to my store</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : step === 3 ? (
         <View style={styles.card}>
