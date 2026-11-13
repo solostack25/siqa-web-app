@@ -3,7 +3,7 @@
 // then "What did you get?" discussion.
 
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Platform, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -200,7 +200,12 @@ function ChaiPostScreen() {
         <DotsBackground style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={[wrap, { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 24, gap: 18 }]}>
             <Text style={[chaiFont('mono'), { fontSize: 12, letterSpacing: 1, color: chai.ink }]}>{post.title.toUpperCase()}</Text>
-            <Text style={[chaiFont('displayBold'), { fontSize: 30, lineHeight: 34, color: chai.ink }]} accessibilityRole="header">{q.text}</Text>
+            {q.image ? (
+              <View style={[chunky(4, 20), { overflow: 'hidden', aspectRatio: 16 / 10, width: '100%' }]}>
+                <Image key={q.id} source={{ uri: q.image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityIgnoresInvertColors />
+              </View>
+            ) : null}
+            <Text style={[chaiFont('displayBold'), { fontSize: q.image ? 26 : 30, lineHeight: q.image ? 30 : 34, color: chai.ink }]} accessibilityRole="header">{q.text}</Text>
             <View style={{ gap: 10 }} accessibilityRole="radiogroup">
               {q.answers.map((a, i) => {
                 const on = picked === a.id;
@@ -267,7 +272,10 @@ function ChaiPostScreen() {
                   return (
                     <View key={q.id} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
                       <Icon name={mine ? (ok ? 'checkmark-circle' : 'close-circle') : 'ellipse-outline'} size={18} color={mine ? (ok ? chai.cardamom : chai.masala) : chai.ink2} />
-                      <Text style={{ flex: 1, fontSize: 14, lineHeight: 19, color: chai.ink }}><Text style={{ fontWeight: '700' }}>{i + 1}. </Text>{q.text} <Text style={{ fontWeight: '700' }}>{right?.text}</Text></Text>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={{ fontSize: 14, lineHeight: 19, color: chai.ink }}><Text style={{ fontWeight: '700' }}>{i + 1}. </Text>{q.text} <Text style={{ fontWeight: '700' }}>{right?.text}</Text></Text>
+                        {q.note ? <Text style={{ fontSize: 13, lineHeight: 18, color: chai.ink2 }}>{q.note}</Text> : null}
+                      </View>
                     </View>
                   );
                 })}
