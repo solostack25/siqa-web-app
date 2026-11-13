@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useState } from 'react';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { Colors } from '../../constants/colors';
 import { Glyph, type GlyphName } from '../../components/Glyph';
@@ -19,21 +19,36 @@ import { IS_MARKETPLACE_SITE, SITE_HOME } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
 import { Button } from '../../components/ui';
 import { SocialSignIn } from '../../components/SocialSignIn';
+import { setSignupIntent, consumeSignupIntent, INTENT_ROUTE, type SignupIntent } from '../../lib/signupIntent';
 
-type Role = 'viewer' | 'speaker' | 'org';
+type Role = 'viewer' | 'speaker' | 'org' | 'seller';
+type RoleOption = { key: Role; label: string; icon: GlyphName; desc: string };
 
-const ROLES: { key: Role; label: string; icon: GlyphName; desc: string }[] = [
+// Seller isn't an account type: any account can open a shop. Picking it just
+// sends them straight into Sell on Siqa after sign-up.
+const SELLER: RoleOption = { key: 'seller', label: 'Seller', icon: 'storefront-outline', desc: 'Open a shop and list your products (reviewed by Siqa)' };
+
+const ROLES: RoleOption[] = [
   { key: 'viewer',  label: 'Community Member', icon: 'people-outline', desc: 'Follow speakers, save clips, donate' },
   { key: 'speaker', label: 'Speaker',           icon: 'mic-outline', desc: 'Apply to share Gems (reviewed by Siqa)' },
   { key: 'org',     label: 'Organization',      icon: 'business-outline', desc: 'Apply to fundraise (verified by Siqa)' },
+  SELLER,
+];
+
+// shop.siqa.us: just shopping or selling.
+const SHOP_ROLES: RoleOption[] = [
+  { key: 'viewer', label: 'Shopper', icon: 'bag-handle-outline', desc: 'Buy from Muslim-owned businesses' },
+  SELLER,
 ];
 
 export default function LoginScreen() {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const params = useLocalSearchParams<{ mode?: string; role?: string }>();
+  const [mode, setMode] = useState<'signin' | 'signup'>(params.mode === 'signup' ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<Role>('viewer');
+  // ?role=seller lets "Sell on Siqa" links open Create Account with Seller picked.
+  const [role, setRole] = useState<Role>(params.role === 'seller' ? 'seller' : 'viewer');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +60,9 @@ export default function LoginScreen() {
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) { setError(error.message); setLoading(false); return; }
-    router.replace(SITE_HOME as any);
+    // Signed up as a Seller, confirmed their email, now signing in.
+    const intent = consumeSignupIntent();
+    router.replace((intent ? INTENT_ROUTE[intent] : SITE_HOME) as any);
   }
 
   async function handleSignUp() {
@@ -63,10 +80,14 @@ export default function LoginScreen() {
     });
     if (error) { setError(error.message); setLoading(false); return; }
     if (data.session) {
+      setSignupIntent(null);
       if (role === 'speaker') router.replace('/apply-speaker' as any);
+      else if (role === 'seller') router.replace('/sell' as any);
       else if (role === 'org') router.replace('/org-register' as any);
       else router.replace(SITE_HOME as any);
     } else {
+      // Remember the choice so their first sign-in after confirming lands on Sell on Siqa.
+      setSignupIntent(role === 'viewer' ? null : (role as SignupIntent));
       setError('Check your email to confirm your account.');
       setLoading(false);
     }
@@ -107,16 +128,14 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.form}>
-          <SocialSignIn onError={setError} />
-
+          {/* Picked before Apple/Google so the choice applies to those too. */}
           {mode === 'signup' && (
             <>
-              {/* Role selector (not on the Marketplace site - shoppers and
-                  sellers are regular members; selling is set up from Sell on Siqa) */}
-              {!IS_MARKETPLACE_SITE && <>
+              {/* Role selector. Shop site: Shopper or Seller. */}
+              <>
               <Text style={styles.roleLabel}>I AM A...</Text>
               <View style={styles.roleRow}>
-                {ROLES.map(r => (
+                {(IS_MARKETPLACE_SITE ? SHOP_ROLES : ROLES).map(r => (
                   <TouchableOpacity
                     key={r.key}
                     style={[styles.roleCard, role === r.key && styles.roleCardActive]}
@@ -131,9 +150,16 @@ export default function LoginScreen() {
                 ))}
               </View>
               <Text style={styles.roleDesc}>
-                {ROLES.find(r => r.key === role)?.desc}
+                {(IS_MARKETPLACE_SITE ? SHOP_ROLES : ROLES).find(r => r.key === role)?.desc}
               </Text>
-              </>}
+              </>
+            </>
+          )}
+
+          <SocialSignIn onError={setError} intent={mode === 'signup' && role !== 'viewer' ? (role as SignupIntent) : null} />
+
+          {mode === 'signup' && (
+            <>
 
               <View style={styles.field}>
                 <Text style={styles.label}>FULL NAME</Text>

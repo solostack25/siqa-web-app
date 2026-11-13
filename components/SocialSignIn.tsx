@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { supabase } from '../lib/supabase';
 import { SITE_HOME } from '../lib/site';
+import { setSignupIntent, type SignupIntent } from '../lib/signupIntent';
 import { Icon } from './Icon';
 import { font, useDS } from '../lib/ds';
 
@@ -31,7 +32,7 @@ function GoogleG({ size = 18 }: { size?: number }) {
   );
 }
 
-export function SocialSignIn({ onError }: { onError?: (message: string) => void }) {
+export function SocialSignIn({ onError, intent = null }: { onError?: (message: string) => void; intent?: SignupIntent | null }) {
   const { c, isDark } = useDS();
   const [busy, setBusy] = useState<Provider | null>(null);
 
@@ -39,6 +40,8 @@ export function SocialSignIn({ onError }: { onError?: (message: string) => void 
 
   async function go(provider: Provider) {
     setBusy(provider);
+    // Survives the trip to Apple/Google; read back in the root layout on SIGNED_IN.
+    setSignupIntent(intent);
     // Come back to the site home on whichever site they started from
     // (www.siqa.us or shop.siqa.us). Both are in Supabase's redirect list.
     const redirectTo = `${window.location.origin}${SITE_HOME}`;
