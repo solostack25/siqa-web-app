@@ -985,7 +985,10 @@ function makeStyles(C: AppColors, desktop: boolean) {
 
     coverWrap: { position: 'relative', marginHorizontal: desktop ? 32 : 0, marginTop: desktop ? 24 : 0 },
     cover: {
-      height: desktop ? 200 : 170, backgroundColor: C.emerald, overflow: 'hidden',
+      // Desktop shows the full 3:1 banner (matches the 3:1 upload crop) instead of a
+      // thin fixed-height strip that cut off the top and bottom of the image.
+      ...(desktop ? { aspectRatio: 3 } : { height: 170 }),
+      backgroundColor: C.emerald, overflow: 'hidden',
       borderRadius: desktop ? Theme.radius.xl : 0,
     },
     backBtn: {
