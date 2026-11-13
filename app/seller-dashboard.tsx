@@ -29,11 +29,12 @@ import { font, radius, space, type, useDS, type DS } from '../lib/ds';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { goBack } from '../lib/goBack';
 import { shareShop } from '../lib/share';
+import { SELLER_PLAN_COLUMNS, hasLivePlan, planLabel, planLimit, type SellerPlanFields } from '../lib/sellerPlans';
 
 type Seller = {
   id: string; shop_name: string; bio: string | null; avatar_url: string | null; banner_url: string | null;
   approval_status: string; stripe_onboarded: boolean; shipping_cents: number | null; featured_product_id: string | null;
-};
+} & SellerPlanFields;
 type Product = {
   id: string; title: string; price_cents: number; images: string[] | null; status: string;
   inventory_count: number; is_digital: boolean | null;
@@ -154,7 +155,7 @@ export default function MyStoreScreen() {
 
     const { data: sellerData } = await supabase
       .from('marketplace_sellers')
-      .select('id, shop_name, bio, avatar_url, banner_url, approval_status, stripe_onboarded, shipping_cents, featured_product_id')
+      .select(`id, shop_name, bio, avatar_url, banner_url, approval_status, stripe_onboarded, shipping_cents, featured_product_id, ${SELLER_PLAN_COLUMNS}`)
       .eq('user_id', uid)
       .maybeSingle();
 
@@ -263,7 +264,15 @@ export default function MyStoreScreen() {
     setBusyId(product.id);
     const { error } = await supabase.from('marketplace_products').update({ status: newStatus }).eq('id', product.id);
     setBusyId(null);
-    if (error) return showError('Error', error.message);
+    if (error) {
+      // Over the plan's product limit (or no plan): explain, then offer the plan picker.
+      if ((error as any).hint === 'plan_limit' || (error as any).hint === 'plan_required') {
+        showError('Plan limit', error.message);
+        router.push({ pathname: '/sell', params: { change: hasLivePlan(seller!) ? '1' : undefined } } as any);
+        return;
+      }
+      return showError('Error', error.message);
+    }
     setProducts(prev => prev.map(p => (p.id === product.id ? { ...p, status: newStatus } : p)));
   }
 
@@ -395,7 +404,32 @@ export default function MyStoreScreen() {
     </View>
   );
 
-  const stripeNotice = !seller.stripe_onboarded ? (
+  // Plan problems outrank the Stripe Connect reminder: without a plan nothing is live.
+  const livePlan = hasLivePlan(seller);
+  const limit = planLimit(seller);
+  const liveCount = products.filter(p => p.status === 'active').length;
+  const pausedCount = products.filter(p => p.status === 'paused').length;
+  const planNoticeCopy = seller.approval_status !== 'approved' ? null
+    : !livePlan ? { title: 'Choose a seller plan', sub: 'Pick a monthly plan to put your products live. From $5/month.', change: false }
+    : seller.plan_status === 'past_due' ? { title: 'Your plan payment failed', sub: 'Update your card to keep your products live.', change: true }
+    : pausedCount > 0 ? { title: `${pausedCount} product${pausedCount === 1 ? '' : 's'} hidden by your plan`, sub: `Your plan allows ${limit} live. Upgrade to show them.`, change: true }
+    : null;
+  const planNotice = planNoticeCopy ? (
+    <Pressable
+      onPress={() => router.push({ pathname: '/sell', params: planNoticeCopy.change ? { change: '1' } : {} } as any)}
+      accessibilityRole="button"
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.lg, backgroundColor: c.goldTint, opacity: pressed ? 0.8 : 1 })}
+    >
+      <IconTile icon="pricetag-outline" bg={c.surface} fg={c.goldInk} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[type.callout, font(700), { color: c.ink }]}>{planNoticeCopy.title}</Text>
+        <Text style={[type.caption, { color: c.goldInk }]}>{planNoticeCopy.sub}</Text>
+      </View>
+      <Icon name="chevron-forward" size={18} color={c.goldInk} />
+    </Pressable>
+  ) : null;
+
+  const stripeNotice = planNotice ?? (!seller.stripe_onboarded ? (
     <Pressable
       onPress={() => router.push('/sell' as any)}
       accessibilityRole="button"
@@ -408,7 +442,7 @@ export default function MyStoreScreen() {
       </View>
       <Icon name="chevron-forward" size={18} color={c.goldInk} />
     </Pressable>
-  ) : null;
+  ) : null);
 
   const payoutTitle = stats.owed > 0 ? 'On the way to you' : 'Paid out this month';
   const payoutAmount = stats.owed > 0 ? stats.owed : stats.paidThisMonth;
@@ -579,6 +613,12 @@ export default function MyStoreScreen() {
   const settingsRows = (
     <View>
       <SectionLabel style={{ marginBottom: 2 }}>Store settings</SectionLabel>
+      <ListRow
+        icon="pricetag-outline"
+        label="Seller plan"
+        value={livePlan ? `${planLabel(seller)} · ${liveCount}${limit === null ? '' : ` of ${limit}`} live` : 'Choose a plan'}
+        onPress={() => router.push({ pathname: '/sell', params: livePlan ? { change: '1' } : {} } as any)}
+      />
       <ListRow icon="card-outline" label="Payouts" value={seller.stripe_onboarded ? 'Stripe connected' : 'Set up'} onPress={() => router.push('/sell' as any)} />
       <ListRow icon="cube-outline" label="Shipping" value={shippingValue} onPress={openShipping} />
       <ListRow icon="chatbubble-outline" label="Messages" value={unread > 0 ? `${unread} new` : undefined} onPress={() => router.push('/messages' as any)} />
