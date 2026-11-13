@@ -169,15 +169,28 @@ export async function castVote(postId: string, optionId: string) {
   const uid = await requireUser();
   if (!uid) return { error: 'signed_out' as const };
   const { error } = await supabase.from('chai_votes').upsert({ post_id: postId, profile_id: uid, option_id: optionId }, { onConflict: 'post_id,profile_id' });
+  if (error?.message?.includes('vote_locked')) return { error: 'locked' as const };
   return { error: error?.message ?? null };
+}
+
+/** Votes can be changed for this long after they're cast (the server allows a few seconds more for lag). */
+export const VOTE_CHANGE_MS = 30_000;
+
+/** When you voted on a poll (server time), or null. */
+export async function myVoteAt(postId: string): Promise<number | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  const { data } = await supabase.from('chai_votes').select('created_at').eq('post_id', postId).eq('profile_id', session.user.id).maybeSingle();
+  return data?.created_at ? new Date((data as any).created_at).getTime() : null;
 }
 
 export async function savePlay(postId: string, resultId: string, score?: number, total?: number) {
   const uid = await requireUser();
   if (!uid) return { error: 'signed_out' as const };
+  // First result stands: a retake is just for fun and doesn't overwrite it.
   const { error } = await supabase.from('chai_plays').upsert(
     { post_id: postId, profile_id: uid, result_id: resultId, score: score ?? null, total: total ?? null, created_at: new Date().toISOString() },
-    { onConflict: 'post_id,profile_id' },
+    { onConflict: 'post_id,profile_id', ignoreDuplicates: true },
   );
   return { error: error?.message ?? null };
 }
