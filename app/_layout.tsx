@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../lib/supabase';
 import { finishSocialSignIn } from '../lib/socialAuth';
+import { consumeSignupIntent, INTENT_ROUTE } from '../lib/signupIntent';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
@@ -55,7 +56,16 @@ function AppContent() {
       (event, session) => {
         // Apple/Google sign-ins come back through the URL on the web.
         // Deferred: calling Supabase inside this callback can deadlock the client.
-        if (event === 'SIGNED_IN') setTimeout(() => { finishSocialSignIn(session).catch(() => {}); }, 0);
+        if (event === 'SIGNED_IN') setTimeout(async () => {
+          await finishSocialSignIn(session).catch(() => {});
+          // Picked "Seller" on Create Account, then went through Apple/Google:
+          // land on Sell on Siqa instead of the home feed.
+          const provider = session?.user?.app_metadata?.provider;
+          if (provider === 'google' || provider === 'apple') {
+            const intent = consumeSignupIntent();
+            if (intent) router.replace(INTENT_ROUTE[intent] as any);
+          }
+        }, 0);
       }
     );
 
