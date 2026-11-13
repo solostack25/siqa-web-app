@@ -51,7 +51,8 @@ export type ChaiKind = 'poll' | 'personality' | 'trivia';
 export type PollOption = { id: string; label: string };
 export type PersonalityResult = { id: string; name: string; description: string };
 export type Answer = { id: string; text: string; result?: string };
-export type Question = { id: string; text: string; answers: Answer[]; correct?: string };
+/** image: optional photo shown above the question (absolute URL). note: optional one-line explanation shown with the answers after a trivia quiz. */
+export type Question = { id: string; text: string; answers: Answer[]; correct?: string; image?: string; note?: string };
 export type Tier = { min: number; name: string; description: string };
 export type ChaiContent = {
   options?: PollOption[];

@@ -336,6 +336,8 @@ export default function ChaiAdminScreen() {
                   </View>
                 </View>
                 <TextField value={q.text} onChangeText={(v) => updQ(i, { text: v })} placeholder="Ask something fun" maxLength={200} />
+                <TextField value={q.image ?? ''} onChangeText={(v) => updQ(i, { image: v.trim() || undefined })} placeholder="Photo URL (optional), e.g. https://www.siqa.us/chai/…" maxLength={500} autoCapitalize="none" />
+                {d.kind === 'trivia' ? <TextField value={q.note ?? ''} onChangeText={(v) => updQ(i, { note: v || undefined })} placeholder="Explanation shown with the answers (optional)" maxLength={200} /> : null}
                 {q.answers.map((a, k) => (
                   <View key={a.id} style={{ gap: 6, padding: space[2], borderRadius: radius.md, backgroundColor: c.bgSunk }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
