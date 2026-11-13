@@ -8,7 +8,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   chai, chaiFont, chunky, coverHex, OPTION_COLORS, fetchPost, myVotes, pollResults, castVote, isOpen, timeLeft,
-  myPlay, savePlay, resultBreakdown, personalityResult, triviaScore, quizMeta, type ChaiPost,
+  myPlay, savePlay, resultBreakdown, myVoteAt, VOTE_CHANGE_MS, personalityResult, triviaScore, quizMeta, type ChaiPost,
 } from '../../../lib/chai';
 import { Tag, Squiggle, ChunkyButton, IconSquare, ResultBar, pct, DotsBackground } from '../../../components/chai/ChaiUI';
 import { ChaiDiscussion } from '../../../components/chai/ChaiDiscussion';
@@ -31,6 +31,14 @@ function ChaiPostScreen() {
   const [myVote, setMyVote] = useState<string | undefined>();
   const [votes, setVotes] = useState<Record<string, number>>({});
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [voteAt, setVoteAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const changeLeft = voteAt ? Math.max(0, Math.ceil((voteAt + VOTE_CHANGE_MS - now) / 1000)) : 0;
+  useEffect(() => {
+    if (!voteAt || changeLeft <= 0) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [voteAt, changeLeft > 0]);
   // quiz
   const [stage, setStage] = useState<'intro' | 'play' | 'result'>('intro');
   const [step, setStep] = useState(0);
@@ -59,6 +67,8 @@ function ChaiPostScreen() {
       if (p?.kind === 'poll') {
         const mine = await myVotes([p.id]);
         setMyVote(mine[p.id]);
+        setVoteAt(mine[p.id] ? await myVoteAt(p.id) : null);
+        setNow(Date.now());
         if (mine[p.id] || !isOpen(p)) setVotes(await pollResults(p.id));
       } else if (p) {
         const played = await myPlay(p.id);
@@ -86,7 +96,9 @@ function ChaiPostScreen() {
     setVoteError(null);
     const r = await castVote(post.id, optionId);
     if (r.error === 'signed_out') { router.push('/(auth)/sign-in' as any); return; }
+    if (r.error === 'locked') { setVoteAt(Date.now() - VOTE_CHANGE_MS); setNow(Date.now()); setVoteError('Your vote is locked in.'); return; }
     if (r.error) { setVoteError('That vote didn’t go through. Try again.'); return; }
+    if (!myVote) { setVoteAt(Date.now()); setNow(Date.now()); }
     setMyVote(optionId);
     setVotes(await pollResults(post.id));
     setRefreshKey(k => k + 1);
@@ -145,6 +157,7 @@ function ChaiPostScreen() {
     const options = post.content.options ?? [];
     const open = isOpen(post);
     const showResults = !!myVote || !open;
+    const canChange = open && !!myVote && changeLeft > 0;
     const total = Object.values(votes).reduce((a, b) => a + b, 0);
     const left = timeLeft(post);
     return (
@@ -156,7 +169,7 @@ function ChaiPostScreen() {
             {post.intro ? <Text style={{ fontSize: 15, lineHeight: 21, color: chai.ink }}>{post.intro}</Text> : null}
             <View style={{ gap: 8 }}>
               {options.map((o, i) => showResults ? (
-                <Pressable key={o.id} disabled={!open} onPress={() => vote(o.id)} accessibilityRole="button" accessibilityLabel={open ? `Change vote to ${o.label}` : o.label}>
+                <Pressable key={o.id} disabled={!canChange || myVote === o.id} onPress={() => vote(o.id)} accessibilityRole="button" accessibilityLabel={canChange ? `Change vote to ${o.label}` : o.label}>
                   <ResultBar label={o.label} pct={pct(votes, o.id)} color={OPTION_COLORS[i % OPTION_COLORS.length]} mine={myVote === o.id} tall />
                 </Pressable>
               ) : (
@@ -168,7 +181,9 @@ function ChaiPostScreen() {
             </View>
             {voteError ? <Text style={{ fontSize: 13, color: '#b4412c' }}>{voteError}</Text> : null}
             <Text style={{ fontSize: 13, fontWeight: '600', color: chai.ink }}>
-              {showResults ? `${total.toLocaleString()} ${total === 1 ? 'vote' : 'votes'}${open ? ' · results update live · tap another option to change your vote' : ' · voting closed'}` : 'Vote to see what everyone picked'}
+              {showResults
+                ? `${total.toLocaleString()} ${total === 1 ? 'vote' : 'votes'}${!open ? ' · voting closed' : canChange ? ` · tap another option to change your vote (${changeLeft}s)` : myVote ? ' · your vote is locked in' : ''}`
+                : 'Vote to see what everyone picked. You get 30 seconds to change your mind.'}
             </Text>
             <View style={{ marginTop: 10 }}>
               <ChaiDiscussion postId={post.id} enabled={post.comments_enabled} placeholder="Why did you pick that?" refreshKey={refreshKey} />
