@@ -22,6 +22,7 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { brandStyles, font, radius, type as dsType, useDS } from '../lib/ds';
 import { SegmentedControl, BottomSheet, OptionRow } from '../components/ui';
+import { ThumbnailEditor } from '../components/ThumbnailEditor';
 
 /**
  * Speaker Studio — the speaker's own dashboard: channel analytics plus a
@@ -56,6 +57,7 @@ type StudioVideo = {
   id: string;
   title: string;
   thumbnail_url: string | null;
+  video_url: string | null;
   view_count: number | null;
   like_count: number | null;
   comment_count: number | null;
@@ -212,6 +214,7 @@ export default function StudioScreen() {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [thumbVideo, setThumbVideo] = useState<StudioVideo | null>(null);
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -241,7 +244,7 @@ export default function StudioScreen() {
     // Own videos are readable regardless of publish state (videos_own_all).
     const { data: vids } = await supabase
       .from('videos')
-      .select('id, title, thumbnail_url, view_count, like_count, comment_count, duration_secs, format, platform, is_published, published_at, created_at, status')
+      .select('id, title, thumbnail_url, video_url, view_count, like_count, comment_count, duration_secs, format, platform, is_published, published_at, created_at, status')
       .eq('speaker_id', sp.id)
       .order('created_at', { ascending: false })
       .limit(2000);
@@ -411,7 +414,10 @@ export default function StudioScreen() {
     const removed = videos.filter(v => videoStatus(v) === 'removed').length;
     return [
       { label: 'Comments without your reply (30 days)', count: unanswered, icon: 'chatbubbles-outline' as SiqaIconName },
-      { label: 'Videos missing a thumbnail', count: noThumb, icon: 'image-outline' as SiqaIconName },
+      {
+        label: 'Videos missing a thumbnail', count: noThumb, icon: 'image-outline' as SiqaIconName,
+        onPress: () => { const first = videos.find(v => !v.thumbnail_url && videoStatus(v) !== 'removed'); if (first) setThumbVideo(first); },
+      },
       { label: 'Unpublished drafts', count: drafts, icon: 'document-outline' as SiqaIconName, onPress: () => { setStatusFilter('draft'); setPage(0); } },
       ...(removed ? [{ label: 'Removed by moderators', count: removed, icon: 'alert-circle-outline' as SiqaIconName, onPress: () => { setStatusFilter('removed'); setPage(0); } }] : []),
     ];
@@ -574,6 +580,11 @@ export default function StudioScreen() {
           <TouchableOpacity style={styles.linkBtn} onPress={() => openVideo(v)}><Text style={styles.linkText}>View</Text></TouchableOpacity>
         )}
         {st !== 'removed' && (
+          <TouchableOpacity style={styles.linkBtn} onPress={() => setThumbVideo(v)} accessibilityLabel={`Edit thumbnail for ${v.title}`}>
+            <Text style={styles.linkText}>Thumbnail</Text>
+          </TouchableOpacity>
+        )}
+        {st !== 'removed' && (
           <TouchableOpacity style={styles.linkBtn} onPress={() => togglePublish(v)}>
             <Text style={styles.linkText}>{v.is_published ? 'Unpublish' : 'Publish'}</Text>
           </TouchableOpacity>
@@ -592,7 +603,7 @@ export default function StudioScreen() {
     { key: 'views', label: 'Views', w: 80, right: true },
     { key: 'likes', label: 'Likes', w: 70, right: true },
     { key: 'comments', label: 'Comments', w: 90, right: true },
-    { key: 'actions', label: '', w: 220, right: true },
+    { key: 'actions', label: '', w: 300, right: true },
   ];
 
   return (
@@ -845,7 +856,7 @@ export default function StudioScreen() {
                 </View>
               ) : wide ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ minWidth: '100%' as any }}>
-                  <View style={{ flex: 1, minWidth: 940 }}>
+                  <View style={{ flex: 1, minWidth: 1020 }}>
                     <View style={[styles.tr, styles.thRow]}>
                       {COLS.map(c => (
                         <Text
@@ -874,7 +885,7 @@ export default function StudioScreen() {
                           <Text style={[styles.td, styles.num, { width: 80 }]}>{fmt(v.view_count)}</Text>
                           <Text style={[styles.td, styles.num, { width: 70 }]}>{fmt(v.like_count)}</Text>
                           <Text style={[styles.td, styles.num, { width: 90 }]}>{fmt(v.comment_count)}</Text>
-                          <View style={{ width: 220, alignItems: 'flex-end' }}><RowActions v={v} /></View>
+                          <View style={{ width: 300, alignItems: 'flex-end' }}><RowActions v={v} /></View>
                         </View>
                       );
                     })}
@@ -949,6 +960,11 @@ export default function StudioScreen() {
           />
         ))}
       </BottomSheet>
+      <ThumbnailEditor
+        video={thumbVideo}
+        onClose={() => setThumbVideo(null)}
+        onSaved={(id, url) => setVideos(prev => prev.map(x => (x.id === id ? { ...x, thumbnail_url: url } : x)))}
+      />
     </DesktopShell>
   );
 }
@@ -1075,7 +1091,7 @@ function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
     rowMeta: { fontSize: 12, color: C.text3 },
     badge: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
     badgeText: { fontSize: 12, fontWeight: '700' },
-    rowActions: { flexDirection: 'row', gap: 2, alignItems: 'center' },
+    rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, alignItems: 'center' },
     linkBtn: { minHeight: 40, paddingHorizontal: 10, justifyContent: 'center' },
     linkText: { fontSize: 13, fontWeight: '700', color: C.emerald },
 
