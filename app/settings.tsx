@@ -537,7 +537,7 @@ export default function SettingsScreen() {
             alwaysOpen={isDesktopWeb}
             gridWidth={gridWidth}
           >
-            <TouchableOpacity style={[styles.menuItem, IS_MARKETPLACE_SITE && { borderBottomWidth: 0 }]}>
+            <TouchableOpacity style={[styles.menuItem, IS_MARKETPLACE_SITE && { borderBottomWidth: 0 }]} onPress={() => router.push('/notification-settings' as any)}>
               <Icon name="notifications-outline" size={18} color={C.text2} />
               <Text style={styles.menuLabel}>Notifications</Text>
               <Text style={styles.menuArrow}>›</Text>

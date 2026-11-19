@@ -149,6 +149,8 @@ function AppContent() {
         <Stack.Screen name="listing-create" options={{ headerShown: false, animation: 'slide_from_bottom', gestureEnabled: true }} />
         <Stack.Screen name="seller-dashboard" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="orders" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="notification-settings" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="unsubscribe" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="checkout" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="order-success" options={{ headerShown: false, presentation: 'modal' }} />
         <Stack.Screen name="donate" options={{ headerShown: false, presentation: 'modal' }} />
