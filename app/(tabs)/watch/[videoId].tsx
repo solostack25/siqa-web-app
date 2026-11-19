@@ -15,6 +15,8 @@ import { Avatar } from '../../../components/SeedSocial';
 import { UnclaimedBadge } from '../../../components/ClaimNotice';
 import { Video, ResizeMode } from 'expo-av';
 import { supabase } from '../../../lib/supabase';
+import { isFollowingSpeaker, setSpeakerFollow } from '../../../lib/follows';
+import { notifyDialog } from '../../../lib/dialogs';
 import { recordView, VIEW_DELAY_MS } from '../../../lib/views';
 import { useTheme, type AppColors } from '../../../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell';
@@ -137,15 +139,11 @@ function WatchScreen() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const speakerProfileId = (v as any).speakers?.profile_id as string | undefined;
-      if (user && speakerProfileId) {
-        const { data: existing } = await supabase
-          .from('follows')
-          .select('follower_id')
-          .eq('follower_id', user.id)
-          .eq('following_id', speakerProfileId)
-          .maybeSingle();
-        setFollowing(Boolean(existing));
+      const spk = (v as any).speakers as { id: string; profile_id: string | null } | undefined;
+      if (user && spk?.id) {
+        setFollowing(await isFollowingSpeaker(user.id, spk));
+      } else {
+        setFollowing(false);
       }
       if (user) {
         const [{ data: l }, { data: sv }] = await Promise.all([
@@ -228,16 +226,14 @@ function WatchScreen() {
       return;
     }
 
-    const profileId = video.speakers.profile_id;
-
-    if (following) {
-      await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', profileId);
-      setFollowing(false);
-    } else {
-      await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
-      setFollowing(true);
+    const next = !following;
+    const saved = await setSpeakerFollow(user.id, video.speakers as any, next);
+    if (!saved) {
+      notifyDialog('Something went wrong', 'Could not update your follow. Please try again.');
+      return;
     }
-    // follower_count is maintained by the update_follower_count trigger on follows.
+    setFollowing(next);
+    // follower_count is kept by triggers on follows and speaker_follows.
   }
 
   useFocusEffect(

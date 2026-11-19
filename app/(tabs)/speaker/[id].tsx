@@ -15,6 +15,7 @@ import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../../lib/supabase';
+import { isFollowingSpeaker, setSpeakerFollow } from '../../../lib/follows';
 import { Theme } from '../../../constants/theme';
 import { useTheme, AppColors } from '../../../lib/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../../components/DesktopShell';
@@ -188,14 +189,8 @@ function SpeakerProfileScreen() {
 
     if (data) {
       setSpeaker(data as Speaker);
-      if (uid && data.profile_id && uid !== data.profile_id) {
-        const { data: existing } = await supabase
-          .from('follows')
-          .select('follower_id')
-          .eq('follower_id', uid)
-          .eq('following_id', data.profile_id)
-          .maybeSingle();
-        setFollowing(Boolean(existing));
+      if (uid && uid !== data.profile_id) {
+        setFollowing(await isFollowingSpeaker(uid, data as any));
       }
     }
 
@@ -231,7 +226,7 @@ function SpeakerProfileScreen() {
   const isOwner = Boolean(userId) && speaker?.profile_id === userId && !unclaimed;
 
   async function toggleFollow() {
-    if (!speaker?.profile_id || followBusy) return;
+    if (!speaker || followBusy) return;
     if (!userId) {
       router.push('/(auth)/sign-in' as any);
       return;
@@ -241,10 +236,8 @@ function SpeakerProfileScreen() {
     // Optimistic; follower_count itself is maintained by a trigger on follows.
     setFollowing(next);
     setSpeaker(prev => prev ? { ...prev, follower_count: Math.max(0, (prev.follower_count ?? 0) + (next ? 1 : -1)) } : prev);
-    const { error } = next
-      ? await supabase.from('follows').insert({ follower_id: userId, following_id: speaker.profile_id })
-      : await supabase.from('follows').delete().eq('follower_id', userId).eq('following_id', speaker.profile_id);
-    if (error) {
+    const saved = await setSpeakerFollow(userId, speaker, next);
+    if (!saved) {
       setFollowing(!next);
       setSpeaker(prev => prev ? { ...prev, follower_count: Math.max(0, (prev.follower_count ?? 0) + (next ? -1 : 1)) } : prev);
       Alert.alert('Something went wrong', 'Could not update your follow. Please try again.');
@@ -512,7 +505,7 @@ function SpeakerProfileScreen() {
     { key: 'about', label: 'About' },
   ];
 
-  const followButton = speaker.profile_id && !isOwner ? (
+  const followButton = !isOwner ? (
     <Button
       size="md"
       variant={following ? 'secondary' : 'gold'}
