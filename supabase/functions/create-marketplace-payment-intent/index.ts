@@ -230,6 +230,17 @@ Deno.serve(async (req: Request) => {
     if (!user) return json({ error: 'Sign in again to check out.' }, 401);
     const buyerId = user.id;
 
+    // Kill switch, flipped in the Command Center (Siqa → Marketplace).
+    // Checked on every call so nothing gets ordered while it's off.
+    const { data: flag } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'marketplace_checkout_enabled')
+      .maybeSingle();
+    if (flag?.value !== true) {
+      return json({ error: 'Checkout opens soon. You can keep items in your cart until then.', code: 'checkout_paused' }, 503);
+    }
+
     const { items, address, mode } = await req.json();
     // items: [{ productId: string, quantity: number, variantKey?: string }]
 

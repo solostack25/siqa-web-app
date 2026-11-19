@@ -103,6 +103,8 @@ export default function CheckoutScreen() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [webClientSecret, setWebClientSecret] = useState<string | null>(null);
   const [paidTotal, setPaidTotal] = useState<number | null>(null);
+  // Checkout kill switch (platform_settings, flipped in the Command Center).
+  const [checkoutPaused, setCheckoutPaused] = useState(false);
 
   useEffect(() => {
     load();
@@ -121,6 +123,17 @@ export default function CheckoutScreen() {
       return;
     }
     setBuyerId(session.user.id);
+
+    const { data: flag } = await supabase
+      .from('platform_settings')
+      .select('value')
+      .eq('key', 'marketplace_checkout_enabled')
+      .maybeSingle();
+    if (flag?.value !== true) {
+      setCheckoutPaused(true);
+      setLoading(false);
+      return;
+    }
 
     if (productId) {
       // Buy-now: single product, quantity from params.
@@ -278,6 +291,21 @@ export default function CheckoutScreen() {
       <DesktopShell>
         <View style={styles.centered}>
           <ActivityIndicator color={C.gold} size="large" />
+        </View>
+      </DesktopShell>
+    );
+  }
+
+  if (checkoutPaused) {
+    return (
+      <DesktopShell>
+        <View style={[styles.centered, { padding: Theme.spacing.xl, gap: Theme.spacing.md }]}>
+          <Icon name="time-outline" size={36} color={C.gold} />
+          <Text style={{ color: C.text, fontSize: 20, fontWeight: '600', textAlign: 'center' }}>Checkout opens soon</Text>
+          <Text style={{ color: C.text3, textAlign: 'center', maxWidth: 360 }}>
+            The Siqa shop isn't taking orders yet. Your cart is saved, so you can come back and check out once it opens.
+          </Text>
+          <Button label="Back to shop" onPress={() => goBack('/marketplace')} />
         </View>
       </DesktopShell>
     );
