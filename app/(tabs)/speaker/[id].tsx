@@ -128,7 +128,19 @@ function withProtocol(url: string) {
 }
 
 function SpeakerProfileScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // /speaker/<uuid> or /speaker/omarsuleiman (the speaker's slug).
+  const { id: idParam } = useLocalSearchParams<{ id: string }>();
+  const paramIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(idParam ?? ''));
+  const [resolvedId, setResolvedId] = useState<string | null>(null);
+  const [slugNotFound, setSlugNotFound] = useState(false);
+  useEffect(() => {
+    if (!idParam || paramIsUuid) return;
+    setResolvedId(null);
+    setSlugNotFound(false);
+    supabase.from('speakers').select('id').eq('slug', String(idParam).toLowerCase()).maybeSingle()
+      .then(({ data }) => { if (data?.id) setResolvedId(data.id); else setSlugNotFound(true); });
+  }, [idParam, paramIsUuid]);
+  const id = (paramIsUuid ? idParam : resolvedId) as string;
   const navigation = useNavigation();
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
@@ -169,6 +181,7 @@ function SpeakerProfileScreen() {
     navigation.setOptions({ gestureEnabled: true });
     if (id) loadSpeaker(id);
   }, [id]);
+  useEffect(() => { if (slugNotFound) setLoading(false); }, [slugNotFound]);
 
   async function loadSpeaker(speakerId: string) {
     setLoading(true);
@@ -182,7 +195,7 @@ function SpeakerProfileScreen() {
         id, display_name, state, country, topics, languages,
         bio, total_raised, follower_count, events_count,
         profile_id, is_verified, is_claimed, avatar_url, banner_url,
-        website, youtube_url, instagram_url
+        website, youtube_url, instagram_url, slug
       `)
       .eq('id', speakerId)
       .maybeSingle();
@@ -533,7 +546,7 @@ function SpeakerProfileScreen() {
       )}
       <TouchableOpacity
         style={styles.iconBtn}
-        onPress={() => shareSpeaker(speaker.id, speaker.display_name)}
+        onPress={() => shareSpeaker((speaker as any).slug || speaker.id, speaker.display_name)}
         accessibilityLabel={`Share ${speaker.display_name}'s profile`}
       >
         <Icon name="share-outline" size={18} color={C.text} />
