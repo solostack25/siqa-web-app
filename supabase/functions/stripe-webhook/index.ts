@@ -15,7 +15,7 @@ const corsHeaders = {
 // ─── Marketplace seller payouts ──────────────────────────────────────────────
 // One checkout can include several shops. The buyer pays Siqa once; once the
 // payment succeeds, each seller gets a Stripe transfer for their items minus
-// Siqa's 6.5% fee and their share of Stripe's processing fee (see payouts.ts).
+// Siqa's plan-based fee (3% Free, 1% Pro, 0% founding) and their share of Stripe's processing fee (see payouts.ts).
 // Every step is safe to repeat, because Stripe retries webhooks.
 
 type Payout = {
@@ -140,11 +140,20 @@ async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIn
     .in('id', orderIds);
   if (!lines || lines.length === 0) return;
 
+  // Each seller's plan decides Siqa's cut (Free 3%, Pro 1%, founding 0%).
+  const feeRateBySeller: Record<string, number> = {};
+  for (const sellerId of new Set((lines as OrderLine[]).map(l => l.seller_id))) {
+    const { data: rate, error: rateErr } = await supabase.rpc('seller_fee_rate', { p_seller_id: sellerId });
+    if (rateErr || rate == null) throw new Error(`Fee rate lookup failed for seller ${sellerId}`);
+    feeRateBySeller[sellerId] = Number(rate);
+  }
+
   const splits = splitCheckout(lines as OrderLine[], {
     shippingBySeller: checkout?.shipping_by_seller ?? {},
     stripeFeeCents: bt.fee,
     taxFeeCents,
     feeRate: SIQA_FEE_RATE,
+    feeRateBySeller,
   });
   const transferGroup = intent.transfer_group || intent.metadata.transfer_group || null;
 
@@ -171,7 +180,7 @@ async function settleCheckout(supabase: SupabaseClient, intent: Stripe.PaymentIn
         tax_fee_cents: split.tax_fee_cents,
         tax_collected_cents: taxCollected,
         payout_cents: split.payout_cents,
-        fee_rate: SIQA_FEE_RATE,
+        fee_rate: feeRateBySeller[split.seller_id] ?? SIQA_FEE_RATE,
         status: 'pending',
       },
       { onConflict: 'payment_intent_id,seller_id', ignoreDuplicates: true },
