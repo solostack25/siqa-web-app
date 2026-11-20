@@ -195,12 +195,22 @@ async function lookup(type, id, origin, isMarketplace, q = {}) {
     // /speaker/<uuid> or /speaker/<slug> (e.g. omarsuleiman)
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
     const spEq = isUuid ? eq : `slug=eq.${encodeURIComponent(String(id).toLowerCase())}`;
-    const sp = await sb(`speakers?${spEq}&select=display_name,bio,avatar_url&limit=1`).catch(() => null);
+    const sp = await sb(`speakers?${spEq}&select=id,display_name,bio,avatar_url&limit=1`).catch(() => null);
     if (!sp) return null;
+    // No profile photo yet (most unclaimed speakers): use their latest video's
+    // thumbnail so shared links show them instead of the generic Siqa image.
+    let image = absolute(sp.avatar_url, origin);
+    if (!image) {
+      const v = await sb(
+        `videos?speaker_id=eq.${encodeURIComponent(sp.id)}&is_published=eq.true&select=thumbnail_url,platform,platform_video_id&order=published_at.desc.nullslast&limit=1`,
+      ).catch(() => null);
+      image = absolute(v?.thumbnail_url, origin)
+        || (v?.platform === 'youtube' && v?.platform_video_id ? `https://i.ytimg.com/vi/${v.platform_video_id}/hqdefault.jpg` : null);
+    }
     return {
       title: `${sp.display_name} on Siqa`,
       description: sp.bio || `Watch talks from ${sp.display_name} on Siqa.`,
-      image: absolute(sp.avatar_url, origin),
+      image,
       ogType: 'profile',
     };
   }
