@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../lib/supabase';
 import { finishSocialSignIn } from '../lib/socialAuth';
-import { consumeSignupIntent, INTENT_ROUTE } from '../lib/signupIntent';
+import { consumeSignupIntent, consumePendingInvite, INTENT_ROUTE } from '../lib/signupIntent';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
@@ -58,6 +58,12 @@ function AppContent() {
         // Deferred: calling Supabase inside this callback can deadlock the client.
         if (event === 'SIGNED_IN') setTimeout(async () => {
           await finishSocialSignIn(session).catch(() => {});
+          // Opened a claim invite while signed out: take them back to accept it.
+          const invite = consumePendingInvite();
+          if (invite) {
+            router.replace({ pathname: '/claim', params: { invite } } as any);
+            return;
+          }
           // Picked "Seller" on Create Account, then went through Apple/Google:
           // land on Sell on Siqa instead of the home feed.
           const provider = session?.user?.app_metadata?.provider;
