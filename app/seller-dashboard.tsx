@@ -29,7 +29,7 @@ import { font, radius, space, type, useDS, type DS } from '../lib/ds';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { goBack } from '../lib/goBack';
 import { shareShop } from '../lib/share';
-import { PLANS_PURCHASABLE_HERE, SELLER_PLAN_COLUMNS, hasLivePlan, planLabel, planLimit, type SellerPlanFields } from '../lib/sellerPlans';
+import { PLANS_PURCHASABLE_HERE, SELLER_PLAN_COLUMNS, planLabel, planLimit, type SellerPlanFields } from '../lib/sellerPlans';
 
 type Seller = {
   id: string; shop_name: string; bio: string | null; avatar_url: string | null; banner_url: string | null;
@@ -268,7 +268,7 @@ export default function MyStoreScreen() {
       // Over the plan's product limit (or no plan): explain, then offer the plan picker.
       if ((error as any).hint === 'plan_limit' || (error as any).hint === 'plan_required') {
         showError('Plan limit', error.message);
-        router.push({ pathname: '/sell', params: { change: hasLivePlan(seller!) ? '1' : undefined } } as any);
+        router.push({ pathname: '/sell', params: { change: '1' } } as any);
         return;
       }
       return showError('Error', error.message);
@@ -404,15 +404,13 @@ export default function MyStoreScreen() {
     </View>
   );
 
-  // Plan problems outrank the Stripe Connect reminder: without a plan nothing is live.
-  const livePlan = hasLivePlan(seller);
+  // Plan problems outrank the Stripe Connect reminder.
   const limit = planLimit(seller);
   const liveCount = products.filter(p => p.status === 'active').length;
   const pausedCount = products.filter(p => p.status === 'paused').length;
   const planNoticeCopy = seller.approval_status !== 'approved' ? null
-    : !livePlan ? { title: PLANS_PURCHASABLE_HERE ? 'Choose a seller plan' : 'Seller plan needed', sub: PLANS_PURCHASABLE_HERE ? 'Pick a monthly plan to put your products live. From $5/month.' : 'Products go live once your shop has a seller plan. Plans are managed on the Siqa website.', change: false }
     : seller.plan_status === 'past_due' ? { title: 'Your plan payment failed', sub: PLANS_PURCHASABLE_HERE ? 'Update your card to keep your products live.' : 'Billing is managed on the Siqa website.', change: true }
-    : pausedCount > 0 ? { title: `${pausedCount} product${pausedCount === 1 ? '' : 's'} hidden by your plan`, sub: PLANS_PURCHASABLE_HERE ? `Your plan allows ${limit} live. Upgrade to show them.` : `Your plan allows ${limit} live. Plans are managed on the Siqa website.`, change: true }
+    : pausedCount > 0 ? { title: `${pausedCount} product${pausedCount === 1 ? '' : 's'} hidden by your plan`, sub: PLANS_PURCHASABLE_HERE ? `Free shops can have ${limit} live. Go Pro for unlimited.` : `Free shops can have ${limit} live. Plans are managed on the Siqa website.`, change: true }
     : null;
   const planNotice = planNoticeCopy ? (
     <Pressable
@@ -616,8 +614,8 @@ export default function MyStoreScreen() {
       <ListRow
         icon="pricetag-outline"
         label="Seller plan"
-        value={livePlan ? `${planLabel(seller)} · ${liveCount}${limit === null ? '' : ` of ${limit}`} live` : 'Choose a plan'}
-        onPress={() => router.push({ pathname: '/sell', params: livePlan ? { change: '1' } : {} } as any)}
+        value={`${planLabel(seller)} · ${liveCount}${limit === null ? '' : ` of ${limit}`} live`}
+        onPress={() => router.push({ pathname: '/sell', params: { change: '1' } } as any)}
       />
       <ListRow icon="card-outline" label="Payouts" value={seller.stripe_onboarded ? 'Stripe connected' : 'Set up'} onPress={() => router.push('/sell' as any)} />
       <ListRow icon="cube-outline" label="Shipping" value={shippingValue} onPress={openShipping} />
@@ -907,7 +905,7 @@ function OrderCard({
           {(order.shipping_cents ?? 0) > 0 ? ` + ${formatMoney(order.shipping_cents)} shipping` : ''} · {shortDate(order.created_at)}
         </Text>
         {order.seller_payout_cents != null ? (
-          // Same split the admin Payouts page shows: Siqa's 6.5% fee,
+          // Same split the admin Payouts page shows: Siqa's plan-based fee,
           // this order's share of Stripe processing and of the
           // Stripe Tax fee come off first.
           <Text style={[type.caption, { color: c.ink2 }]}>

@@ -12,43 +12,84 @@ const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
  */
 export const PLANS_PURCHASABLE_HERE = Platform.OS === 'web';
 
-export type PlanTier = 'starter' | 'growth' | 'pro';
+export type PlanTier = 'free' | 'pro';
 
-/** Must match seller_listing_limit() in the DB and PLANS in the seller-subscription function. */
-export const SELLER_PLANS: { tier: PlanTier; price: number; limit: number | null; title: string; blurb: string }[] = [
-  { tier: 'starter', price: 5, limit: 5, title: 'Up to 5 products', blurb: 'For trying Siqa out or a small shop.' },
-  { tier: 'growth', price: 10, limit: 10, title: 'Up to 10 products', blurb: 'Room to grow your line.' },
-  { tier: 'pro', price: 15, limit: null, title: 'Unlimited products', blurb: '11 or more products — no cap.' },
+/**
+ * Must match seller_listing_limit() / seller_fee_rate() in the DB and PLANS in
+ * the seller-subscription function. Card processing is passed through at cost
+ * on top of Siqa's fee.
+ */
+export const FREE_PRODUCT_LIMIT = 10;
+export const SELLER_PLANS: { tier: PlanTier; price: number; limit: number | null; feePct: number; title: string; blurb: string }[] = [
+  { tier: 'free', price: 0, limit: FREE_PRODUCT_LIMIT, feePct: 3, title: 'Free', blurb: 'Up to 10 products. Siqa keeps 3% per sale. No listing fees.' },
+  { tier: 'pro', price: 15, limit: null, feePct: 1, title: 'Pro', blurb: 'Unlimited products. Siqa keeps just 1% per sale.' },
 ];
+
+/** The promo code for founding sellers (0% Siqa fee + unlimited products for 6 months). */
+export const FOUNDING_CODE = 'FOUNDINGSELLER';
 
 export const LIVE_PLAN_STATUSES = ['active', 'trialing', 'past_due'];
 
 export type SellerPlanFields = {
-  plan_tier: PlanTier | null;
+  plan_tier: string | null;
   plan_status: string;
   plan_exempt: boolean;
   plan_current_period_end: string | null;
   plan_cancel_at_period_end: boolean;
+  founding_until?: string | null;
+  promo_code?: string | null;
 };
 
-export const SELLER_PLAN_COLUMNS = 'plan_tier, plan_status, plan_exempt, plan_current_period_end, plan_cancel_at_period_end';
+export const SELLER_PLAN_COLUMNS = 'plan_tier, plan_status, plan_exempt, plan_current_period_end, plan_cancel_at_period_end, founding_until, promo_code';
 
-export function hasLivePlan(s: Pick<SellerPlanFields, 'plan_status' | 'plan_exempt'>) {
-  return s.plan_exempt || LIVE_PLAN_STATUSES.includes(s.plan_status);
+/** Every shop can sell now (Free is the default), so this is always true. Kept for older call sites. */
+export function hasLivePlan(_s?: Pick<SellerPlanFields, 'plan_status' | 'plan_exempt'>) {
+  return true;
 }
 
-/** Live-product limit for a shop: null = unlimited, 0 = no plan. */
-export function planLimit(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status' | 'plan_exempt'>): number | null {
-  if (s.plan_exempt) return null;
-  if (!LIVE_PLAN_STATUSES.includes(s.plan_status)) return 0;
-  return SELLER_PLANS.find(p => p.tier === s.plan_tier)?.limit ?? 0;
+/** Paying for Pro through Stripe. */
+export function hasPaidPlan(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status'>) {
+  return s.plan_tier === 'pro' && LIVE_PLAN_STATUSES.includes(s.plan_status);
 }
 
-export function planLabel(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status' | 'plan_exempt'>) {
+export function isFounding(s: Pick<SellerPlanFields, 'founding_until'>) {
+  return !!s.founding_until && new Date(s.founding_until).getTime() > Date.now();
+}
+
+/** Which plan the shop is effectively on. */
+export function currentTier(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status'>): PlanTier {
+  return hasPaidPlan(s) ? 'pro' : 'free';
+}
+
+/** Live-product limit for a shop: null = unlimited. */
+export function planLimit(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status' | 'plan_exempt' | 'founding_until'>): number | null {
+  if (s.plan_exempt || isFounding(s) || hasPaidPlan(s)) return null;
+  return FREE_PRODUCT_LIMIT;
+}
+
+/** Siqa's fee on this shop's sales, in percent. */
+export function feePct(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status' | 'plan_exempt' | 'founding_until'>): number {
+  if (isFounding(s)) return 0;
+  if (s.plan_exempt || hasPaidPlan(s)) return 1;
+  return 3;
+}
+
+function shortDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export function planLabel(s: Pick<SellerPlanFields, 'plan_tier' | 'plan_status' | 'plan_exempt' | 'founding_until'>) {
+  if (isFounding(s)) return `Founding seller · 0% fee until ${shortDate(s.founding_until!)}`;
   if (s.plan_exempt) return 'Comped by Siqa';
-  const p = SELLER_PLANS.find(x => x.tier === s.plan_tier);
-  if (!p || !LIVE_PLAN_STATUSES.includes(s.plan_status)) return 'No plan';
-  return PLANS_PURCHASABLE_HERE ? `$${p.price}/mo · ${p.title}` : p.title;
+  if (hasPaidPlan(s)) return PLANS_PURCHASABLE_HERE ? 'Pro · $15/mo · 1% fee' : 'Pro';
+  return 'Free · 3% fee';
+}
+
+/** Redeem a seller promo code (e.g. FOUNDINGSELLER) for the shop. */
+export async function redeemSellerPromo(sellerId: string, code: string): Promise<{ until?: string; error?: string }> {
+  const { data, error } = await supabase.rpc('redeem_seller_promo', { p_seller_id: sellerId, p_code: code.trim() });
+  if (error) return { error: error.message };
+  return { until: data as string };
 }
 
 /** Call the seller-subscription edge function. */

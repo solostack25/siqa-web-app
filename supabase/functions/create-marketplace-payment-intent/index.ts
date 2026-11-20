@@ -36,7 +36,7 @@ function json(body: Record<string, unknown>, status = 200) {
 // from Stripe Tax (only in states registered in the Stripe dashboard) and is
 // kept by Siqa to remit, as the marketplace facilitator. After payment, the
 // stripe-webhook function records the tax transaction and splits the rest
-// per seller (Siqa 6.5% of items+shipping, processing and the Stripe Tax fee
+// per seller (Siqa 3% Free / 1% Pro / 0% founding of items+shipping, processing and the Stripe Tax fee
 // passed to sellers) and transfers each seller their part.
 
 type Address = {

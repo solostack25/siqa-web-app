@@ -1,8 +1,10 @@
 import Stripe from 'https://esm.sh/stripe@13.11.0?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// Seller plans (monthly, by number of live products):
-//   starter ≤5 $5 · growth ≤10 $10 · pro unlimited $15
+// Seller plans: Free (up to 10 products, 3% fee) needs no subscription, so
+// the only paid plan is Pro — unlimited products, 1% fee, $15/month.
+// Founding sellers (promo code FOUNDINGSELLER, redeemed in the DB) get 0% and
+// unlimited products for 6 months without subscribing.
 // Actions:
 //   checkout — new plan: returns a Stripe Checkout URL
 //   change   — already subscribed: switches tier now (prorated)
@@ -20,9 +22,7 @@ const corsHeaders = {
 };
 
 const PLANS = {
-  starter: { name: 'Siqa Seller — up to 5 products', cents: 500 },
-  growth: { name: 'Siqa Seller — up to 10 products', cents: 1000 },
-  pro: { name: 'Siqa Seller — unlimited products', cents: 1500 },
+  pro: { name: 'Siqa Seller Pro — unlimited products, 1% fee', cents: 1500 },
 } as const;
 type Tier = keyof typeof PLANS;
 const lookupKey = (tier: Tier) => `siqa_seller_${tier}_monthly`;

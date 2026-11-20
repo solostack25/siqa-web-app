@@ -295,8 +295,8 @@ export default function ListingCreateScreen() {
     }
     if (savedStatus === 'paused' && sellerApproved) {
       showToast(PLANS_PURCHASABLE_HERE
-        ? 'Listing saved but hidden — your seller plan is full or not active. Upgrade to put it live.'
-        : 'Listing saved but hidden — your seller plan is full or not active.');
+        ? 'Listing saved but hidden — Free shops can have 10 live products. Go Pro for unlimited.'
+        : 'Listing saved but hidden — Free shops can have 10 live products.');
       router.replace({ pathname: '/sell', params: { change: '1' } } as any);
       return;
     }
