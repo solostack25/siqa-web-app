@@ -8,15 +8,15 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { supabase } from '../lib/supabase';
-import { useTheme, type AppColors } from '../lib/theme';
-import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
-import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
-import { Icon, type SiqaIconName } from '../components/Icon';
-import type { ClaimEntityType } from '../components/ClaimNotice';
-import { brandStyles, buttonStyles, dsStatic } from '../lib/ds';
+import { supabase } from '../../lib/supabase';
+import { useTheme, type AppColors } from '../../lib/theme';
+import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
+import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
+import { Icon, type SiqaIconName } from '../../components/Icon';
+import type { ClaimEntityType } from '../../components/ClaimNotice';
+import { brandStyles, buttonStyles, dsStatic } from '../../lib/ds';
 
 /** Inbox that receives verification emails. Make sure it exists before launch. */
 const CLAIMS_EMAIL = 'claims@siqa.us';
@@ -62,7 +62,16 @@ const METHODS: { key: Method; label: string; help: string; icon: SiqaIconName }[
 ];
 
 export default function ClaimScreen() {
-  const { type, id } = useLocalSearchParams<{ type?: string; id?: string }>();
+  // Either ?type=…&id=… or a short link like /claim/omarsuleiman (speakers).
+  const { type, id: idParam, slug } = useLocalSearchParams<{ type?: string; id?: string; slug?: string }>();
+  const [slugId, setSlugId] = useState<string | null>(null);
+  const [slugMissing, setSlugMissing] = useState(false);
+  useEffect(() => {
+    if (!slug || idParam) return;
+    supabase.from('speakers').select('id').eq('slug', String(slug).toLowerCase()).maybeSingle()
+      .then(({ data }) => { if (data?.id) setSlugId(data.id); else setSlugMissing(true); });
+  }, [slug, idParam]);
+  const id = idParam ?? slugId ?? undefined;
   const entityType: ClaimEntityType = type === 'business' ? 'business' : type === 'organization' ? 'organization' : 'speaker';
   const noun = entityType === 'speaker' ? 'profile' : entityType === 'organization' ? 'organization' : 'business';
   const { colors: C } = useTheme();
@@ -184,7 +193,12 @@ export default function ClaimScreen() {
   }
 
   if (!id) {
-    return shell(<Text style={styles.body}>Open this page from the profile you want to claim.</Text>);
+    if (slug && !slugMissing) {
+      return shell(<View style={styles.center}><ActivityIndicator color={C.gold} /></View>);
+    }
+    return shell(<Text style={styles.body}>
+      {slugMissing ? "We couldn't find that profile. Check the link, or open the profile you want to claim and tap Claim." : 'Open this page from the profile you want to claim.'}
+    </Text>);
   }
 
   // ── Status screens ──
