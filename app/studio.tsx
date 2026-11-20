@@ -16,6 +16,7 @@ import {
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { deleteVideoEverywhere } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
@@ -478,10 +479,10 @@ export default function StudioScreen() {
     const ok = await confirmAction('Delete this video?', `"${v.title}" will be permanently deleted. This can't be undone.`);
     if (!ok) return;
     setBusyId(v.id);
-    const { error } = await supabase.from('videos').delete().eq('id', v.id);
+    const { error } = await deleteVideoEverywhere(v.id);
     setBusyId(null);
     if (error) {
-      notify('Could not delete', error.message);
+      notify('Could not delete', error);
       return;
     }
     setVideos(prev => prev.filter(x => x.id !== v.id));
