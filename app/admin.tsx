@@ -20,6 +20,7 @@ import { brandStyles, font, buttonStyles, dsStatic } from '../lib/ds';
 import { BlockedTermsSection } from '../components/admin/BlockedTermsSection';
 import { goBack } from '../lib/goBack';
 import { ChaiIcon } from '../components/Siqa';
+import { copyToClipboard } from '../lib/share';
 
 type ProfileClaimRow = {
   id: string;
@@ -145,6 +146,8 @@ export default function AdminScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [videos, setVideos] = useState<QueueVideo[]>([]);
   const [speakers, setSpeakers] = useState<SpeakerRow[]>([]);
+  const [unclaimed, setUnclaimed] = useState<{ id: string; display_name: string; slug: string | null }[]>([]);
+  const [inviteFor, setInviteFor] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [taxQueue, setTaxQueue] = useState<OrgRow[]>([]);
   const [reports, setReports] = useState<ReportRow[]>([]);
@@ -236,6 +239,14 @@ export default function AdminScreen() {
       if (sellersRes.data) setPendingSellers(sellersRes.data as any);
       if (claimsRes.data) setClaims(claimsRes.data as any);
 
+      const { data: unclaimedRows } = await supabase
+        .from('speakers')
+        .select('id, display_name, slug')
+        .eq('is_claimed', false)
+        .order('display_name', { ascending: true })
+        .limit(200);
+      setUnclaimed((unclaimedRows as any) ?? []);
+
       const reportsRes = await supabase
         .from('content_reports')
         .select('id, reason, status, created_at, video_id, profile_id, target_type, target_id, details')
@@ -250,6 +261,26 @@ export default function AdminScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+  }
+
+  // Private one-time link (7 days) for a speaker you've reached through an
+  // official contact you found yourself. Whoever opens it and signs in gets the profile.
+  async function inviteToClaim(s: { id: string; display_name: string }) {
+    const sentTo = await promptDialog(
+      `Invite link for ${s.display_name}`,
+      'Who are you sending it to? Paste the official contact you found yourself (e.g. their YouTube business email or organization inbox). Only send it there.',
+    );
+    if (sentTo === null) return;
+    setInviteFor(s.id);
+    const { data, error } = await supabase.rpc('create_claim_invite', { p_entity_type: 'speaker', p_entity_id: s.id, p_sent_to: sentTo || null });
+    setInviteFor(null);
+    if (error) return Alert.alert('Could not create link', error.message);
+    const link = `https://www.siqa.us/claim?invite=${data}`;
+    const copied = await copyToClipboard(link);
+    Alert.alert(
+      copied ? 'Invite link copied' : 'Invite link',
+      `${copied ? 'Paste it into your reply. ' : ''}It works once and expires in 7 days.\n\n${link}`,
+    );
   }
 
   async function approveClaim(c: ProfileClaimRow) {
@@ -560,6 +591,25 @@ export default function AdminScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.primarySmallBtn} onPress={() => approveClaim(c)} disabled={busyId === c.id}>
                 <Text style={styles.primarySmallText}>{busyId === c.id ? 'Saving...' : 'Approve'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </QueueSection>
+
+      <QueueSection title="Invite to claim" count={unclaimed.length} C={C}>
+        <Text style={[styles.cardMeta, { marginBottom: 8 }]}>
+          After you reach a speaker through an official contact you found yourself, create a private link and send it only there. Opening it and signing in hands them the profile.
+        </Text>
+        {unclaimed.length === 0 ? <Empty text="Every speaker profile is claimed." C={C} /> : unclaimed.map((s) => (
+          <View key={s.id} style={styles.queueCard}>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle}>{s.display_name}</Text>
+              {s.slug ? <Text style={styles.cardMeta} selectable>siqa.us/claim/{s.slug}</Text> : null}
+            </View>
+            <View style={styles.actionsRow}>
+              <TouchableOpacity style={styles.primarySmallBtn} onPress={() => inviteToClaim(s)} disabled={inviteFor === s.id}>
+                <Text style={styles.primarySmallText}>{inviteFor === s.id ? 'Creating...' : 'Create invite link'}</Text>
               </TouchableOpacity>
             </View>
           </View>

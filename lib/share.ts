@@ -92,7 +92,7 @@ export async function shareLink(opts: { url: string; title: string; text?: strin
   }
 }
 
-async function copyToClipboard(value: string): Promise<boolean> {
+export async function copyToClipboard(value: string): Promise<boolean> {
   const nav: any = typeof navigator !== 'undefined' ? navigator : null;
   try {
     if (nav?.clipboard?.writeText) {

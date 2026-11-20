@@ -1,4 +1,5 @@
 import {
+  Linking,
   View,
   Text,
   StyleSheet,
@@ -16,6 +17,7 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../../components/Icon';
 import type { ClaimEntityType } from '../../components/ClaimNotice';
+import { setPendingInvite } from '../../lib/signupIntent';
 import { brandStyles, buttonStyles, dsStatic } from '../../lib/ds';
 
 /** Inbox that receives verification emails. Make sure it exists before launch. */
@@ -63,7 +65,7 @@ const METHODS: { key: Method; label: string; help: string; icon: SiqaIconName }[
 
 export default function ClaimScreen() {
   // Either ?type=…&id=… or a short link like /claim/omarsuleiman (speakers).
-  const { type, id: idParam, slug } = useLocalSearchParams<{ type?: string; id?: string; slug?: string }>();
+  const { type, id: idParam, slug, invite } = useLocalSearchParams<{ type?: string; id?: string; slug?: string; invite?: string }>();
   const [slugId, setSlugId] = useState<string | null>(null);
   const [slugMissing, setSlugMissing] = useState(false);
   useEffect(() => {
@@ -72,6 +74,38 @@ export default function ClaimScreen() {
       .then(({ data }) => { if (data?.id) setSlugId(data.id); else setSlugMissing(true); });
   }, [slug, idParam]);
   const id = idParam ?? slugId ?? undefined;
+
+  // ── Invite link (siqa.us/claim?invite=…) sent by Siqa to an official contact ──
+  type InvitePeek = { entity_type: string; entity_id: string; entity_name: string; status: string };
+  const [invitePeek, setInvitePeek] = useState<InvitePeek | null | undefined>(undefined);
+  const [inviteUser, setInviteUser] = useState<string | null | undefined>(undefined);
+  const [accepting, setAccepting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!invite) return;
+    supabase.rpc('peek_claim_invite', { p_token: String(invite) }).then(({ data }) => {
+      const row = Array.isArray(data) ? data[0] : data;
+      setInvitePeek((row as InvitePeek) ?? null);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => setInviteUser(session?.user?.id ?? null));
+  }, [invite]);
+
+  async function acceptInvite() {
+    setAccepting(true);
+    setInviteError(null);
+    const { data, error } = await supabase.rpc('redeem_claim_invite', { p_token: String(invite) });
+    setAccepting(false);
+    if (error) { setInviteError(error.message); return; }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.entity_type === 'speaker') router.replace('/studio' as any);
+    else if (row?.entity_type === 'business') router.replace(`/local/${row.entity_id}` as any);
+    else router.replace('/(tabs)/dashboard' as any);
+  }
+
+  function goSignIn(path: string) {
+    setPendingInvite(String(invite));
+    router.push(path as any);
+  }
   const entityType: ClaimEntityType = type === 'business' ? 'business' : type === 'organization' ? 'organization' : 'speaker';
   const noun = entityType === 'speaker' ? 'profile' : entityType === 'organization' ? 'organization' : 'business';
   const { colors: C } = useTheme();
@@ -188,6 +222,50 @@ export default function ClaimScreen() {
     </DesktopShell>
   );
 
+  if (invite) {
+    if (invitePeek === undefined || inviteUser === undefined) {
+      return shell(<View style={styles.center}><ActivityIndicator color={C.gold} /></View>);
+    }
+    const bad = !invitePeek ? 'This invite link isn\u2019t valid. Check you copied the whole link.'
+      : invitePeek.status === 'used' ? 'This invite link has already been used.'
+      : invitePeek.status === 'expired' ? 'This invite link has expired. Email claims@siqa.us for a new one.'
+      : invitePeek.status === 'revoked' ? 'This invite link was cancelled. Email claims@siqa.us.'
+      : invitePeek.status === 'claimed' ? `${invitePeek.entity_name} has already been claimed.`
+      : null;
+    if (bad) {
+      return shell(<View style={styles.card}><Text style={styles.h1}>Invite link</Text><Text style={styles.body}>{bad}</Text></View>);
+    }
+    const what = invitePeek!.entity_type === 'speaker' ? 'profile, videos and Speaker Studio'
+      : invitePeek!.entity_type === 'organization' ? 'organization page, donations and Seeds' : 'business listing';
+    return shell(
+      <View style={styles.card}>
+        <Text style={styles.h1}>You{'\u2019'}re invited to manage {invitePeek!.entity_name} on Siqa</Text>
+        <Text style={styles.body}>
+          {inviteUser
+            ? `Accepting links ${invitePeek!.entity_name} to the Siqa account you're signed in with. That account will manage the ${what}.`
+            : `Sign in or create a free Siqa account to accept. That account will manage the ${what}.`}
+        </Text>
+        {inviteError ? <Text style={styles.error}>{inviteError}</Text> : null}
+        <View style={styles.row}>
+          {inviteUser ? (
+            <TouchableOpacity style={styles.primaryBtn} onPress={acceptInvite} disabled={accepting}>
+              {accepting ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : <Text style={styles.primaryBtnText}>Accept and manage</Text>}
+            </TouchableOpacity>
+          ) : (
+            <>
+              <TouchableOpacity style={styles.primaryBtn} onPress={() => goSignIn('/(auth)/sign-in')}>
+                <Text style={styles.primaryBtnText}>Sign in</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.ghostBtn} onPress={() => goSignIn('/(auth)/sign-up')}>
+                <Text style={styles.ghostBtnText}>Create an account</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>,
+    );
+  }
+
   if (loading) {
     return shell(<View style={styles.center}><ActivityIndicator color={C.gold} /></View>);
   }
@@ -199,6 +277,28 @@ export default function ClaimScreen() {
     return shell(<Text style={styles.body}>
       {slugMissing ? "We couldn't find that profile. Check the link, or open the profile you want to claim and tap Claim." : 'Open this page from the profile you want to claim.'}
     </Text>);
+  }
+
+  // Speakers are onboarded by hand: they email Siqa from an official address
+  // (or reply to Siqa's email) and get a private invite link. No code-posting.
+  if (entityType === 'speaker' && !existing && !alreadyClaimed) {
+    const mail = `mailto:${CLAIMS_EMAIL}?subject=${encodeURIComponent(`Claim ${name} on Siqa`)}`;
+    return shell(
+      <View style={styles.card}>
+        <Text style={styles.h1}>Are you {name} or their team?</Text>
+        <Text style={styles.body}>
+          Email {CLAIMS_EMAIL} from an official address (your organization, website domain, or the contact on your YouTube channel), or simply reply to our email. We{'\u2019'}ll confirm and send you a private link that sets you up in one click.
+        </Text>
+        <Text style={styles.body}>
+          Prefer not to be listed? Email us and we{'\u2019'}ll remove this page within 24 hours.
+        </Text>
+        <View style={styles.row}>
+          <TouchableOpacity style={styles.primaryBtn} onPress={() => Linking.openURL(mail)}>
+            <Text style={styles.primaryBtnText}>Email {CLAIMS_EMAIL}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>,
+    );
   }
 
   // ── Status screens ──

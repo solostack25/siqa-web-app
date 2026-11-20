@@ -36,7 +36,7 @@ export function ClaimNotice({
       : `Siqa listed ${name} using publicly available information. The business hasn't claimed this listing yet, so hours, contact details and offers may be out of date.`;
 
   const ask = entityType === 'speaker'
-    ? `Are you ${name}, or authorized to represent them?`
+    ? `Are you ${name} or their team? Claim it, or ask us to remove it.`
     : entityType === 'organization'
       ? `Do you run ${name}?`
       : `Own or manage ${name}?`;
