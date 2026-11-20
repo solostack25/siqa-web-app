@@ -13,10 +13,26 @@ type BunnyUploadArgs = {
   label?: string;
 };
 
-const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || 'siqa-videos';
-const BUNNY_STORAGE_KEY = process.env.EXPO_PUBLIC_BUNNY_STORAGE_KEY || '';
-const BUNNY_STORAGE_REGION = process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || 'ny';
-const BUNNY_CDN_URL = process.env.EXPO_PUBLIC_BUNNY_CDN_URL || 'https://siqa-videos.b-cdn.net';
+import { supabase } from './supabase';
+
+// Uploads go through a short-lived signed link from the bunny-upload-url Edge
+// Function. The Bunny storage password never reaches the app (it used to be in
+// EXPO_PUBLIC_BUNNY_STORAGE_KEY, which shipped it to every visitor).
+const SUPABASE_URL = 'https://eixlmylbqqrfazjlgxcz.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_hGOrpdHS1fwFYwXGI8tN2g_Yeuzchmj';
+
+async function getSignedUpload(path: string, contentType: string): Promise<{ uploadUrl: string; publicUrl: string }> {
+  const token = (await supabase.auth.getSession()).data.session?.access_token ?? '';
+  if (!token) throw new Error('Sign in again to upload.');
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/bunny-upload-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ path, contentType }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.uploadUrl) throw new Error(data.error || `Could not start upload (${res.status})`);
+  return data;
+}
 
 function cleanFileName(name: string) {
   return name
@@ -70,15 +86,11 @@ export async function uploadFileToBunny({
   progressEnd = 88,
   label = 'Uploading to Bunny.net...',
 }: BunnyUploadArgs) {
-  if (!BUNNY_STORAGE_KEY) {
-    throw new Error('Missing Bunny Storage key. Add EXPO_PUBLIC_BUNNY_STORAGE_KEY to your .env file.');
-  }
-
   onProgress?.({ pct: Math.max(1, progressStart - 5), label: 'Preparing file...' });
 
   const blob = await fetch(uri).then((res) => res.blob());
-  const storageHost = `https://${BUNNY_STORAGE_REGION}.storage.bunnycdn.com`;
-  const uploadUrl = `${storageHost}/${BUNNY_STORAGE_ZONE}/${fileName}`;
+  const contentType = mimeType || blob.type || 'application/octet-stream';
+  const { uploadUrl, publicUrl } = await getSignedUpload(fileName, contentType);
 
   onProgress?.({ pct: progressStart, label });
 
@@ -99,12 +111,11 @@ export async function uploadFileToBunny({
 
     xhr.onerror = () => reject(new Error('Network error during Bunny upload'));
     xhr.open('PUT', uploadUrl);
-    xhr.setRequestHeader('AccessKey', BUNNY_STORAGE_KEY);
-    xhr.setRequestHeader('Content-Type', mimeType || 'application/octet-stream');
+    xhr.setRequestHeader('Content-Type', contentType);
     xhr.send(blob);
   });
 
-  return `${BUNNY_CDN_URL.replace(/\/$/, '')}/${fileName}`;
+  return publicUrl;
 }
 
 export async function uploadVideoToBunny(args: BunnyUploadArgs) {
