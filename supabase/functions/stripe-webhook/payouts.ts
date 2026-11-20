@@ -1,14 +1,17 @@
 // Pure money math for splitting one marketplace checkout between sellers.
 // No Stripe or database calls here, so it can be unit-tested on its own.
 //
-// Etsy-style fees: Siqa keeps 6.5% of each seller's items + shipping, and
-// the seller also covers their share of Stripe's processing fee for the
-// charge and of the Stripe Tax fee. Sales tax itself goes to Siqa to remit.
+// Fees: Siqa keeps a percentage of each seller's items + shipping that
+// depends on their plan (Free 3%, Pro 1%, founding sellers 0% — see
+// seller_fee_rate() in the DB), and the seller also covers their share of
+// Stripe's processing fee for the charge and of the Stripe Tax fee. Sales
+// tax itself goes to Siqa to remit.
 // Every
 // split is done with largest-remainder rounding so the parts always add up
 // to the whole, to the cent.
 
-export const SIQA_FEE_RATE = 0.065;
+/** Fallback when a seller's rate can't be looked up: the Free-plan rate. */
+export const SIQA_FEE_RATE = 0.03;
 /** Stripe Tax pay-as-you-go: $0.50 per recorded tax transaction (includes 10 calculations). */
 export const STRIPE_TAX_FEE_CENTS = 50;
 
@@ -68,8 +71,10 @@ export type SplitOptions = {
   stripeFeeCents: number;
   /** Stripe Tax fee for this checkout (0 if no tax transaction recorded). */
   taxFeeCents?: number;
-  /** Siqa's cut of items + shipping (default 6.5%). */
+  /** Siqa's cut of items + shipping when a seller has no entry below (default 3%). */
   feeRate?: number;
+  /** Siqa's cut per seller id (their plan's rate). */
+  feeRateBySeller?: Record<string, number>;
 };
 
 /**
@@ -96,7 +101,8 @@ export function splitCheckout(lines: OrderLine[], opts: SplitOptions): SellerSpl
   return sellers.map((sellerId, idx) => {
     const sellerLines = bySeller.get(sellerId)!;
     const gross = grosses[idx];
-    const siqaFee = Math.round(gross * feeRate);
+    const rate = opts.feeRateBySeller?.[sellerId] ?? feeRate;
+    const siqaFee = Math.round(gross * rate);
     const processing = processingShares[idx];
     const taxFee = taxFeeShares[idx];
     const payout = Math.max(0, gross - siqaFee - processing - taxFee);

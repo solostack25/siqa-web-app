@@ -9,8 +9,11 @@ import { AwsClient } from 'npm:aws4fetch@1.0.20';
 // function secret, and the browser gets a presigned S3 PUT URL that works for
 // one file, for 15 minutes.
 //
-// Every file lands under u/<user id>/..., so a user can only ever write into
-// their own folder — never over someone else's upload.
+// Every file lands in the uploader's own folder, named after their profile so
+// it's readable in the Bunny dashboard (e.g. shamikh-sahadat-3f9a2c/gems/...).
+// The folder is created on first upload, saved in storage_folders, and never
+// changes after that (even if they rename their profile). Users can't edit
+// that table, so nobody can write into someone else's folder.
 //
 // Secrets (Supabase → Edge Functions → Secrets):
 //   BUNNY_S3_ZONE      storage zone name (also the S3 bucket + access key id), e.g. siqa-media
@@ -49,6 +52,36 @@ function cleanPath(raw: string) {
   return path.length <= 300 ? path : null;
 }
 
+function slug(text: string) {
+  return text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+}
+
+// Best human name for the account: speaker > organization > shop > profile > email.
+async function displayNameFor(userId: string, email?: string | null): Promise<string> {
+  const [speaker, org, shop, profile] = await Promise.all([
+    admin.from('speakers').select('display_name').eq('profile_id', userId).limit(1).maybeSingle(),
+    admin.from('organizations').select('org_name').eq('profile_id', userId).limit(1).maybeSingle(),
+    admin.from('marketplace_sellers').select('shop_name').eq('user_id', userId).limit(1).maybeSingle(),
+    admin.from('profiles').select('full_name, username').eq('id', userId).maybeSingle(),
+  ]);
+  return speaker.data?.display_name || org.data?.org_name || shop.data?.shop_name
+    || profile.data?.full_name || profile.data?.username || (email ?? '').split('@')[0] || '';
+}
+
+async function folderFor(userId: string, email?: string | null): Promise<string> {
+  const { data: existing } = await admin.from('storage_folders').select('folder').eq('user_id', userId).maybeSingle();
+  if (existing?.folder) return existing.folder;
+
+  const base = slug(await displayNameFor(userId, email)) || 'user';
+  const folder = `${base}-${userId.replace(/-/g, '').slice(0, 6)}`;
+
+  // upsert-ignore so two uploads at once can't create two folders.
+  await admin.from('storage_folders').upsert({ user_id: userId, folder }, { onConflict: 'user_id', ignoreDuplicates: true });
+  const { data: saved } = await admin.from('storage_folders').select('folder').eq('user_id', userId).maybeSingle();
+  return saved?.folder ?? `u-${userId}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -65,7 +98,9 @@ Deno.serve(async (req: Request) => {
     const type = String(contentType ?? '').toLowerCase();
     if (!ALLOWED_TYPES.test(type)) return json({ error: 'Only images, videos and PDFs can be uploaded.' }, 400);
 
-    const key = `u/${user.id}/${clean}`;
+    // App paths like gems/<user id>/file.mp4 — drop the id, the folder already says whose it is.
+    const inner = clean.split('/').filter((p) => p !== user.id).join('/') || clean;
+    const key = `${await folderFor(user.id, user.email)}/${inner}`;
     const aws = new AwsClient({
       accessKeyId: ZONE,
       secretAccessKey: PASSWORD,

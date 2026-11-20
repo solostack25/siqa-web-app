@@ -22,7 +22,7 @@ import { Theme, HEADER_TOP_PADDING } from '../../constants/theme';
 import { useIsDesktopWeb } from '../../components/DesktopShell';
 import { Icon } from '../../components/Icon';
 import { Glyph, type GlyphName } from '../../components/Glyph';
-import { uploadFileToBunny } from '../../lib/bunnyUpload';
+import { uploadFileToBunny, deleteVideoEverywhere } from '../../lib/bunnyUpload';
 import ImageCropModal from '../../components/ImageCropModal';
 import { EndorsementInbox } from '../../components/SeedSocial';
 import { ProfileMobileView } from '../../components/ProfileMobileView';
@@ -362,8 +362,8 @@ function DashboardScreenInner() {
   async function deleteGem(id: string) {
     const ok = await confirmDialog('Delete Gem?', 'This will permanently delete this video. This cannot be undone.', 'Delete');
     if (!ok) return;
-    const { error } = await supabase.from('videos').delete().eq('id', id);
-    if (error) { notifyDialog('Error', 'Could not delete this Gem. Please try again.'); return; }
+    const { error } = await deleteVideoEverywhere(id);
+    if (error) { notifyDialog('Could not delete', error); return; }
     setGems(prev => prev.filter(g => g.id !== id));
     setLiveVideoCount(n => (n == null ? n : Math.max(0, n - 1)));
   }

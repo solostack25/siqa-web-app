@@ -22,8 +22,11 @@ import { goBack } from '../lib/goBack';
 import {
   SELLER_PLANS,
   SELLER_PLAN_COLUMNS,
-  hasLivePlan,
+  hasPaidPlan,
+  currentTier,
+  isFounding,
   planLabel,
+  redeemSellerPromo,
   PLANS_PURCHASABLE_HERE,
   sellerPlanRequest,
   type PlanTier,
@@ -55,7 +58,9 @@ export default function SellScreen() {
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [pickedTier, setPickedTier] = useState<PlanTier>('starter');
+  const [pickedTier, setPickedTier] = useState<PlanTier>('free');
+  const [promo, setPromo] = useState('');
+  const [promoBusy, setPromoBusy] = useState(false);
   const [planBusy, setPlanBusy] = useState(false);
   const [waitingForPlan, setWaitingForPlan] = useState(false);
   // ?change=1 (from the seller dashboard) opens the plan picker for an
@@ -86,8 +91,8 @@ export default function SellScreen() {
       setSeller(data as any);
       setShopName(data.shop_name ?? '');
       setBio(data.bio ?? '');
-      if (data.plan_tier) setPickedTier(data.plan_tier as PlanTier);
-      if (params.plan === 'success' && !hasLivePlan(data as any)) waitForPlan(data.id);
+      setPickedTier(currentTier(data as any));
+      if (params.plan === 'success' && !hasPaidPlan(data as any)) waitForPlan(data.id);
       if (params.plan === 'cancelled') showToast('Checkout cancelled — no charge was made.');
     }
     setLoading(false);
@@ -99,10 +104,10 @@ export default function SellScreen() {
     for (let i = 0; i < 15; i++) {
       await new Promise(r => setTimeout(r, 2000));
       const { data } = await supabase.from('marketplace_sellers').select(SELLER_COLUMNS).eq('id', sellerId).maybeSingle();
-      if (data && hasLivePlan(data as any)) {
+      if (data && hasPaidPlan(data as any)) {
         setSeller(data as any);
         setWaitingForPlan(false);
-        showToast('Your plan is active');
+        showToast('You\u2019re on Pro');
         return;
       }
     }
@@ -115,12 +120,32 @@ export default function SellScreen() {
     else await Linking.openURL(url);
   }
 
+  async function applyPromo(sellerId: string, code: string): Promise<boolean> {
+    if (!code.trim()) return false;
+    setPromoBusy(true);
+    const res = await redeemSellerPromo(sellerId, code);
+    setPromoBusy(false);
+    if (res.error) {
+      showToast(res.error);
+      return false;
+    }
+    setPromo('');
+    showToast('Founding seller unlocked: 0% Siqa fee and unlimited products for 6 months');
+    const { data } = await supabase.from('marketplace_sellers').select(SELLER_COLUMNS).eq('id', sellerId).maybeSingle();
+    if (data) setSeller(data as any);
+    return true;
+  }
+
   async function choosePlan() {
     if (!seller) return;
+    // Free needs no checkout. Leaving Pro = cancel it in Stripe's billing page.
+    if (pickedTier === 'free') {
+      if (hasPaidPlan(seller)) return manageBilling();
+      return router.replace('/seller-dashboard' as any);
+    }
     setPlanBusy(true);
     try {
-      const live = hasLivePlan(seller) && !seller.plan_exempt;
-      const data = await sellerPlanRequest({ action: live ? 'change' : 'checkout', sellerId: seller.id, tier: pickedTier });
+      const data = await sellerPlanRequest({ action: hasPaidPlan(seller) ? 'change' : 'checkout', sellerId: seller.id, tier: pickedTier });
       if (data.error) throw new Error(data.error);
       if (data.url) return openUrl(data.url);
       showToast('Plan updated');
@@ -167,6 +192,7 @@ export default function SellScreen() {
         return;
       }
       setSeller(data as any);
+      if (promo.trim()) await applyPromo((data as any).id, promo);
     }
     setSaving(false);
   }
@@ -215,11 +241,39 @@ export default function SellScreen() {
     );
   }
 
+  // Every shop starts on Free, so the Plan step only opens when changing plans.
   const step = !seller ? 1
     : seller.approval_status !== 'approved' ? 2
-    : !hasLivePlan(seller) || changingPlan ? 3
+    : changingPlan ? 3
     : !seller.stripe_onboarded ? 4
     : 5;
+
+  // Founding-seller / promo code entry, shown until the shop has used a code.
+  const promoBox = seller && !seller.promo_code ? (
+    <View style={styles.promoBox}>
+      <Text style={styles.label}>Have a promo code?</Text>
+      <View style={styles.promoRow}>
+        <TextInput
+          style={[styles.input, styles.promoInput]}
+          value={promo}
+          onChangeText={t => setPromo(t.toUpperCase())}
+          placeholder="e.g. FOUNDINGSELLER"
+          placeholderTextColor={C.text3}
+          autoCapitalize="characters"
+          autoCorrect={false}
+        />
+        <TouchableOpacity
+          style={[styles.promoBtn, (!promo.trim() || promoBusy) && styles.btnDisabled]}
+          onPress={() => applyPromo(seller.id, promo)}
+          disabled={!promo.trim() || promoBusy}
+        >
+          {promoBusy ? <ActivityIndicator color={C.gold} /> : <Text style={styles.linkBtnText}>Apply</Text>}
+        </TouchableOpacity>
+      </View>
+    </View>
+  ) : seller && isFounding(seller) ? (
+    <Text style={styles.fineprint}>{planLabel(seller)}</Text>
+  ) : null;
 
   return (
     <DesktopShell>
@@ -269,8 +323,25 @@ export default function SellScreen() {
             numberOfLines={4}
           />
 
+          {!seller ? (
+            <>
+              <Text style={styles.label}>Promo code (optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={promo}
+                onChangeText={t => setPromo(t.toUpperCase())}
+                placeholder="e.g. FOUNDINGSELLER"
+                placeholderTextColor={C.text3}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </>
+          ) : null}
+
+          <Text style={styles.fineprint}>Free to start: up to 10 products, no listing fees, Siqa keeps 3% per sale.</Text>
+
           <TouchableOpacity
-            style={[styles.primaryBtn, (!shopName.trim() || saving) && styles.btnDisabled]}
+            style={[styles.primaryBtn, { marginTop: 12 }, (!shopName.trim() || saving) && styles.btnDisabled]}
             onPress={saveShop}
             disabled={!shopName.trim() || saving}
           >
@@ -283,33 +354,30 @@ export default function SellScreen() {
           <Text style={styles.cardSub}>
             "{seller.shop_name}" is under review by the Siqa team. You'll be able to connect payments and list products once it's approved — usually within a day or two.
           </Text>
+          {promoBox}
         </View>
       ) : step === 3 && !PLANS_PURCHASABLE_HERE ? (
         // Native apps: no prices, no purchase button, no link (store rules).
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Seller plan</Text>
           <Text style={styles.cardSub}>
-            {hasLivePlan(seller)
-              ? `Your shop is on the ${planLabel(seller)} plan. Seller plans are managed on the Siqa website.`
-              : 'Your shop needs an active seller plan before products go live. Seller plans are set up on the Siqa website, not in the app. Once it\u2019s active, come back and tap Refresh.'}
+            {`Your shop is on: ${planLabel(seller)}. Plan changes are made on the Siqa website.`}
           </Text>
+          {promoBox}
           <TouchableOpacity style={styles.primaryBtn} onPress={() => { setLoading(true); load(); }}>
             <Text style={styles.primaryBtnText}>Refresh</Text>
           </TouchableOpacity>
-          {hasLivePlan(seller) ? (
-            <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace('/seller-dashboard' as any)}>
-              <Text style={styles.linkBtnText}>Back to my store</Text>
-            </TouchableOpacity>
-          ) : null}
+          <TouchableOpacity style={styles.linkBtn} onPress={() => router.replace('/seller-dashboard' as any)}>
+            <Text style={styles.linkBtnText}>Back to my store</Text>
+          </TouchableOpacity>
         </View>
       ) : step === 3 ? (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{changingPlan && hasLivePlan(seller) ? 'Change your plan' : 'Choose your plan'}</Text>
+          <Text style={styles.cardTitle}>Your plan</Text>
           <Text style={styles.cardSub}>
-            {changingPlan && hasLivePlan(seller)
-              ? `You're on ${planLabel(seller)}. Changes take effect now and are prorated on your next bill.`
-              : 'A monthly plan based on how many products you have live. Change or cancel any time.'}
+            {`You're on ${planLabel(seller)}. No listing fees on any plan, and card processing is passed through at cost.`}
           </Text>
+          {promoBox}
 
           {waitingForPlan ? (
             <View style={styles.waiting}>
@@ -320,7 +388,7 @@ export default function SellScreen() {
             <>
               {SELLER_PLANS.map(p => {
                 const on = pickedTier === p.tier;
-                const current = hasLivePlan(seller) && seller.plan_tier === p.tier;
+                const current = currentTier(seller) === p.tier;
                 return (
                   <TouchableOpacity
                     key={p.tier}
@@ -334,30 +402,30 @@ export default function SellScreen() {
                       <Text style={styles.planTitle}>{p.title}{current ? '  · Current' : ''}</Text>
                       <Text style={styles.planBlurb}>{p.blurb}</Text>
                     </View>
-                    <Text style={styles.planPrice}>${p.price}<Text style={styles.planPer}>/mo</Text></Text>
+                    <Text style={styles.planPrice}>{p.price === 0 ? 'Free' : <>${p.price}<Text style={styles.planPer}>/mo</Text></>}</Text>
                   </TouchableOpacity>
                 );
               })}
 
               <TouchableOpacity
-                style={[styles.primaryBtn, { marginTop: 8 }, (planBusy || (hasLivePlan(seller) && seller.plan_tier === pickedTier)) && styles.btnDisabled]}
+                style={[styles.primaryBtn, { marginTop: 8 }, (planBusy || currentTier(seller) === pickedTier) && styles.btnDisabled]}
                 onPress={choosePlan}
-                disabled={planBusy || (hasLivePlan(seller) && seller.plan_tier === pickedTier)}
+                disabled={planBusy || currentTier(seller) === pickedTier}
               >
                 {planBusy ? <ActivityIndicator color={dsStatic().c.onPrimary} /> : (
                   <Text style={styles.primaryBtnText}>
-                    {hasLivePlan(seller) && !seller.plan_exempt
-                      ? `Switch to $${SELLER_PLANS.find(p => p.tier === pickedTier)!.price}/month`
-                      : `Continue to payment · $${SELLER_PLANS.find(p => p.tier === pickedTier)!.price}/month`}
+                    {pickedTier === 'free'
+                      ? 'Switch to Free (cancel Pro)'
+                      : 'Continue to payment · $15/month'}
                   </Text>
                 )}
               </TouchableOpacity>
-              {hasLivePlan(seller) && !seller.plan_exempt ? (
+              {hasPaidPlan(seller) ? (
                 <TouchableOpacity style={styles.linkBtn} onPress={manageBilling} disabled={planBusy}>
                   <Text style={styles.linkBtnText}>Update card, see invoices or cancel</Text>
                 </TouchableOpacity>
               ) : null}
-              <Text style={styles.fineprint}>Billed monthly by Stripe. Products over your plan's limit stay saved but hidden until you upgrade.</Text>
+              <Text style={styles.fineprint}>Pro is billed monthly by Stripe. On Free, products past 10 stay saved but hidden until you upgrade.</Text>
             </>
           )}
         </View>
@@ -447,6 +515,10 @@ function makeStyles(C: AppColors) {
     linkBtn: { alignItems: 'center', paddingVertical: 12 },
     linkBtnText: { fontSize: 13, fontWeight: '700', color: C.gold },
     fineprint: { fontSize: 11, color: C.text3, textAlign: 'center', marginTop: 8, lineHeight: 16 },
+    promoBox: { marginBottom: 12 },
+    promoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    promoInput: { flex: 1, marginBottom: 0 },
+    promoBtn: { height: 46, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', borderRadius: Theme.radius.md, borderWidth: 1, borderColor: C.gold },
 
     primaryBtn: buttonStyles('primary', 'lg').box,
     btnDisabled: { opacity: 0.6 },

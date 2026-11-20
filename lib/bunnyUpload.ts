@@ -139,3 +139,20 @@ export async function uploadThumbnailToBunny(args: BunnyUploadArgs) {
   args.onProgress?.({ pct: args.progressEnd ?? 18, label: 'Thumbnail uploaded...' });
   return url;
 }
+
+/**
+ * Permanently delete a video post AND its files in Bunny (delete-video Edge
+ * Function). For hiding a post, unpublish it instead — that keeps the files.
+ */
+export async function deleteVideoEverywhere(videoId: string): Promise<{ error?: string }> {
+  const token = (await supabase.auth.getSession()).data.session?.access_token ?? '';
+  if (!token) return { error: 'Sign in again to delete.' };
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-video`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ videoId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.deleted) return { error: data.error || `Delete failed (${res.status})` };
+  return {};
+}
