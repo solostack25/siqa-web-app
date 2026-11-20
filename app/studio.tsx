@@ -24,6 +24,7 @@ import { Icon, type SiqaIconName } from '../components/Icon';
 import { brandStyles, font, radius, type as dsType, useDS } from '../lib/ds';
 import { SegmentedControl, BottomSheet, OptionRow } from '../components/ui';
 import { ThumbnailEditor } from '../components/ThumbnailEditor';
+import { myCameras, openStudio, type CameraChannel } from '../lib/studioLink';
 
 /**
  * Speaker Studio — the speaker's own dashboard: channel analytics plus a
@@ -204,6 +205,7 @@ export default function StudioScreen() {
   const [periodViews, setPeriodViews] = useState<Record<string, number>>({});
   const [canSeed, setCanSeed] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
+  const [cam, setCam] = useState<CameraChannel | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [metric, setMetric] = useState<ChartMetric>('views');
 
@@ -271,6 +273,7 @@ export default function StudioScreen() {
     ((viewsRes.data as { day: string; views: number }[]) ?? []).forEach(r => { dailyViews[r.day] = Number(r.views); });
     setCanSeed(Boolean(orgRes.data));
     setIsSeller(Boolean(sellerRes.data));
+    if ((sp as Speaker).approval_status === 'approved') myCameras().then((l) => setCam(l[0] || null)).catch(() => setCam(null));
 
     setActivity({
       followers: ((followRes.data as { created_at: string }[]) ?? []).map(r => r.created_at),
@@ -526,7 +529,14 @@ export default function StudioScreen() {
     removed: { bg: 'rgba(217,117,95,0.12)', fg: C.danger, label: 'Removed' },
   })[s];
 
-  const createItems: { key: string; label: string; icon: SiqaIconName; path: string }[] = [
+  const approved = speaker?.approval_status === 'approved';
+  const createItems: { key: string; label: string; icon: SiqaIconName; path: string; studio?: boolean }[] = [
+    ...(approved ? [
+      { key: 'live', label: 'Go live', icon: 'radio-outline' as SiqaIconName, path: '/go-live' },
+      { key: 'gem', label: 'Record a Gem', icon: 'diamond-outline' as SiqaIconName, path: '/record?type=gem', studio: true },
+      { key: 'rec', label: 'Record a video', icon: 'videocam-outline' as SiqaIconName, path: '/record?type=video', studio: true },
+      { key: 'pod', label: 'Host a podcast', icon: 'mic-outline' as SiqaIconName, path: '/live', studio: true },
+    ] : []),
     { key: 'video', label: 'Upload video or Gem', icon: 'cloud-upload-outline', path: '/gem-upload' },
     ...(canSeed ? [{ key: 'seed', label: 'Create a Seed', icon: 'leaf-outline' as SiqaIconName, path: '/seed-create' }] : []),
     ...(isSeller ? [{ key: 'listing', label: 'List an item', icon: 'pricetag-outline' as SiqaIconName, path: '/listing-create' }] : []),
@@ -652,7 +662,7 @@ export default function StudioScreen() {
                           <TouchableOpacity
                             key={item.key}
                             style={styles.createItem}
-                            onPress={() => { setCreateOpen(false); router.push(item.path as any); }}
+                            onPress={() => { setCreateOpen(false); if (item.studio) openStudio(item.path); else router.push(item.path as any); }}
                           >
                             <Icon name={item.icon} size={18} color={C.text} />
                             <Text style={styles.createItemText}>{item.label}</Text>
@@ -669,6 +679,29 @@ export default function StudioScreen() {
                 )}
               </View>
             </View>
+
+            {approved && (
+              <Pressable
+                onPress={() => router.push('/go-live' as any)}
+                accessibilityRole="button"
+                accessibilityLabel={cam?.live_session_id ? 'You are live. Open Go live' : 'Your camera. Open Go live'}
+                style={({ pressed }) => [styles.camCard, pressed && { opacity: 0.92 }]}
+              >
+                <View style={styles.camIcon}><Icon name="videocam-outline" size={24} color="#d4ac73" /></View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={styles.camEyebrow}>{cam?.live_session_id ? 'LIVE NOW' : 'YOUR CAMERA'}</Text>
+                  <Text style={styles.camTitle}>
+                    {cam?.live_session_id ? (cam.next_title || cam.title) : cam ? 'Ready to go live' : 'Go live with your camera'}
+                  </Text>
+                  <Text style={styles.camSub}>
+                    {cam?.live_session_id ? 'Stop the stream in DJI Mimo when you are done.'
+                      : cam ? (cam.auto_post ? 'Khutbahs post to your profile when they end.' : 'Khutbahs save as drafts here when they end.')
+                      : 'Stream your khutbah from a DJI Osmo Pocket 3 or your phone.'}
+                  </Text>
+                </View>
+                <Icon name="chevron-forward" size={20} color="#9facc4" />
+              </Pressable>
+            )}
 
             {!speaker.is_verified && (
               <View style={styles.banner}>
@@ -994,6 +1027,15 @@ function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
     h1: { fontSize: desktop ? 30 : 24, fontWeight: '700', color: C.text, letterSpacing: -0.4 },
     sub: { fontSize: 14, color: C.text2 },
     headerActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+
+    camCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18, borderRadius: 20, backgroundColor: '#0a0f1c',
+      maxWidth: 720,
+    },
+    camIcon: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#1b2438', alignItems: 'center', justifyContent: 'center' },
+    camEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, color: '#9facc4' },
+    camTitle: { fontSize: 18, fontWeight: '700', color: '#edf1f7' },
+    camSub: { fontSize: 13, color: '#9facc4', lineHeight: 18 },
 
     banner: {
       flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: Theme.radius.md,
