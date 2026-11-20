@@ -192,7 +192,10 @@ async function lookup(type, id, origin, isMarketplace, q = {}) {
   }
 
   if (type === 'speaker' && !isMarketplace) {
-    const sp = await sb(`speakers?${eq}&select=display_name,bio,avatar_url&limit=1`).catch(() => null);
+    // /speaker/<uuid> or /speaker/<slug> (e.g. omarsuleiman)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+    const spEq = isUuid ? eq : `slug=eq.${encodeURIComponent(String(id).toLowerCase())}`;
+    const sp = await sb(`speakers?${spEq}&select=display_name,bio,avatar_url&limit=1`).catch(() => null);
     if (!sp) return null;
     return {
       title: `${sp.display_name} on Siqa`,
