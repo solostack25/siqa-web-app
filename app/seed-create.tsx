@@ -175,7 +175,16 @@ function SeedCreateScreenContent() {
     const { data } = isPrivilegedRole(role)
       ? await base.order('org_name')
       : await base.eq('profile_id', user.id).order('created_at', { ascending: false });
-    const list = (data || []) as OrgOption[];
+    let list = (data || []) as OrgOption[];
+    // Masjid team members (not just the owner) can start Seeds for their masjid.
+    if (!isPrivilegedRole(role)) {
+      const { data: mine } = await supabase.rpc('my_masjids');
+      const extra = ((mine as { id: string }[]) || []).map(m => m.id).filter(id => !list.some(o => o.id === id));
+      if (extra.length) {
+        const { data: more } = await supabase.from('organizations').select('id, org_name, is_verified, approval_status, stripe_onboarded, logo_url').in('id', extra);
+        list = [...list, ...((more || []) as OrgOption[])];
+      }
+    }
     setOrgs(list);
     const fromParam = orgParam && list.some(o => o.id === orgParam) ? String(orgParam) : null;
     setSelectedOrgId(current => fromParam || current || list[0]?.id || null);

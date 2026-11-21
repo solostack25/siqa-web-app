@@ -188,6 +188,10 @@ function AppContent() {
         <Stack.Screen name="apply-speaker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="prayer" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="salah-tracker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+        <Stack.Screen name="masjid-admin" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="screen" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="tv" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="link-tv" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
       {IS_MARKETPLACE_SITE ? null : <PrayerBanner />}
       <TermsGate />

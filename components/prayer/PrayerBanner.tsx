@@ -16,7 +16,7 @@ import { useIsDesktopWeb } from '../DesktopShell';
 
 const AFTER_MINUTES = 15;
 // Full-screen and flow screens where a banner would get in the way.
-const HIDE_ON = ['/welcome', '/sign-in', '/sign-up', '/login', '/forgot-password', '/reset-password', '/gems', '/watch', '/checkout', '/prayer', '/salah-tracker'];
+const HIDE_ON = ['/welcome', '/sign-in', '/sign-up', '/login', '/forgot-password', '/reset-password', '/gems', '/watch', '/checkout', '/prayer', '/salah-tracker', '/screen', '/tv', '/masjid-admin'];
 
 const dismissed = new Set<string>();
 
