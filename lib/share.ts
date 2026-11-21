@@ -39,6 +39,11 @@ export function getSeedShareUrl(seedId: string): string {
   return `${getAppBaseUrl()}/seed/${seedId}`;
 }
 
+/** A nonprofit's profile video → its own full-page player. */
+export function getOrgVideoShareUrl(videoId: string): string {
+  return `${getAppBaseUrl()}/org-video/${videoId}`;
+}
+
 type ShareResult = { shared: boolean; copied: boolean };
 
 /**
@@ -252,5 +257,13 @@ export function shareSpeaker(speakerId: string, name: string) {
     url: getSpeakerShareUrl(speakerId),
     title: `${name} on Siqa`,
     text: `${name}\nTalks and videos on Siqa`,
+  });
+}
+
+export function shareOrgVideo(videoId: string, title: string, orgName?: string | null) {
+  return shareLink({
+    url: getOrgVideoShareUrl(videoId),
+    title,
+    text: orgName ? `${title}\nFrom ${orgName} on Siqa` : `${title}\nWatch on Siqa`,
   });
 }

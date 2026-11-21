@@ -7,6 +7,9 @@
  *
  * Each video can optionally be attached to one of the org's Seeds; the player
  * then shows a "Support this Seed" button.
+ *
+ * Tapping a video opens its own full page, app/(tabs)/org-video/[id].tsx —
+ * the nonprofit equivalent of a speaker's /watch page.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -20,11 +23,8 @@ import { useTheme, type AppColors } from '../lib/theme';
 import { brandStyles, font } from '../lib/ds';
 import { uploadVideoToBunny, uploadThumbnailToBunny } from '../lib/bunnyUpload';
 import { Card, CardTitle, PrimaryButton } from './SeedSocial';
-import { Button } from './ui';
 import { Icon } from './Icon';
 import { showToast } from './Toast';
-import { YouTubeEmbed } from './YouTubeEmbed';
-import { SeedVideo } from './SeedVideo';
 
 export type OrgVideo = {
   id: string;
@@ -90,7 +90,6 @@ export function OrgVideos({
   const [videos, setVideos] = useState<OrgVideo[]>([]);
   const [seeds, setSeeds] = useState<SeedLite[]>([]);
   const [loading, setLoading] = useState(true);
-  const [playing, setPlaying] = useState<OrgVideo | null>(null);
   const [editing, setEditing] = useState<OrgVideo | 'new' | null>(null);
 
   const load = useCallback(async () => {
@@ -114,9 +113,9 @@ export function OrgVideos({
   // Owners with no videos see the empty state + Add; visitors see nothing on Overview.
   if (!loading && !videos.length && !canEdit && limit) return null;
 
+  // Full-page player; it counts the view itself.
   function open(v: OrgVideo) {
-    setPlaying(v);
-    supabase.rpc('org_video_viewed', { p_id: v.id }).then(() => {});
+    router.push({ pathname: '/org-video/[id]', params: { id: v.id } } as any);
   }
 
   return (
@@ -189,11 +188,6 @@ export function OrgVideos({
         </View>
       )}
 
-      <PlayerModal
-        video={playing}
-        seed={playing?.fundraiser_id ? seedById[playing.fundraiser_id] : null}
-        onClose={() => setPlaying(null)}
-      />
       {canEdit && editing ? (
         <EditorModal
           orgId={orgId}
@@ -204,46 +198,6 @@ export function OrgVideos({
         />
       ) : null}
     </Card>
-  );
-}
-
-// ── Player ───────────────────────────────────────────────────────────────
-
-function PlayerModal({ video, seed, onClose }: { video: OrgVideo | null; seed: SeedLite | null; onClose: () => void }) {
-  const { colors: C } = useTheme();
-  const styles = useMemo(() => makeStyles(C), [C]);
-  const seedLive = seed && LIVE_SEED.includes(seed.status);
-  return (
-    <Modal visible={!!video} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.playerSheet}>
-          <View style={styles.sheetHead}>
-            <Text style={styles.sheetTitle} numberOfLines={2}>{video?.title}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close">
-              <Icon name="close" size={22} color={C.text} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.playerBox}>
-            {video?.platform === 'youtube' && video.platform_video_id ? (
-              <YouTubeEmbed videoId={video.platform_video_id} autoplay />
-            ) : video?.video_url ? (
-              <SeedVideo uri={video.video_url} poster={video.thumbnail_url} fit="contain" />
-            ) : null}
-          </View>
-          <ScrollView style={{ maxHeight: 180 }} contentContainerStyle={{ gap: 12 }}>
-            {video?.description ? <Text style={styles.body}>{video.description}</Text> : null}
-          </ScrollView>
-          {seed && seedLive ? (
-            <Button
-              variant="gold"
-              icon="leaf-outline"
-              label="Support this Seed"
-              onPress={() => { onClose(); router.push({ pathname: '/seed/[id]', params: { id: seed.id } } as any); }}
-            />
-          ) : null}
-        </View>
-      </View>
-    </Modal>
   );
 }
 

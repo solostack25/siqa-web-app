@@ -50,6 +50,10 @@
       "destination": "/api/og?type=seed&id=:id"
     },
     {
+      "source": "/org-video/:id",
+      "destination": "/api/og?type=org_video&id=:id"
+    },
+    {
       "source": "/speaker/:id",
       "destination": "/api/og?type=speaker&id=:id"
     },

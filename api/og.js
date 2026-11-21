@@ -10,6 +10,7 @@
 //   /gems?videoId=:id     -> ?type=short&videoId=:id
 //   /product/:id          -> ?type=product&id=:id
 //   /seed/:id             -> ?type=seed&id=:id
+//   /org-video/:id        -> ?type=org_video&id=:id (a nonprofit's profile video)
 //   /speaker/:id          -> ?type=speaker&id=:id
 //   /chai/:id[?r=&s=]     -> ?type=chai&id=:id (r/s = a shared quiz result)
 // This function loads the built index.html, swaps in the right title,
@@ -106,6 +107,7 @@ function pathFor(type, id, q = {}) {
     case 'short': return `/gems?videoId=${id}`;
     case 'product': return `/product/${id}`;
     case 'seed': return `/seed/${id}`;
+    case 'org_video': return `/org-video/${id}`;
     case 'speaker': return `/speaker/${id}`;
     case 'chai': return `/chai/${id}${chaiQuery(q)}`;
     default: return '/';
@@ -188,6 +190,23 @@ async function lookup(type, id, origin, isMarketplace, q = {}) {
       title: s.title ? `Support: ${s.title}` : 'Support this Seed',
       description: s.subtitle || s.description || (org ? `A cause from ${org} on Siqa.` : null),
       image: absolute(s.cover_image_url || s.image_url, origin),
+    };
+  }
+
+  if (type === 'org_video' && !isMarketplace) {
+    const v = await sb(`org_videos?${eq}&is_published=eq.true&select=title,description,thumbnail_url,platform,platform_video_id,organizations(org_name)&limit=1`);
+    if (!v) return null;
+    const org = v.organizations?.org_name;
+    const image =
+      v.thumbnail_url ||
+      (v.platform === 'youtube' && v.platform_video_id
+        ? `https://i.ytimg.com/vi/${v.platform_video_id}/hqdefault.jpg`
+        : null);
+    return {
+      title: v.title || (org ? `A video from ${org}` : 'A video on Siqa'),
+      description: cleanVideoDescription(v.description) || (org ? `Watch ${org} on Siqa.` : 'Watch on Siqa.'),
+      image: absolute(image, origin),
+      ogType: 'video.other',
     };
   }
 
