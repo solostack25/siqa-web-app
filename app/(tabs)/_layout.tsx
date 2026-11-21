@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tabs, usePathname } from 'expo-router';
+import { Redirect, Tabs, usePathname } from 'expo-router';
 import { View, Text, StyleSheet, Platform, Easing, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../lib/theme';
 import { ChaiIcon, DiscoverIcon, GemIcon, HomeIcon, SeedsIcon } from '../../components/Siqa';
@@ -10,6 +10,7 @@ import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import { brandStyles } from '../../lib/ds';
 import { useTabSwipe, useNativeTabSwipeGesture } from '../../components/useTabSwipe';
 import { GestureDetector } from 'react-native-gesture-handler';
+import { useMasjidOnly } from '../../lib/accountKind';
 
 type TabIconProps = {
   focused: boolean;
@@ -49,6 +50,10 @@ export default function TabsLayout() {
   useTabSwipe(!isDesktopWeb && !IS_MARKETPLACE_SITE);
   // Same thing on the phone app.
   const nativeSwipe = useNativeTabSwipeGesture(Platform.OS !== 'web' && !IS_MARKETPLACE_SITE);
+  // Accounts that only run a masjid get the clutter-free masjid console instead of Gems/Shop.
+  const masjidOnly = useMasjidOnly();
+
+  if (masjidOnly && !IS_MARKETPLACE_SITE) return <Redirect href={'/masjid-admin' as any} />;
 
   const tabs = (
     <Tabs

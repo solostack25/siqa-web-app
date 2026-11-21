@@ -151,6 +151,7 @@ function OrgsScreenInner() {
         .from('organizations')
         .select('id, profile_id, org_name, org_type, city, state, tagline, mission, is_verified, ein_verified, logo_url, banner_url, stripe_onboarded, payment_method_url')
         .eq('approval_status', 'approved')
+        .neq('org_kind', 'masjid') // masjids get their own directory, not the nonprofit list
         .order('org_name'),
       supabase
         .from('fundraisers')

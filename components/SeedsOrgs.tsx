@@ -99,7 +99,7 @@ export function VerifiedOrgsRail() {
   const [orgs, setOrgs] = useState<RailOrg[]>([]);
   useEffect(() => {
     supabase.from('organizations').select('id, profile_id, org_name, city, state, logo_url')
-      .eq('approval_status', 'approved').eq('is_verified', true).order('org_name').limit(8)
+      .eq('approval_status', 'approved').eq('is_verified', true).neq('org_kind', 'masjid').order('org_name').limit(8)
       .then(({ data }) => setOrgs((data ?? []) as RailOrg[]));
   }, []);
   return (
