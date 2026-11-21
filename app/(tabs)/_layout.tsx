@@ -11,6 +11,7 @@ import { brandStyles } from '../../lib/ds';
 import { useTabSwipe, useNativeTabSwipeGesture } from '../../components/useTabSwipe';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useMasjidOnly } from '../../lib/accountKind';
+import { IS_DASHBOARD_SITE } from '../../lib/site';
 
 type TabIconProps = {
   focused: boolean;
@@ -53,7 +54,7 @@ export default function TabsLayout() {
   // Accounts that only run a masjid get the clutter-free masjid console instead of Gems/Shop.
   const masjidOnly = useMasjidOnly();
 
-  if (masjidOnly && !IS_MARKETPLACE_SITE) return <Redirect href={'/masjid-admin' as any} />;
+  if ((masjidOnly || IS_DASHBOARD_SITE) && !IS_MARKETPLACE_SITE) return <Redirect href={'/manage' as any} />;
 
   const tabs = (
     <Tabs

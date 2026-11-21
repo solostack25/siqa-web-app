@@ -12,20 +12,22 @@ import { Platform } from 'react-native';
 // For testing on a Vercel preview URL, add ?site=marketplace once; it is
 // remembered for that browser tab (?site=full switches back).
 
-export type SiteMode = 'full' | 'marketplace';
+export type SiteMode = 'full' | 'marketplace' | 'dashboard';
 
 function detect(): SiteMode {
   if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.location) return 'full';
   const host = window.location.hostname.toLowerCase();
   if (host.startsWith('shop.') || host.startsWith('marketplace.')) return 'marketplace';
+  if (host.startsWith('dashboard.')) return 'dashboard';
   try {
     const param = new URLSearchParams(window.location.search).get('site');
-    if (param === 'marketplace' || param === 'full') {
+    if (param === 'marketplace' || param === 'full' || param === 'dashboard') {
       window.sessionStorage.setItem('siqa_site', param);
       return param;
     }
     const saved = window.sessionStorage.getItem('siqa_site');
     if (saved === 'marketplace') return 'marketplace';
+    if (saved === 'dashboard') return 'dashboard';
   } catch {
     // sessionStorage can throw in private modes; fall through.
   }
@@ -34,9 +36,26 @@ function detect(): SiteMode {
 
 export const SITE_MODE: SiteMode = detect();
 export const IS_MARKETPLACE_SITE = SITE_MODE === 'marketplace';
+// dashboard.siqa.us: the "run something on Siqa" side (store, Studio, organization, masjid, admin).
+export const IS_DASHBOARD_SITE = SITE_MODE === 'dashboard';
+
+/** Where the dashboard lives. On siqa.us web this is the separate site; in the phone app it's in-app. */
+export const DASHBOARD_ORIGIN = 'https://dashboard.siqa.us';
+
+/** Routes that make sense on dashboard.siqa.us; anything else goes to the dashboard home. */
+const DASHBOARD_PATHS = [
+  '/manage', '/manage-handoff', '/sign-in', '/sign-up', '/login', '/forgot-password', '/reset-password',
+  '/seller-dashboard', '/listing-create', '/studio', '/gem-upload', '/go-live', '/watermark', '/seed-create',
+  '/admin', '/chai-admin', '/masjid-admin', '/org-register', '/apply-speaker', '/sell', '/terms', '/privacy', '/support',
+];
+export function isOffDashboard(pathname: string): boolean {
+  if (!IS_DASHBOARD_SITE) return false;
+  if (pathname === '/' || pathname === '') return true;
+  return !DASHBOARD_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith(p + '?'));
+}
 
 /** Where "home" is on this site. */
-export const SITE_HOME = IS_MARKETPLACE_SITE ? '/marketplace' : '/';
+export const SITE_HOME = IS_MARKETPLACE_SITE ? '/marketplace' : IS_DASHBOARD_SITE ? '/manage' : '/';
 
 // Routes that belong to Gems (videos) or the nonprofit side. On the
 // Marketplace site, landing on one of these sends you to the Shop.

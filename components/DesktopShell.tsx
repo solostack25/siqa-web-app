@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Platform, useWindowDimensions } from 'react-native';
 import { DesktopSidebar } from './DesktopSidebar';
 import { DesktopTopBar } from './DesktopTopBar';
+import { IS_DASHBOARD_SITE } from '../lib/site';
 
 // Kept in one place so the tabs layout and the standalone routes
 // (browse, watch, channel) can't drift out of sync on the breakpoint.
@@ -21,7 +22,8 @@ export function DesktopShell({ children }: { children: React.ReactNode }) {
   const isDesktopWeb = useIsDesktopWeb();
   const nested = React.useContext(InDesktopShell);
 
-  if (!isDesktopWeb || nested) return <>{children}</>;
+  // dashboard.siqa.us has its own frame; tools opened there don't get the viewer app's sidebar.
+  if (!isDesktopWeb || nested || IS_DASHBOARD_SITE) return <>{children}</>;
 
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>

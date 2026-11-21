@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { openDashboard } from './dashboard/links';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl, Image, Modal, Pressable,
   ActivityIndicator, useWindowDimensions,
@@ -87,9 +88,10 @@ export function ProfileMobileView(p: {
   const [createOpen, setCreateOpen] = useState(false);
   const go = (path: any) => { setCreateOpen(false); router.push(path); };
 
+  const runsSomething = isSpeaker || Boolean(p.seller) || Boolean(p.organization) || p.isAdmin;
   const tools: { label: string; icon: SiqaIconName; go: () => void }[] = [
-    ...(isSpeaker ? [{ label: 'Studio', icon: 'bar-chart-outline' as SiqaIconName, go: () => router.push('/studio' as any) }] : []),
-    ...(p.seller ? [{ label: 'My store', icon: 'storefront-outline' as SiqaIconName, go: () => router.push('/seller-dashboard' as any) }] : []),
+    // Studio, the store, Seeds and admin live in the Dashboard (dashboard.siqa.us).
+    ...(runsSomething ? [{ label: 'Dashboard', icon: 'grid-outline' as SiqaIconName, go: () => { openDashboard(); } }] : []),
     { label: 'Business', icon: 'storefront-outline', go: () => router.push((p.hasBusiness ? '/local/inbox' : '/local/edit') as any) },
     { label: 'Orders', icon: 'bag-handle-outline', go: () => router.push('/orders' as any) },
     { label: 'Salah Tracker', icon: 'checkmark-done-outline', go: () => router.push('/salah-tracker' as any) },
@@ -97,11 +99,7 @@ export function ProfileMobileView(p: {
 
   // Everything you can make on Siqa, in one place (the + at the top).
   const createItems: { label: string; sub: string; icon: SiqaIconName; path: string }[] = [
-    ...(isSpeaker ? [{ label: 'Post a Gem or video', sub: 'Short clips or full-length talks', icon: 'videocam-outline' as SiqaIconName, path: '/gem-upload' }] : []),
-    ...(p.canCreateSeeds ? [{ label: 'Create a Seed', sub: 'A fundraiser for your masjid or nonprofit', icon: 'leaf-outline' as SiqaIconName, path: '/seed-create' }] : []),
-    p.seller
-      ? { label: 'Add a product', sub: p.seller.shop_name, icon: 'pricetag-outline' as SiqaIconName, path: '/listing-create' }
-      : { label: 'Start selling', sub: 'Open a shop on the Marketplace', icon: 'pricetag-outline' as SiqaIconName, path: '/sell' },
+    ...(!p.seller ? [{ label: 'Start selling', sub: 'Open a shop on the Marketplace', icon: 'pricetag-outline' as SiqaIconName, path: '/sell' }] : []),
     { label: p.hasBusiness ? 'Update your business listing' : 'List your business', sub: 'Show up in Local & services', icon: 'storefront-outline' as SiqaIconName, path: p.hasBusiness ? '/local/inbox' : '/local/edit' },
     ...(!isSpeaker ? [{ label: 'Apply to be a speaker', sub: 'Post Gems once Siqa approves you', icon: 'mic-outline' as SiqaIconName, path: '/apply-speaker' }] : []),
     ...(!p.organization ? [{ label: 'Register an organization', sub: 'Masjid, school or nonprofit', icon: 'business-outline' as SiqaIconName, path: '/org-register' }] : []),
@@ -205,7 +203,7 @@ export function ProfileMobileView(p: {
         </View>
 
         {p.isAdmin && (
-          <TouchableOpacity style={s.nudge} onPress={() => router.push('/admin' as any)}>
+          <TouchableOpacity style={s.nudge} onPress={() => { openDashboard('admin'); }}>
             <View style={[s.nudgeIcon, { backgroundColor: C.gold }]}><Icon name="shield-checkmark-outline" size={18} color="#fff" /></View>
             <View style={{ flex: 1, gap: 1 }}>
               <Text style={s.nudgeTitle}>

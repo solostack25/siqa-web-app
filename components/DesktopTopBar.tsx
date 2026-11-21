@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
+import { loadSpaces } from '../lib/spaces';
+import { openDashboard } from './dashboard/links';
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -31,6 +33,7 @@ export function DesktopTopBar() {
   const [speaker, setSpeaker] = useState<{ id: string } | null>(null);
   const [hasOrg, setHasOrg] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [hasSpaces, setHasSpaces] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -54,7 +57,8 @@ export function DesktopTopBar() {
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setProfile(null); setCartCount(0); setSpeaker(null); setIsSeller(false); setHasOrg(false); return; }
+    if (!session?.user) { setProfile(null); setCartCount(0); setSpeaker(null); setIsSeller(false); setHasOrg(false); setHasSpaces(false); return; }
+    loadSpaces().then((sp) => setHasSpaces(!!sp?.length)).catch(() => {});
 
     const [{ data: profileData }, { count }, { data: sellerData }, { data: speakerData }, { data: orgData }] = await Promise.all([
       supabase.from('profiles').select('full_name, avatar_url, role').eq('id', session.user.id).maybeSingle(),
@@ -131,32 +135,18 @@ export function DesktopTopBar() {
       </View>
 
       <View style={styles.actions}>
-        {profile && showStudio && (
-          <TouchableOpacity style={styles.createBtn} onPress={() => goTo('/studio')}>
-            <Icon name="stats-chart-outline" size={18} color={C.text} />
-            <Text style={styles.createBtnText}>Studio</Text>
+        {/* Creating and managing (videos, listings, Seeds, admin) happens in the Dashboard. */}
+        {profile && hasSpaces && !IS_MARKETPLACE_SITE && (
+          <TouchableOpacity style={styles.createBtn} onPress={() => openDashboard()}>
+            <Icon name="grid-outline" size={18} color={C.text} />
+            <Text style={styles.createBtnText}>Dashboard</Text>
           </TouchableOpacity>
         )}
-        {profile && !showStudio && createItems.length > 0 && (
-          <View style={{ position: 'relative' }}>
-            <TouchableOpacity
-              style={styles.createBtn}
-              onPress={() => { setMenuOpen(false); setCreateOpen(v => !v); }}
-            >
-              <Icon name="add" size={20} color={C.text} />
-              <Text style={styles.createBtnText}>Create</Text>
-            </TouchableOpacity>
-            {createOpen && (
-              <View style={[styles.menu, styles.createMenu]}>
-                {createItems.map(item => (
-                  <TouchableOpacity key={item.key} style={styles.createItem} onPress={() => goTo(item.path)}>
-                    <Icon name={item.icon as any} size={20} color={C.text} />
-                    <Text style={styles.createItemText}>{item.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </View>
+        {profile && isSeller && IS_MARKETPLACE_SITE && (
+          <TouchableOpacity style={styles.createBtn} onPress={() => goTo('/listing-create')}>
+            <Icon name="add" size={20} color={C.text} />
+            <Text style={styles.createBtnText}>List an item</Text>
+          </TouchableOpacity>
         )}
 
         <TouchableOpacity style={styles.iconBtn} onPress={() => goTo('/cart')}>
@@ -184,16 +174,10 @@ export function DesktopTopBar() {
                     <Icon name="settings-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>Settings</Text>
                   </TouchableOpacity>
-                  {speaker && !IS_MARKETPLACE_SITE && (
-                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo(`/speaker/${speaker.id}`)}>
-                      <Icon name="person-circle-outline" size={16} color={C.text2} />
-                      <Text style={styles.menuItemText}>My Public Profile</Text>
-                    </TouchableOpacity>
-                  )}
-                  {speaker && !IS_MARKETPLACE_SITE && (
-                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/studio')}>
-                      <Icon name="stats-chart-outline" size={16} color={C.text2} />
-                      <Text style={styles.menuItemText}>Speaker Studio</Text>
+                  {hasSpaces && !IS_MARKETPLACE_SITE && (
+                    <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); openDashboard(); }}>
+                      <Icon name="grid-outline" size={16} color={C.text2} />
+                      <Text style={styles.menuItemText}>Dashboard</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/orders')}>
@@ -204,14 +188,10 @@ export function DesktopTopBar() {
                     <Icon name="chatbubble-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>Messages</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.menuItem} onPress={() => goTo(isSeller ? '/seller-dashboard' : '/sell')}>
-                    <Icon name="storefront-outline" size={16} color={C.text2} />
-                    <Text style={styles.menuItemText}>{isSeller ? 'My store' : 'Sell on Siqa'}</Text>
-                  </TouchableOpacity>
-                  {profile && isAdminRole(profile.role) && (
-                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/admin')}>
-                      <Icon name="shield-checkmark-outline" size={16} color={C.text2} />
-                      <Text style={styles.menuItemText}>Admin</Text>
+                  {!isSeller && (
+                    <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/sell')}>
+                      <Icon name="storefront-outline" size={16} color={C.text2} />
+                      <Text style={styles.menuItemText}>Sell on Siqa</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleSignOut}>

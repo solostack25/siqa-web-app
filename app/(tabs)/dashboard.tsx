@@ -1,4 +1,5 @@
 import { Redirect } from 'expo-router';
+import { openDashboard } from '../../components/dashboard/links';
 import { IS_MARKETPLACE_SITE } from '../../lib/site';
 import {
   View,
@@ -532,32 +533,14 @@ function DashboardScreenInner() {
         {speaker && <EndorsementInbox speakerId={speaker.id} style={{ marginBottom: 16 }} />}
 
         <View style={styles.dtQuickActions}>
-          {speaker && (
-            <TouchableOpacity style={styles.dtActionBtnPrimary} onPress={() => router.push('/gem-upload')}>
-              <Text style={styles.dtActionBtnPrimaryText}>+ Post a Gem</Text>
-            </TouchableOpacity>
-          )}
-          {speaker && (
-            <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/studio' as any)}>
-              <Text style={styles.dtActionBtnText}>Speaker Studio ›</Text>
+          {(speaker || seller || organization || isAdminRole(role)) && (
+            <TouchableOpacity style={styles.dtActionBtnPrimary} onPress={() => { openDashboard(); }}>
+              <Text style={styles.dtActionBtnPrimaryText}>Open Dashboard ›</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/salah-tracker' as any)}>
             <Text style={styles.dtActionBtnText}>Salah Tracker ›</Text>
           </TouchableOpacity>
-          {canCreateSeeds && (
-            <TouchableOpacity style={styles.dtActionBtn} onPress={() => router.push('/seed-create' as any)}>
-              <Text style={styles.dtActionBtnText}>+ Create Seed</Text>
-            </TouchableOpacity>
-          )}
-          {canCreateSeeds && organization && (
-            <TouchableOpacity
-              style={styles.dtActionBtn}
-              onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
-            >
-              <Text style={styles.dtActionBtnText}>{organization.org_name} ›</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
@@ -760,23 +743,17 @@ function DashboardScreenInner() {
             </View>
           </View>
 
-          {speaker && (
+          {(speaker || seller || organization || isAdminRole(role)) && (
             <>
-              <Text style={styles.settingsSectionLabel}>SPEAKER</Text>
+              <Text style={styles.settingsSectionLabel}>DASHBOARD</Text>
               <View style={styles.settingsCard}>
-                <TouchableOpacity
-                  style={styles.settingsRow}
-                  onPress={() => router.push('/studio' as any)}
-                >
-                  <Text style={styles.settingsRowLabel}>Speaker Studio</Text>
-                  <Text style={styles.settingsRowLink}>Analytics & videos ›</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.settingsRow, { borderBottomWidth: 0 }]}
-                  onPress={() => router.push(`/speaker/${speaker.id}` as any)}
-                >
-                  <Text style={styles.settingsRowLabel}>My Public Profile</Text>
-                  <Text style={styles.settingsRowLink}>{speaker.display_name} ›</Text>
+                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => { openDashboard(); }}>
+                  <Icon name="grid-outline" size={18} color={C.text2} />
+                  <View style={styles.menuTextWrap}>
+                    <Text style={styles.menuLabel}>Open the Siqa Dashboard</Text>
+                    <Text style={styles.menuSubLabel}>{[speaker ? 'Studio' : null, seller ? 'your store' : null, organization ? organization.org_name : null, isAdminRole(role) ? 'admin' : null].filter(Boolean).join(', ')}</Text>
+                  </View>
+                  <Text style={styles.menuArrow}>›</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -804,22 +781,6 @@ function DashboardScreenInner() {
               </View>
             </View>
           </View>
-
-          {['admin', 'owner', 'moderator', 'super_admin'].includes(String(profile.role || '').toLowerCase()) && (
-            <>
-              <Text style={styles.settingsSectionLabel}>ADMIN</Text>
-              <View style={styles.settingsCard}>
-                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => router.push('/admin' as any)}>
-                  <Icon name="shield-checkmark-outline" size={18} color={C.text2} />
-                  <View style={styles.menuTextWrap}>
-                    <Text style={styles.menuLabel}>Moderation Queue</Text>
-                    <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
-                  </View>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
 
           <Text style={styles.settingsSectionLabel}>MORE</Text>
           <View style={styles.settingsCard}>
