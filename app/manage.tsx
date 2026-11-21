@@ -17,6 +17,7 @@ import { SECTIONS as MASJID_SECTIONS, type SectionKey } from '../components/masj
 import { MasjidBody } from '../components/masjid/admin/MasjidBody';
 import { OrgOverview } from '../components/dashboard/OrgOverview';
 import { AdminMasjids } from '../components/dashboard/AdminMasjids';
+import { CreateMasjidSheet } from '../components/masjid/admin/CreateMasjid';
 import { backToSiqa, openOnSiqa } from '../components/dashboard/links';
 import SellerDashboard from './seller-dashboard';
 import StudioScreen from './studio';
@@ -68,6 +69,7 @@ export default function Dashboard() {
   const [page, setPage] = useState<string>(params.page ?? 'overview');
   const [switcher, setSwitcher] = useState(false);
   const [more, setMore] = useState(false);
+  const [newMasjid, setNewMasjid] = useState(false);
   const [extra, setExtra] = useState<Space | null>(null); // a masjid a Siqa admin opened from Admin → Masjids
 
   // Screens inside the dashboard switch pages with router.setParams({ page }).
@@ -174,9 +176,16 @@ export default function Dashboard() {
               </Pressable>
             );
           })}
-          <StartSomething />
+          <StartSomething isAdmin={all.some((s) => s.kind === 'admin')} onAddMasjid={() => { setSwitcher(false); setNewMasjid(true); }} />
         </View>
       </BottomSheet>
+      <CreateMasjidSheet visible={newMasjid} onClose={() => setNewMasjid(false)} onCreated={async (id) => {
+        setNewMasjid(false);
+        await load();
+        const key = `masjid:${id}`;
+        setCurrent(key); rememberSpace(key); setPage('overview');
+        if (Platform.OS === 'web') try { router.setParams({ space: key, page: 'overview' } as any); } catch {}
+      }} />
       <BottomSheet visible={more} onClose={() => setMore(false)} title={cur.name}>
         <View>
           {nav.slice(4).map((n) => (
@@ -307,11 +316,11 @@ const START: { icon: SiqaIconName; title: string; sub: string; route: string }[]
   { icon: 'leaf-outline', title: 'Register a nonprofit', sub: 'Start Seeds and take donations', route: '/org-register' },
 ];
 
-function StartSomething() {
+function StartSomething({ isAdmin, onAddMasjid }: { isAdmin?: boolean; onAddMasjid?: () => void }) {
   const { c } = useDS();
   const [open, setOpen] = useState(false);
   if (!open) return <Button label="Start something new" icon="add" variant="soft" size="md" onPress={() => setOpen(true)} />;
-  return <View style={{ gap: space[2] }}>{START.map((s) => <StartRow key={s.route} {...s} c={c} />)}<MasjidRow /></View>;
+  return <View style={{ gap: space[2] }}>{START.map((s) => <StartRow key={s.route} {...s} c={c} />)}<MasjidRow isAdmin={isAdmin} onAdd={onAddMasjid} /></View>;
 }
 function StartRow({ icon, title, sub, route, c }: (typeof START)[number] & { c: any }) {
   return (
@@ -324,14 +333,15 @@ function StartRow({ icon, title, sub, route, c }: (typeof START)[number] & { c: 
     </Pressable>
   );
 }
-function MasjidRow() {
+// Siqa admins set a masjid up right here. Everyone else asks Siqa (masjids are set up with them).
+function MasjidRow({ isAdmin, onAdd }: { isAdmin?: boolean; onAdd?: () => void }) {
   const { c } = useDS();
   return (
-    <Pressable onPress={() => openOnSiqa('/support')} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[3], borderRadius: radius.lg, backgroundColor: c.surfaceSoft }}>
+    <Pressable onPress={() => (isAdmin && onAdd ? onAdd() : openOnSiqa('/support'))} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[3], borderRadius: radius.lg, backgroundColor: c.surfaceSoft }}>
       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' }}><Icon name="business-outline" size={20} color={c.ink} /></View>
       <View style={{ flex: 1 }}>
-        <Text style={[type.body, font(700), { color: c.ink }]}>Add your masjid</Text>
-        <Text style={[type.caption, { color: c.ink2 }]}>Prayer times, TV screens, live khutbahs. Siqa sets it up with you.</Text>
+        <Text style={[type.body, font(700), { color: c.ink }]}>{isAdmin ? 'Set up a masjid' : 'Add your masjid'}</Text>
+        <Text style={[type.caption, { color: c.ink2 }]}>{isAdmin ? 'Prayer times, TV screens, live khutbahs. Add its team after.' : 'Prayer times, TV screens, live khutbahs. Message Siqa and we set it up with you.'}</Text>
       </View>
     </Pressable>
   );
