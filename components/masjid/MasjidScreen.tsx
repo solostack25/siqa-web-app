@@ -53,8 +53,8 @@ export function MasjidScreen({ data, now, offline }: { data: MasjidScreenData; n
   // Power schedule (the Siqa box also turns the TV off over HDMI-CEC).
   const asleep = isAsleep(data.screen.power_on, data.screen.power_off, now, tz);
   useEffect(() => {
-    try { (window as any).SiqaBox?.setScreenPower?.(!asleep); } catch {}
-  }, [asleep]);
+    try { (window as any).SiqaBox?.setPowerSchedule?.(data.screen.power_on ?? '', data.screen.power_off ?? '', tz); } catch {}
+  }, [data.screen.power_on, data.screen.power_off, tz]);
   if (asleep) return <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: '#000' }} />;
 
   if (!s || s.lat == null) {

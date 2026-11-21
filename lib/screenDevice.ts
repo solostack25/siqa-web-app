@@ -13,6 +13,7 @@ type Bridge = {
   reboot?: () => void;
   syncWifi?: (json: string) => void; // [{ssid,password,security}]
   setMode?: (mode: string) => void;  // 'masjid' | 'home' | 'unpaired'
+  setPowerSchedule?: (on: string, off: string, tz: string) => void;
 };
 const bridge = (): Bridge | null => (Platform.OS === 'web' && typeof window !== 'undefined' ? (window as any).SiqaBox ?? null : null);
 
