@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, ActivityIndicator, Pressable, Image, Linking } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable, Image } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -211,7 +211,7 @@ export default function GoLiveScreen() {
         </Text>
         {live && cam.live_watch_token ? (
           <View style={{ flexDirection: 'row', gap: space[2], flexWrap: 'wrap' }}>
-            <Button label="Open live page" size="md" variant="secondary" onPress={() => Linking.openURL(watchUrl(cam.live_watch_token!))} />
+            <Button label="Open live page" size="md" variant="secondary" onPress={() => router.push(`/live/${cam.live_watch_token}` as any)} />
             <Button label="Share link" size="md" variant="secondary" icon="share-outline" onPress={() => copyOrShare(watchUrl(cam.live_watch_token!), cam.next_title || cam.title)} />
           </View>
         ) : null}

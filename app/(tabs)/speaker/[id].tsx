@@ -12,6 +12,7 @@ import {
   Linking,
 } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
+import { SpeakerLiveBanner } from '../../../components/LiveNow';
 import { useEffect, useMemo, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../../lib/supabase';
@@ -855,6 +856,9 @@ function SpeakerProfileScreen() {
               {isDesktopWeb && actionButtons}
             </View>
             {!isDesktopWeb && <View style={{ paddingHorizontal: pad, marginTop: 12 }}>{actionButtons}</View>}
+
+            {/* Live now */}
+            <SpeakerLiveBanner speakerId={speaker.id} style={{ marginHorizontal: pad, marginTop: 16 }} />
 
             {/* Verification strip — Siqa's promise: no impersonation. */}
             {unclaimed && (

@@ -57,7 +57,7 @@ export async function saveKhutbahDetails(id: string, d: { title: string; descrip
 }
 
 export const streamAddress = (c: CameraChannel) => `${c.rtmps_url}${c.stream_key}`;
-export const watchUrl = (token: string) => `${STUDIO_URL}/watch/${token}`;
+export const watchUrl = (token: string) => `https://www.siqa.us/live/${token}`;
 
 /** Copies on the web; opens the share sheet on phones (no clipboard module in the app). */
 export async function copyOrShare(text: string, title?: string): Promise<'copied' | 'shared' | 'failed'> {

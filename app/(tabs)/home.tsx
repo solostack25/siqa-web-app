@@ -26,6 +26,7 @@ import { useSearchContext } from "../../contexts/SearchContext";
 import { brandStyles } from '../../lib/ds';
 import { guardTabSwipe } from '../../components/useTabSwipe';
 import { PrayerStrip } from '../../components/prayer/PrayerStrip';
+import { LiveNowStrip } from '../../components/LiveNow';
 import { FeaturedVideoCard, TodaysChai, ChaiHeroCard, SeedsCloseToGoal, FromTheShop, SectionHeader, useHomeChai } from '../../components/home/HomeSections';
 
 type LongVideo = {
@@ -486,6 +487,7 @@ function HomeScreenInner() {
             </View>
           ) : null}
 
+          {isForYou ? <LiveNowStrip pad={pad} /> : null}
           {isForYou && !isDesktopWeb ? <TodaysChai chaiState={chaiState} pad={pad} /> : null}
 
           {isForYou && topVideos.length ? (
