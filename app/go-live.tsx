@@ -210,11 +210,31 @@ export default function GoLiveScreen() {
           )}
         </View>
         <Text style={[type.title2, { color: '#edf1f7' }]}>{live ? (cam.next_title || cam.title) : kind ? W.ready : 'Ready to stream'}</Text>
-        <Text style={[type.subhead, { color: '#9facc4' }]}>
-          {live ? 'On your profile and Siqa Live. Stop the stream in DJI Mimo when you are done.'
-            : cam.auto_post ? `Open DJI Mimo and tap Start. Your ${noun} posts to your profile when it ends.`
-            : `Open DJI Mimo and tap Start. Your ${noun} saves as a draft in Studio when it ends.`}
-        </Text>
+        {live ? (
+          <Text style={[type.subhead, { color: '#9facc4' }]}>On your profile and Siqa Live. Stop the stream in DJI Mimo when you are done.</Text>
+        ) : (
+          <>
+            <Text style={[type.subhead, font(700), { color: '#edf1f7' }]}>To go live, use the DJI Mimo app:</Text>
+            {[
+              'Turn on your camera and open DJI Mimo.',
+              'Tap Livestream, then RTMP. First time? Use DJI Mimo setup below to add your Siqa address.',
+              'Tap Start.',
+            ].map((t, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: space[3], alignItems: 'flex-start' }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#1e2a40', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={[type.caption, font(700), { color: '#edf1f7' }]}>{i + 1}</Text>
+                </View>
+                <Text style={[type.callout, { color: '#c9d2e2', flex: 1 }]}>{t}</Text>
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], paddingTop: space[1] }} accessibilityLiveRegion="polite">
+              <ActivityIndicator size="small" color="#9facc4" />
+              <Text style={[type.subhead, { color: '#9facc4', flex: 1 }]}>
+                Waiting for your camera. This page switches to LIVE by itself. Your {noun} {cam.auto_post ? 'posts to your profile' : 'saves as a draft in Studio'} when it ends.
+              </Text>
+            </View>
+          </>
+        )}
         {live && cam.live_watch_token ? (
           <View style={{ flexDirection: 'row', gap: space[2], flexWrap: 'wrap' }}>
             <Button label="Watch live" size="md" variant="light" icon="play" onPress={() => router.push(`/live/${cam.live_watch_token}` as any)} />
@@ -228,7 +248,8 @@ export default function GoLiveScreen() {
         <View style={[{ backgroundColor: C.surface, borderRadius: radius.xl, paddingHorizontal: space[4] }, shadow('card')]}>
           <ListRow icon="create-outline" label={kind === 'halaqa' ? 'This halaqa' : kind === 'khutbah' ? "This week's khutbah" : 'What you are streaming next'} sub={cam.next_title || 'Title, description and cover (optional)'} onPress={() => setStep('details')} />
           <ListRow icon="ribbon-outline" label="Your watermark" sub="Your logo on your lives and videos" onPress={() => router.push('/watermark' as any)} />
-          <ListRow icon="videocam-outline" label="DJI Mimo setup" sub="Stream address and steps" onPress={() => setStep('dji')} last />
+          <ListRow icon="videocam-outline" label="DJI Mimo setup" sub="Stream address and steps" onPress={() => setStep('dji')} />
+          <ListRow icon="phone-portrait-outline" label="No camera with you?" sub="Go live from this phone or computer instead" onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} last />
         </View>
       </View>
 
