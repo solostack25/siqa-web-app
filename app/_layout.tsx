@@ -10,7 +10,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme, DarkColors, LightColors } from '../lib/theme';
 import { Colors } from '../constants/colors';
 import { SearchProvider } from '../contexts/SearchContext';
-import { IS_MARKETPLACE_SITE, isBlockedOnSite } from '../lib/site';
+import { IS_MARKETPLACE_SITE, IS_DASHBOARD_SITE, isBlockedOnSite, isOffDashboard } from '../lib/site';
 import { ToastHost } from '../components/Toast';
 import { TermsGate } from '../components/TermsGate';
 import { STRIPE_PUBLISHABLE_KEY } from '../lib/stripeKey';
@@ -88,6 +88,19 @@ function AppContent() {
     if (!initialized || !IS_MARKETPLACE_SITE) return;
     if (isBlockedOnSite(pathname)) router.replace('/marketplace' as any);
   }, [initialized, pathname]);
+
+  // Dashboard site (dashboard.siqa.us): only the dashboard and the tools it opens.
+  useEffect(() => {
+    if (!initialized || !IS_DASHBOARD_SITE) return;
+    if (isOffDashboard(pathname)) router.replace('/manage' as any);
+  }, [initialized, pathname]);
+  useEffect(() => {
+    if (!IS_DASHBOARD_SITE || Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const fix = () => { document.title = 'Siqa Dashboard'; };
+    fix();
+    const t = setTimeout(fix, 300);
+    return () => clearTimeout(t);
+  }, [pathname]);
 
   useEffect(() => {
     if (!IS_MARKETPLACE_SITE || Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -189,11 +202,13 @@ function AppContent() {
         <Stack.Screen name="prayer" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="salah-tracker" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
         <Stack.Screen name="masjid-admin" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="manage" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="manage-handoff" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="screen" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="tv" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="link-tv" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
-      {IS_MARKETPLACE_SITE ? null : <PrayerBanner />}
+      {IS_MARKETPLACE_SITE || IS_DASHBOARD_SITE ? null : <PrayerBanner />}
       <TermsGate />
       <ToastHost />
     </StripeProvider>

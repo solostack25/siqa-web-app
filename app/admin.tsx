@@ -19,6 +19,7 @@ import { WebSafeAlert as Alert, promptDialog, confirmDialog } from '../lib/dialo
 import { brandStyles, font, buttonStyles, dsStatic } from '../lib/ds';
 import { BlockedTermsSection } from '../components/admin/BlockedTermsSection';
 import { goBack } from '../lib/goBack';
+import { useInDashboard } from '../components/dashboard/context';
 import { ChaiIcon } from '../components/Siqa';
 import { copyToClipboard } from '../lib/share';
 
@@ -137,6 +138,7 @@ type MarketplaceSellerRow = {
 const ADMIN_ROLES = ['admin', 'owner', 'moderator', 'super_admin'];
 
 export default function AdminScreen() {
+  const inDashboard = useInDashboard();
   const { colors: C } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const styles = makeStyles(C);
@@ -535,9 +537,11 @@ export default function AdminScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadAdmin(); }} tintColor={C.gold} />}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => goBack('/home')}>
-          <Text style={styles.back}>‹ Back</Text>
-        </TouchableOpacity>
+        {inDashboard ? null : (
+          <TouchableOpacity onPress={() => goBack('/home')}>
+            <Text style={styles.back}>‹ Back</Text>
+          </TouchableOpacity>
+        )}
         <View>
           <Text style={styles.arabic}>صِقا</Text>
           <Text style={styles.headerTitle}>Moderation</Text>

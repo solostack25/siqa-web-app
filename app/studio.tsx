@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase';
 import { deleteVideoEverywhere } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
+import { useInDashboard } from '../components/dashboard/context';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { brandStyles, font, radius, type as dsType, useDS } from '../lib/ds';
@@ -188,6 +189,7 @@ async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<
 }
 
 export default function StudioScreen() {
+  const inDashboard = useInDashboard();
   const { colors: C } = useTheme();
   const ds = useDS();
   const isDesktopWeb = useIsDesktopWeb();
@@ -629,7 +631,7 @@ export default function StudioScreen() {
             {/* Header */}
             <View style={styles.headerRow}>
               <View style={{ flexShrink: 1, gap: 4 }}>
-                {!isDesktopWeb && (
+                {!isDesktopWeb && !inDashboard && (
                   <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/dashboard' as any))} style={styles.backBtn} accessibilityLabel="Back">
                     <Icon name="chevron-back" size={22} color={C.text} />
                   </TouchableOpacity>

@@ -1,3 +1,4 @@
+import { openDashboard } from '../components/dashboard/links';
 import {
   View,
   Text,
@@ -372,71 +373,25 @@ export default function SettingsScreen() {
             </View>
           </Section>
 
-          {/* Speaker: upload videos (Post a Gem) and view the public profile.
-              Shown on desktop too — it's the place speakers look for uploads. */}
-          {speaker && !IS_MARKETPLACE_SITE && (
+          {/* Studio, the store, the organization and admin tools live in the Siqa Dashboard now. */}
+          {(speaker || mySeller || organization || isAdminRole(role)) && !IS_MARKETPLACE_SITE && (
             <Section
-              icon="mic-outline"
-              label="Speaker"
-              sublabel={speaker.display_name}
-              open={openSection === 'speaker'}
-              onToggle={() => toggle('speaker')}
+              icon="grid-outline"
+              label="Dashboard"
+              sublabel={[speaker ? 'Studio' : null, mySeller ? 'Store' : null, organization ? organization.org_name : null, isAdminRole(role) ? 'Admin' : null].filter(Boolean).join(' · ')}
+              open={openSection === 'dashboard'}
+              onToggle={() => toggle('dashboard')}
               alwaysOpen={isDesktopWeb}
               gridWidth={gridWidth}
             >
-              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/gem-upload' as any)}>
-                <Icon name="cloud-upload-outline" size={18} color={C.gold} />
+              <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => { openDashboard(); }}>
+                <Icon name="grid-outline" size={18} color={C.gold} />
                 <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuLabel}>Post a Gem</Text>
-                  <Text style={styles.menuSubLabel}>Upload a video to your channel</Text>
+                  <Text style={styles.menuLabel}>Open the Siqa Dashboard</Text>
+                  <Text style={styles.menuSubLabel}>Upload, Seeds, your store and admin, all in one place</Text>
                 </View>
                 <Text style={styles.menuArrow}>›</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                onPress={() => router.push(`/speaker/${speaker.id}` as any)}
-              >
-                <Icon name="person-circle-outline" size={18} color={C.text2} />
-                <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuLabel}>My Public Profile</Text>
-                  <Text style={styles.menuSubLabel}>{speaker.display_name}</Text>
-                </View>
-                <Text style={styles.menuArrow}>›</Text>
-              </TouchableOpacity>
-            </Section>
-          )}
-
-          {canCreateSeeds && !IS_MARKETPLACE_SITE && (
-            <Section
-              icon="business-outline"
-              label="Organization"
-              sublabel={organization?.org_name}
-              open={openSection === 'organization'}
-              onToggle={() => toggle('organization')}
-              alwaysOpen={isDesktopWeb}
-              gridWidth={gridWidth}
-            >
-              <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/seed-create' as any)}>
-                <Icon name="leaf-outline" size={18} color={C.text2} />
-                <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuLabel}>Create Seed</Text>
-                  <Text style={styles.menuSubLabel}>Post a donation appeal for your nonprofit or masjid</Text>
-                </View>
-                <Text style={styles.menuArrow}>›</Text>
-              </TouchableOpacity>
-              {organization && (
-                <TouchableOpacity
-                  style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                  onPress={() => router.push({ pathname: '/org-profile', params: { id: organization.id } } as any)}
-                >
-                  <Icon name="business-outline" size={18} color={C.text2} />
-                  <View style={styles.menuTextWrap}>
-                    <Text style={styles.menuLabel}>Organization Profile</Text>
-                    <Text style={styles.menuSubLabel}>{organization.org_name}</Text>
-                  </View>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-              )}
             </Section>
           )}
 
@@ -469,7 +424,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                onPress={() => router.push((mySeller ? '/seller-dashboard' : '/sell') as any)}
+                onPress={() => (mySeller ? openDashboard('store') : router.push('/sell' as any))}
               >
                 <Icon name="storefront-outline" size={18} color={C.text2} />
                 <View style={styles.menuTextWrap}>
@@ -477,29 +432,6 @@ export default function SettingsScreen() {
                   <Text style={styles.menuSubLabel}>
                     {mySeller ? mySeller.shop_name : 'Turn your craft into a shop'}
                   </Text>
-                </View>
-                <Text style={styles.menuArrow}>›</Text>
-              </TouchableOpacity>
-            </Section>
-          )}
-
-          {/* Admin section was just a link to the Moderation Queue —
-              already in the sidebar's YOU section. Mobile-only now. */}
-          {!isDesktopWeb && isAdminRole(role) && (
-            <Section
-              icon="shield-checkmark-outline"
-              label="Admin"
-              open={openSection === 'admin'}
-              onToggle={() => toggle('admin')}
-            >
-              <TouchableOpacity
-                style={[styles.menuItem, { borderBottomWidth: 0 }]}
-                onPress={() => router.push('/admin' as any)}
-              >
-                <Icon name="shield-checkmark-outline" size={18} color={C.text2} />
-                <View style={styles.menuTextWrap}>
-                  <Text style={styles.menuLabel}>Moderation Queue</Text>
-                  <Text style={styles.menuSubLabel}>Approve Gems, verify speakers, review reports</Text>
                 </View>
                 <Text style={styles.menuArrow}>›</Text>
               </TouchableOpacity>

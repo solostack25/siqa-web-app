@@ -28,6 +28,7 @@ import { formatPrice as formatMoney } from '../lib/money';
 import { font, radius, space, type, useDS, type DS } from '../lib/ds';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { goBack } from '../lib/goBack';
+import { useInDashboard } from '../components/dashboard/context';
 import { shareShop } from '../lib/share';
 import { PLANS_PURCHASABLE_HERE, SELLER_PLAN_COLUMNS, planLabel, planLimit, type SellerPlanFields } from '../lib/sellerPlans';
 
@@ -96,6 +97,7 @@ function orderStatusLabel(status: string) {
 }
 
 export default function MyStoreScreen() {
+  const inDashboard = useInDashboard();
   const ds = useDS();
   const { c, shadow } = ds;
   const isDesktop = useIsDesktopWeb();
@@ -765,8 +767,8 @@ export default function MyStoreScreen() {
     <DesktopShell>
       <View style={{ flex: 1, backgroundColor: c.bg }}>
         {!isDesktop && view === 'overview' ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[3], paddingTop: Math.max(insets.top, HEADER_TOP_PADDING - 16), paddingBottom: 4 }}>
-            <IconButton icon="chevron-back" label="Back" onPress={() => goBack('/marketplace')} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space[3], paddingTop: inDashboard ? space[2] : Math.max(insets.top, HEADER_TOP_PADDING - 16), paddingBottom: 4 }}>
+            {inDashboard ? <View style={{ width: 44 }} /> : <IconButton icon="chevron-back" label="Back" onPress={() => goBack('/marketplace')} />}
             <Text style={[type.headline, font(700, 'display'), { color: c.ink }]}>My store</Text>
             <IconButton icon="share-outline" label="Share your shop" onPress={() => shareShop(seller.id, seller.shop_name)} />
           </View>

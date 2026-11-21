@@ -1,4 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from 'react-native';
+import { loadSpaces } from '../lib/spaces';
+import { openDashboard } from './dashboard/links';
 import { useCallback, useState } from 'react';
 import { router, usePathname, useFocusEffect, useGlobalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
@@ -28,6 +30,7 @@ type YouItem = {
   path: string;
   matchPrefixes: string[];
   icon: string; // Ionicons name
+  onPress?: () => void;
 };
 
 function isAdminRole(role?: string | null) {
@@ -47,6 +50,8 @@ export function DesktopSidebar() {
   const [speaker, setSpeaker] = useState<{ id: string } | null>(null);
   const [isSeller, setIsSeller] = useState(false);
   const [hasBusiness, setHasBusiness] = useState(false);
+  // Runs something on Siqa (store, Studio, organization, masjid, admin): gets one Dashboard link.
+  const [hasSpaces, setHasSpaces] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -56,7 +61,8 @@ export function DesktopSidebar() {
 
   async function load() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) { setProfile(null); setSpeaker(null); setIsSeller(false); setHasBusiness(false); return; }
+    if (!session?.user) { setProfile(null); setSpeaker(null); setIsSeller(false); setHasBusiness(false); setHasSpaces(false); return; }
+    loadSpaces().then((sp) => setHasSpaces(!!sp?.length)).catch(() => {});
 
     const [{ data: profileData }, { data: speakerData }, { data: sellerData }] = await Promise.all([
       supabase.from('profiles').select('full_name, role, avatar_url').eq('id', session.user.id).maybeSingle(),
@@ -117,17 +123,14 @@ export function DesktopSidebar() {
   const items = IS_MARKETPLACE_SITE ? allItems.filter((i) => i.key === 'marketplace') : allItems;
 
   const youItems: YouItem[] = [
-    ...(speaker && !IS_MARKETPLACE_SITE ? [{ key: 'myprofile', label: 'My Public Profile', path: `/speaker/${speaker.id}`, matchPrefixes: [`/speaker/${speaker.id}`], icon: 'person-circle-outline' }] : []),
-    ...(speaker && !IS_MARKETPLACE_SITE ? [{ key: 'studio', label: 'Speaker Studio', path: '/studio', matchPrefixes: ['/studio'], icon: 'stats-chart-outline' }] : []),
+    ...(hasSpaces ? [{ key: 'dashboard', label: 'Dashboard', path: '/manage', matchPrefixes: ['/manage'], icon: 'grid-outline', onPress: () => { openDashboard(); } }] : []),
     ...(!IS_MARKETPLACE_SITE ? [{ key: 'playlists', label: 'Playlists', path: '/playlists', matchPrefixes: ['/playlists', '/playlist/'], icon: 'list-outline' }] : []),
     { key: 'cart', label: 'Cart', path: '/cart', matchPrefixes: ['/cart'], icon: 'cart-outline' },
     { key: 'orders', label: 'My Orders', path: '/orders', matchPrefixes: ['/orders'], icon: 'receipt-outline' },
     { key: 'messages', label: 'Messages', path: '/messages', matchPrefixes: ['/messages'], icon: 'chatbubble-outline' },
     ...(hasBusiness ? [{ key: 'mybusiness', label: 'My business listing', path: '/local/inbox', matchPrefixes: ['/local/inbox', '/local/edit'], icon: 'briefcase-outline' }] : []),
-    isSeller
-      ? { key: 'sellerdash', label: 'My store', path: '/seller-dashboard', matchPrefixes: ['/seller-dashboard', '/listing-create'], icon: 'storefront-outline' }
-      : { key: 'sell', label: 'Sell on Siqa', path: '/sell', matchPrefixes: ['/sell'], icon: 'storefront-outline' },
-    ...(profile && isAdminRole(profile.role) ? [{ key: 'admin', label: 'Admin', path: '/admin', matchPrefixes: ['/admin'], icon: 'shield-checkmark-outline' }] : []),
+    // Store, Studio and admin tools live in the Dashboard now; only the way in to selling stays here.
+    ...(!isSeller ? [{ key: 'sell', label: 'Sell on Siqa', path: '/sell', matchPrefixes: ['/sell'], icon: 'storefront-outline' }] : []),
   ];
 
   function isActive(item: { matchPrefixes: string[] }, key: string) {
@@ -231,7 +234,7 @@ export function DesktopSidebar() {
                 <TouchableOpacity
                   key={item.key}
                   style={[styles.navItem, active && styles.navItemActive]}
-                  onPress={() => router.push(item.path as any)}
+                  onPress={() => (item.onPress ? item.onPress() : router.push(item.path as any))}
                   {...({ dataSet: { hover: 'row' } } as any)}
                 >
                   <View style={styles.iconWrap}>
