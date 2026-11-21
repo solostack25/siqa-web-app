@@ -176,6 +176,22 @@ export function SettingsMobileView(p: {
         </View>
       )}
 
+      {!IS_MARKETPLACE_SITE && match('notifications push alerts prayer times athan live') && (
+        <View style={{ gap: 4 }}>
+          <Text style={s.groupTitle}>Notifications</Text>
+          {([
+            ['notif', 'Notifications', 'notifications-outline', 'sea', '/notification-settings'],
+            ['prayer', 'Prayer times and athan', 'time-outline', 'ink', '/prayer'],
+          ] as const).map(([k, label, icon, t, href]) => (
+            <TouchableOpacity key={k} style={s.row} onPress={() => router.push(href as any)} accessibilityRole="link">
+              <View style={[s.rowIcon, { backgroundColor: tone(t)[0] }]}><Icon name={icon} size={19} color={tone(t)[1]} /></View>
+              <Text style={s.rowLabel}>{label}</Text>
+              <Icon name="chevron-forward" size={16} color={C.text3} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {match('privacy safety blocked accounts terms policy help support contact') && (
         <View style={{ gap: 4 }}>
           <Text style={s.groupTitle}>Privacy and safety</Text>
