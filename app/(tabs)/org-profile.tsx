@@ -52,7 +52,7 @@ import { seedYouTubeId } from '../../components/SeedVideo';
 import { goBack } from '../../lib/goBack';
 import { ReportButton } from '../../components/ReportButton';
 // expo-haptics is native-only — no-op on web
-const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
+const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {}, impactAsync: () => {}, NotificationFeedbackType: {}, ImpactFeedbackStyle: {} }; // web: no vibration
 
 // lib/bunnyUpload.ts has the working (region-correct) Bunny upload; this
 // screen reuses it rather than keeping its own copy.
