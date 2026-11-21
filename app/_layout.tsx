@@ -19,6 +19,7 @@ import { useFonts } from 'expo-font';
 import { FONT_FILES } from '../lib/ds';
 import { PrayerBanner } from '../components/prayer/PrayerBanner';
 import { usePrayerNotifications } from '../lib/prayerNotifications';
+import { registerServiceWorker } from '../lib/webPush';
 
 // Stripe's native module doesn't support web — only import on native platforms.
 const StripeProvider =
@@ -44,6 +45,8 @@ function AppContent() {
     const t = setTimeout(() => setFontWaitOver(true), 1500);
     return () => clearTimeout(t);
   }, []);
+  // Web/PWA: keep the push service worker registered (prayer + live notifications).
+  useEffect(() => { registerServiceWorker(); }, []);
 
   // Keep legacy static Colors imports in sync before screens render.
   // This is important because many existing screens build StyleSheet values from Colors.

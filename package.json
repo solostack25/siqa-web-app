@@ -48,7 +48,8 @@
     "react-native-url-polyfill": "^3.0.0",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
-    "satori": "^0.63.2"
+    "satori": "^0.63.2",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
