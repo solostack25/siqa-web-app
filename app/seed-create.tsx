@@ -40,7 +40,7 @@ import {
 import { brandStyles } from '../lib/ds';
 import { goBack } from '../lib/goBack';
 // expo-haptics is native-only — no-op on web
-const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {} };
+const Haptics = Platform.OS !== 'web' ? require('expo-haptics') : { notificationAsync: () => {}, impactAsync: () => {}, NotificationFeedbackType: {}, ImpactFeedbackStyle: {} }; // web: no vibration
 
 const DRAFT_KEY = 'siqa:seeds:create-draft:v1';
 const CATEGORIES = ['Emergency', 'Water', 'Education', 'Medical', 'Masjid', 'Food', 'Zakat', 'Sadaqah', 'Refugees', 'Community'];
