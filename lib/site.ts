@@ -45,7 +45,7 @@ export const DASHBOARD_ORIGIN = 'https://dashboard.siqa.us';
 /** Routes that make sense on dashboard.siqa.us; anything else goes to the dashboard home. */
 const DASHBOARD_PATHS = [
   '/manage', '/manage-handoff', '/sign-in', '/sign-up', '/login', '/forgot-password', '/reset-password',
-  '/seller-dashboard', '/listing-create', '/studio', '/gem-upload', '/go-live', '/watermark', '/seed-create',
+  '/seller-dashboard', '/listing-create', '/studio', '/create', '/gem-upload', '/go-live', '/watermark', '/seed-create',
   '/admin', '/chai-admin', '/masjid-admin', '/org-register', '/apply-speaker', '/sell', '/terms', '/privacy', '/support',
 ];
 export function isOffDashboard(pathname: string): boolean {

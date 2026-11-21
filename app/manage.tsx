@@ -20,6 +20,7 @@ import { AdminMasjids } from '../components/dashboard/AdminMasjids';
 import { backToSiqa, openOnSiqa } from '../components/dashboard/links';
 import SellerDashboard from './seller-dashboard';
 import StudioScreen from './studio';
+import CreateHub from '../components/studio/CreateHub';
 import AdminScreen from './admin';
 
 type NavItem = { key: string; label: string; icon: SiqaIconName; route?: string; link?: string };
@@ -34,8 +35,8 @@ function navFor(s: Space): NavItem[] {
     ];
     case 'studio': return [
       { key: 'overview', label: 'Overview', icon: 'stats-chart-outline' },
-      { key: 'upload', label: 'Upload video', icon: 'cloud-upload-outline', route: '/gem-upload' },
-      { key: 'live', label: 'Go live', icon: 'radio-outline', route: '/go-live' },
+      { key: 'create', label: 'Create', icon: 'add-circle-outline' },
+      { key: 'camera', label: 'Camera', icon: 'videocam-outline', route: '/go-live' },
       { key: 'watermark', label: 'Watermark', icon: 'water-outline', route: '/watermark' },
       { key: 'profile', label: 'Public profile', icon: 'open-outline', link: `/speaker/${s.id}` },
     ];
@@ -68,6 +69,9 @@ export default function Dashboard() {
   const [switcher, setSwitcher] = useState(false);
   const [more, setMore] = useState(false);
   const [extra, setExtra] = useState<Space | null>(null); // a masjid a Siqa admin opened from Admin → Masjids
+
+  // Screens inside the dashboard switch pages with router.setParams({ page }).
+  useEffect(() => { if (params.page) setPage(params.page); }, [params.page]);
 
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -261,7 +265,7 @@ export default function Dashboard() {
 function SpaceBody({ s, page, wide, go, openMasjid }: { s: Space; page: string; wide: boolean; go: (p: string) => void; openMasjid: (id: string) => void }) {
   switch (s.kind) {
     case 'store': return <SellerDashboard />;
-    case 'studio': return <StudioScreen />;
+    case 'studio': return page === 'create' ? <CreateHub wide={wide} /> : <StudioScreen />;
     case 'org': return <OrgOverview orgId={s.id} wide={wide} />;
     case 'masjid':
       return <MasjidBody key={s.id} section={(page as SectionKey) || 'overview'} wide={wide} go={(p) => go(p)}
