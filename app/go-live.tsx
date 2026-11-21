@@ -9,12 +9,13 @@ import { Button, IconButton, ListRow, SectionLabel, Switch, TextField } from '..
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { font, radius, space, type, useDS } from '../lib/ds';
 import { goBack } from '../lib/goBack';
+import { STREAM_WORDS, type StreamKind } from '../lib/create';
 import {
   createCamera, copyOrShare, myCameras, openStudio, saveKhutbahDetails, streamAddress, syncCameras, uploadStudioImage, watchUrl,
   type CameraChannel,
 } from '../lib/studioLink';
 
-// Go live: a speaker streams their khutbah from a DJI camera (through the DJI Mimo app) into Siqa.
+// Camera streams: a speaker streams a khutbah or halaqa from a DJI camera (through the DJI Mimo app) into Siqa.
 // One permanent stream address per speaker; Siqa opens the live page and posts the khutbah when it ends.
 
 type Step = 'home' | 'choose' | 'dji' | 'details';
@@ -23,7 +24,12 @@ const LIVE = (c?: CameraChannel | null) => Boolean(c?.live_session_id);
 export default function GoLiveScreen() {
   const { c: C, shadow } = useDS();
   const isDesktop = useIsDesktopWeb();
-  const params = useLocalSearchParams<{ step?: string }>();
+  const params = useLocalSearchParams<{ step?: string; kind?: string }>();
+  // Opened from Create as "Livestream a khutbah" / "a halaqa", or from the dashboard as camera settings.
+  const kind: StreamKind | null = params.kind === 'halaqa' ? 'halaqa' : params.kind === 'khutbah' ? 'khutbah' : null;
+  const W = STREAM_WORDS[kind ?? 'khutbah'];
+  const heading = kind ? W.title : 'Your camera';
+  const noun = kind ? W.noun : 'stream';
   const [loading, setLoading] = useState(true);
   const [isSpeaker, setIsSpeaker] = useState(false);
   const [userId, setUserId] = useState('');
@@ -98,10 +104,10 @@ export default function GoLiveScreen() {
     </DesktopShell>
   );
 
-  if (loading) return page('Go live', '', <ActivityIndicator color={C.gold} style={{ marginTop: 40 }} />, () => goBack('/studio'));
+  if (loading) return page(heading, '', <ActivityIndicator color={C.gold} style={{ marginTop: 40 }} />, () => goBack('/studio'));
 
   if (!isSpeaker) {
-    return page('Go live', 'For Siqa speakers', (
+    return page(heading, 'For Siqa speakers', (
       <View style={[{ backgroundColor: C.surface, borderRadius: radius.xl, padding: space[5], gap: space[3] }, shadow('card')]}>
         <Text style={[type.body, { color: C.ink }]}>Going live is for approved Siqa speakers. Once your speaker profile is approved, you can stream your khutbahs here.</Text>
         <Button label="Apply to be a speaker" onPress={() => router.push('/apply-speaker' as any)} />
@@ -126,17 +132,17 @@ export default function GoLiveScreen() {
         <Icon name="chevron-forward" size={20} color={C.ink3} />
       </Pressable>
     );
-    return page('Go live', 'What are you filming with? You only set this up once.', (
+    return page(heading, 'What are you filming with? You only set this up once.', (
       <View style={{ gap: space[3] }}>
         <Opt dark icon="videocam-outline" title="DJI camera with my phone" sub="Osmo Pocket 3 or Osmo Action, streamed through the DJI Mimo app" onPress={startDji} />
-        <Opt icon="laptop-outline" title="Camera plugged into a laptop or iPad" sub="USB-C in Webcam mode. Opens the Siqa live room. Not on iPhone." onPress={() => openStudio('/live')} />
-        <Opt icon="phone-portrait-outline" title="Just my phone or computer" sub="Uses its own camera. Opens the Siqa live room." onPress={() => openStudio('/live')} />
+        <Opt icon="laptop-outline" title="Camera plugged into a laptop or iPad" sub="USB-C in Webcam mode. Opens the Siqa live room. Not on iPhone." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
+        <Opt icon="phone-portrait-outline" title="Just my phone or computer" sub="Uses its own camera. Opens the Siqa live room." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
         {busy ? <ActivityIndicator color={C.gold} /> : null}
       </View>
     ), () => (cam ? setStep('home') : goBack('/studio')));
   }
 
-  if (!cam) return page('Go live', '', <Button label="Set up my camera" onPress={() => setStep('choose')} />, () => goBack('/studio'));
+  if (!cam) return page(heading, '', <Button label="Set up my camera" onPress={() => setStep('choose')} />, () => goBack('/studio'));
 
   /* ---------- one-time DJI Mimo setup ---------- */
   if (step === 'dji') {
@@ -186,11 +192,11 @@ export default function GoLiveScreen() {
   }
 
   /* ---------- this week's khutbah ---------- */
-  if (step === 'details') return <Details cam={cam} userId={userId} onDone={async () => { await load(); setStep('home'); }} page={page} />;
+  if (step === 'details') return <Details cam={cam} userId={userId} kind={kind} onDone={async () => { await load(); setStep('home'); }} page={page} />;
 
   /* ---------- home ---------- */
   const live = LIVE(cam);
-  return page('Go live', live ? 'You are live on Siqa' : 'Your camera is set up', (
+  return page(heading, live ? 'You are live on Siqa' : 'Your camera is set up', (
     <View style={{ gap: space[5] }}>
       <View style={[{ backgroundColor: C.night, borderRadius: radius.xl, padding: space[5], gap: space[3] }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
@@ -203,24 +209,24 @@ export default function GoLiveScreen() {
             <Text style={[type.caption, font(700), { color: '#9facc4', letterSpacing: 1 }]}>YOUR CAMERA</Text>
           )}
         </View>
-        <Text style={[type.title2, { color: '#edf1f7' }]}>{live ? (cam.next_title || cam.title) : 'Ready for Friday'}</Text>
+        <Text style={[type.title2, { color: '#edf1f7' }]}>{live ? (cam.next_title || cam.title) : kind ? W.ready : 'Ready to stream'}</Text>
         <Text style={[type.subhead, { color: '#9facc4' }]}>
           {live ? 'On your profile and Siqa Live. Stop the stream in DJI Mimo when you are done.'
-            : cam.auto_post ? 'Open DJI Mimo and tap Start. Your khutbah posts to your profile when it ends.'
-            : 'Open DJI Mimo and tap Start. Your khutbah saves as a draft in Speaker Studio when it ends.'}
+            : cam.auto_post ? `Open DJI Mimo and tap Start. Your ${noun} posts to your profile when it ends.`
+            : `Open DJI Mimo and tap Start. Your ${noun} saves as a draft in Studio when it ends.`}
         </Text>
         {live && cam.live_watch_token ? (
           <View style={{ flexDirection: 'row', gap: space[2], flexWrap: 'wrap' }}>
-            <Button label="Open live page" size="md" variant="secondary" onPress={() => router.push(`/live/${cam.live_watch_token}` as any)} />
+            <Button label="Watch live" size="md" variant="light" icon="play" onPress={() => router.push(`/live/${cam.live_watch_token}` as any)} />
             <Button label="Share link" size="md" variant="secondary" icon="share-outline" onPress={() => copyOrShare(watchUrl(cam.live_watch_token!), cam.next_title || cam.title)} />
           </View>
         ) : null}
       </View>
 
       <View style={{ gap: space[2] }}>
-        <SectionLabel>Before you go live</SectionLabel>
+        <SectionLabel>Before you start</SectionLabel>
         <View style={[{ backgroundColor: C.surface, borderRadius: radius.xl, paddingHorizontal: space[4] }, shadow('card')]}>
-          <ListRow icon="create-outline" label="This week's khutbah" sub={cam.next_title || 'Title, description and cover (optional)'} onPress={() => setStep('details')} />
+          <ListRow icon="create-outline" label={kind === 'halaqa' ? 'This halaqa' : kind === 'khutbah' ? "This week's khutbah" : 'What you are streaming next'} sub={cam.next_title || 'Title, description and cover (optional)'} onPress={() => setStep('details')} />
           <ListRow icon="ribbon-outline" label="Your watermark" sub="Your logo on your lives and videos" onPress={() => router.push('/watermark' as any)} />
           <ListRow icon="videocam-outline" label="DJI Mimo setup" sub="Stream address and steps" onPress={() => setStep('dji')} last />
         </View>
@@ -228,9 +234,9 @@ export default function GoLiveScreen() {
 
       {cam.last_video_id ? (
         <View style={{ gap: space[2] }}>
-          <SectionLabel>Last khutbah</SectionLabel>
+          <SectionLabel>Last stream</SectionLabel>
           <View style={[{ backgroundColor: C.surface, borderRadius: radius.xl, paddingHorizontal: space[4] }, shadow('card')]}>
-            <ListRow icon="play-circle-outline" label={cam.last_video_title || 'Khutbah'} sub={cam.last_video_published ? 'Posted' : 'Draft in Speaker Studio'} onPress={() => router.push(`/watch/${cam.last_video_id}` as any)} last />
+            <ListRow icon="play-circle-outline" label={cam.last_video_title || 'Khutbah'} sub={cam.last_video_published ? 'Posted' : 'Draft in Studio'} onPress={() => router.push(`/watch/${cam.last_video_id}` as any)} last />
           </View>
         </View>
       ) : null}
@@ -238,7 +244,8 @@ export default function GoLiveScreen() {
   ), () => goBack('/studio'));
 }
 
-function Details({ cam, userId, onDone, page }: {
+function Details({ cam, userId, onDone, page, kind }: {
+  kind: StreamKind | null;
   cam: CameraChannel; userId: string; onDone: () => void;
   page: (title: string, sub: string, body: React.ReactNode, back: () => void) => React.ReactElement;
 }) {
@@ -264,7 +271,7 @@ function Details({ cam, userId, onDone, page }: {
     setBusy('');
   }
 
-  return page("This week's khutbah", 'Used for the live and the post. You can change it after, too.', (
+  return page(kind === 'halaqa' ? 'This halaqa' : kind === 'khutbah' ? "This week's khutbah" : 'What you are streaming', 'Used for the live and the post. You can change it after, too.', (
     <View style={{ gap: space[5] }}>
       <Pressable onPress={pickCover} accessibilityRole="button" accessibilityLabel={f.coverUrl ? 'Change cover photo' : 'Add a cover photo'}
         style={{ height: 190, borderRadius: radius.lg, backgroundColor: C.night, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
@@ -276,11 +283,11 @@ function Details({ cam, userId, onDone, page }: {
         )}
       </Pressable>
       {f.coverUrl ? <Button label="Use a frame from the video instead" variant="soft" size="md" onPress={() => setF({ ...f, coverUrl: '' })} /> : null}
-      <TextField label="Title" value={f.title} onChangeText={(t) => setF({ ...f, title: t })} placeholder="Jumuah Khutbah · Gratitude in hardship" maxLength={120} />
-      <TextField label="Description" value={f.description} onChangeText={(t) => setF({ ...f, description: t })} placeholder="What the khutbah covers" multiline maxLength={2000} />
+      <TextField label="Title" value={f.title} onChangeText={(t) => setF({ ...f, title: t })} placeholder={STREAM_WORDS[kind ?? 'khutbah'].placeholder} maxLength={120} />
+      <TextField label="Description" value={f.description} onChangeText={(t) => setF({ ...f, description: t })} placeholder={`What the ${kind ?? 'khutbah'} covers`} multiline maxLength={2000} />
       <TextField label="Masjid" value={f.masjid} onChangeText={(t) => setF({ ...f, masjid: t })} placeholder="Where you're giving it" maxLength={120} />
       <View style={[{ backgroundColor: C.surface, borderRadius: radius.xl, paddingHorizontal: space[4] }, shadow('card')]}>
-        <ListRow label="Post when it ends" sub={f.autoPost ? 'Goes on your profile automatically' : 'Saves as a draft in Speaker Studio'} last
+        <ListRow label="Post when it ends" sub={f.autoPost ? 'Goes on your profile automatically' : 'Saves as a draft in Studio'} last
           right={<Switch value={f.autoPost} onValueChange={(v) => setF({ ...f, autoPost: v })} label="Post when it ends" />} />
       </View>
       <Text style={[type.caption, { color: C.ink2 }]}>Without a title it's named by date. These are cleared after it posts, ready for next week.</Text>

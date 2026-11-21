@@ -19,7 +19,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { Platform } from 'react-native';
 // expo-video-thumbnails is native-only — not available on web
@@ -171,6 +171,8 @@ export default function GemUploadScreen() {
 }
 
 function GemUploadScreenContent() {
+  // Create → "Upload a Gem" / "Upload a long video" opens with the format already picked.
+  const { format: formatParam } = useLocalSearchParams<{ format?: string }>();
   const { colors: C, isDark } = useTheme();
   const isDesktopWeb = useIsDesktopWeb();
   const styles = useMemo(() => makeStyles(C, isDark, isDesktopWeb), [C, isDark, isDesktopWeb]);
@@ -196,7 +198,7 @@ function GemUploadScreenContent() {
   const [plantSeed, setPlantSeed] = useState(false);
   const [fundraiserId, setFundraiserId] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'followers'>('public');
-  const [contentFormat, setContentFormat] = useState<'auto' | 'short' | 'long'>('auto');
+  const [contentFormat, setContentFormat] = useState<'auto' | 'short' | 'long'>(formatParam === 'short' || formatParam === 'long' ? formatParam : 'auto');
   const [uploading, setUploading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [draftLoaded, setDraftLoaded] = useState(false);

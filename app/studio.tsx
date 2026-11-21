@@ -20,6 +20,7 @@ import { deleteVideoEverywhere } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
 import { Theme, HEADER_TOP_PADDING } from '../constants/theme';
 import { useInDashboard } from '../components/dashboard/context';
+import { LiveNow } from '../components/studio/CreateHub';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { brandStyles, font, radius, type as dsType, useDS } from '../lib/ds';
@@ -208,7 +209,6 @@ export default function StudioScreen() {
   const [canSeed, setCanSeed] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
   const [cam, setCam] = useState<CameraChannel | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
   const [metric, setMetric] = useState<ChartMetric>('views');
 
   const [range, setRange] = useState<Range>('28');
@@ -532,17 +532,11 @@ export default function StudioScreen() {
   })[s];
 
   const approved = speaker?.approval_status === 'approved';
-  const createItems: { key: string; label: string; icon: SiqaIconName; path: string; studio?: boolean }[] = [
-    ...(approved ? [
-      { key: 'live', label: 'Go live', icon: 'radio-outline' as SiqaIconName, path: '/go-live' },
-      { key: 'gem', label: 'Record a Gem', icon: 'diamond-outline' as SiqaIconName, path: '/record?type=gem', studio: true },
-      { key: 'rec', label: 'Record a video', icon: 'videocam-outline' as SiqaIconName, path: '/record?type=video', studio: true },
-      { key: 'pod', label: 'Host a podcast', icon: 'mic-outline' as SiqaIconName, path: '/live', studio: true },
-    ] : []),
-    { key: 'video', label: 'Upload video or Gem', icon: 'cloud-upload-outline', path: '/gem-upload' },
-    ...(canSeed ? [{ key: 'seed', label: 'Create a Seed', icon: 'leaf-outline' as SiqaIconName, path: '/seed-create' }] : []),
-    ...(isSeller ? [{ key: 'listing', label: 'List an item', icon: 'pricetag-outline' as SiqaIconName, path: '/listing-create' }] : []),
-  ];
+  // Create opens one page with every way to go live, record or upload.
+  const openCreate = () => {
+    if (inDashboard) { try { router.setParams({ page: 'create' } as any); return; } catch {} }
+    router.push('/create' as any);
+  };
 
   const Chip = ({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) => (
     <TouchableOpacity
@@ -648,62 +642,15 @@ export default function StudioScreen() {
                   <Icon name="person-circle-outline" size={16} color={C.text} />
                   <Text style={styles.ghostBtnText}>Public profile</Text>
                 </TouchableOpacity>
-                {createItems.length > 1 ? (
-                  <View style={{ position: 'relative', zIndex: 10 }}>
-                    <TouchableOpacity
-                      style={styles.primaryBtn}
-                      onPress={() => setCreateOpen(o => !o)}
-                      accessibilityState={{ expanded: createOpen }}
-                    >
-                      <Icon name="add" size={18} color="#fff" />
-                      <Text style={styles.primaryBtnText}>Create</Text>
-                    </TouchableOpacity>
-                    {createOpen && (
-                      <View style={[styles.createMenu, !wide && { right: undefined, left: 0 }]}>
-                        {createItems.map(item => (
-                          <TouchableOpacity
-                            key={item.key}
-                            style={styles.createItem}
-                            onPress={() => { setCreateOpen(false); if (item.studio) openStudio(item.path); else router.push(item.path as any); }}
-                          >
-                            <Icon name={item.icon} size={18} color={C.text} />
-                            <Text style={styles.createItemText}>{item.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ) : (
-                  <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/gem-upload' as any)}>
-                    <Icon name="cloud-upload-outline" size={16} color="#fff" />
-                    <Text style={styles.primaryBtnText}>Upload video</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity style={styles.primaryBtn} onPress={openCreate} accessibilityLabel="Create: go live, record or upload">
+                  <Icon name="add" size={18} color="#fff" />
+                  <Text style={styles.primaryBtnText}>Create</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
-            {approved && (
-              <Pressable
-                onPress={() => router.push('/go-live' as any)}
-                accessibilityRole="button"
-                accessibilityLabel={cam?.live_session_id ? 'You are live. Open Go live' : 'Your camera. Open Go live'}
-                style={({ pressed }) => [styles.camCard, pressed && { opacity: 0.92 }]}
-              >
-                <View style={styles.camIcon}><Icon name="videocam-outline" size={24} color="#d4ac73" /></View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.camEyebrow}>{cam?.live_session_id ? 'LIVE NOW' : 'YOUR CAMERA'}</Text>
-                  <Text style={styles.camTitle}>
-                    {cam?.live_session_id ? (cam.next_title || cam.title) : cam ? 'Ready to go live' : 'Go live with your camera'}
-                  </Text>
-                  <Text style={styles.camSub}>
-                    {cam?.live_session_id ? 'Stop the stream in DJI Mimo when you are done.'
-                      : cam ? (cam.auto_post ? 'Khutbahs post to your profile when they end.' : 'Khutbahs save as drafts here when they end.')
-                      : 'Stream your khutbah from a DJI Osmo Pocket 3 or your phone.'}
-                  </Text>
-                </View>
-                <Icon name="chevron-forward" size={20} color="#9facc4" />
-              </Pressable>
-            )}
+            {/* While the DJI camera is streaming: watch or share it from here. */}
+            {approved && cam?.live_session_id ? <LiveNow cam={cam} /> : null}
 
             {!speaker.is_verified && (
               <View style={styles.banner}>
