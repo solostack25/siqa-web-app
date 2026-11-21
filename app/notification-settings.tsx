@@ -7,6 +7,7 @@ import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { IconButton, ListRow, SectionLabel, Switch } from '../components/ui';
 import { radius, space, type, useDS } from '../lib/ds';
 import { goBack } from '../lib/goBack';
+import { PushCard } from '../components/PushCard';
 
 // Email settings. Follow emails (new videos from speakers you follow, new
 // items from shops you follow) can be switched off here or from the
@@ -56,7 +57,7 @@ export default function NotificationSettingsScreen() {
             <IconButton icon="arrow-back" label="Back" variant="raised" onPress={() => goBack('/settings')} />
             <View style={{ flexShrink: 1 }}>
               <Text style={[type.title1, { color: c.ink }]} accessibilityRole="header">Notifications</Text>
-              <Text style={[type.subhead, { color: c.ink2 }]}>Choose which emails Siqa sends you</Text>
+              <Text style={[type.subhead, { color: c.ink2 }]}>Choose what Siqa notifies you about</Text>
             </View>
           </View>
 
@@ -64,6 +65,8 @@ export default function NotificationSettingsScreen() {
             <ActivityIndicator color={c.gold} style={{ marginTop: 40 }} />
           ) : (
             <>
+              <PushCard />
+
               <View style={{ gap: space[2] }}>
                 <SectionLabel>From people you follow</SectionLabel>
                 <View style={[{ backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space[4] }, shadow('card')]}>

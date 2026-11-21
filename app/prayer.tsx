@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PushCard } from '../components/PushCard';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
 import { BottomSheet, Button, IconButton, ListRow, OptionRow, SectionLabel, SegmentedControl, TextField } from '../components/ui';
 import { Icon, type SiqaIconName } from '../components/Icon';
@@ -174,12 +175,7 @@ export default function PrayerScreen() {
                 <Text style={[type.caption, { color: c.ink2 }]}>Athan notifications come in the next app update.</Text>
               )
             ) : (
-              <View style={{ flexDirection: 'row', gap: space[2], padding: space[4], borderRadius: radius.lg, backgroundColor: c.surfaceSoft }}>
-                <Icon name="information-circle-outline" size={18} color={c.ink2} />
-                <Text style={[type.caption, { color: c.ink2, flex: 1 }]}>
-                  On the web, Siqa can only remind you while it’s open. For athan alerts on your phone, use the Siqa app.
-                </Text>
-              </View>
+              <PushCard focus="prayer" />
             )}
           </View>
 
