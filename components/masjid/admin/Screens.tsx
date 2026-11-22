@@ -33,6 +33,23 @@ export function ScreensSection({ masjid, wide }: SectionProps) {
     showToast('Screen added. It switches to your masjid within 20 seconds.');
   };
 
+  // Your own home TVs, so a TV moved home can come back here in one tap.
+  const [homeTvs, setHomeTvs] = useState<{ id: string; name: string | null }[]>([]);
+  const loadHomeTvs = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data } = await supabase.from('masjid_screens').select('id, name').eq('owner_id', session.user.id).eq('mode', 'home');
+    setHomeTvs((data as { id: string; name: string | null }[]) || []);
+  };
+  useEffect(() => { loadHomeTvs(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [masjid.id]);
+  const addHomeTv = async (tv: { id: string; name: string | null }) => {
+    if (!(await confirmDialog(`Add ${tv.name || 'this TV'} to ${masjid.org_name}?`, 'It switches to the masjid screen within 20 seconds. Its saved Wi-Fi stays.', 'Add'))) return;
+    const { error } = await supabase.rpc('screen_move_masjid', { p_screen: tv.id, p_org: masjid.id, p_name: 'Main hall TV' });
+    if (error) { showToast(error.message); return; }
+    showToast('Added. It switches to your masjid within 20 seconds.');
+    loadHomeTvs(); reload();
+  };
+
   // "Play at masjid": the lecture playing on all screens right now, with Stop.
   const [playing, setPlaying] = useState<{ title: string; started_at: string; duration_secs: number | null } | null>(null);
   const loadPlaying = async () => {
@@ -88,6 +105,19 @@ export function ScreensSection({ masjid, wide }: SectionProps) {
         })}
       </View>
 
+      {homeTvs.length ? (
+        <Card>
+          <CardTitle>Your home TVs</CardTitle>
+          {homeTvs.map((tv) => (
+            <View key={tv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+              <Icon name="home-outline" size={20} color={c.ink2} />
+              <Text style={[type.body, { color: c.ink, flex: 1 }]} numberOfLines={1}>{tv.name || 'TV'}</Text>
+              <Button label="Add to this masjid" size="sm" variant="secondary" onPress={() => addHomeTv(tv)} />
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
       <Card style={{ backgroundColor: c.bgSunk }}>
         <CardTitle>Setting up a TV</CardTitle>
         <KV k="Siqa box" v="Plug it into the TV's HDMI port and power. It opens Siqa on its own and shows a code." />
@@ -102,7 +132,7 @@ export function ScreensSection({ masjid, wide }: SectionProps) {
         </View>
       </BottomSheet>
 
-      <ScreenSheet screen={open} canWifi={canWifi} onClose={() => setOpen(null)} onChanged={() => { reload(); }} />
+      <ScreenSheet screen={open} canWifi={canWifi} onClose={() => setOpen(null)} onChanged={() => { reload(); loadHomeTvs(); }} />
     </>
   );
 }
@@ -163,7 +193,7 @@ function ScreenSheet({ screen, canWifi, onClose, onChanged }: { screen: ScreenRo
     if (!(await confirmDialog('Move this TV to your home?', 'It stops showing the masjid screen and becomes your Siqa Home TV within 20 seconds. Its saved Wi-Fi stays. You can move it back from Settings → Your TVs.', 'Move'))) return;
     const { error } = await supabase.rpc('screen_move_home', { p_screen: s.id, p_name: null });
     if (error) { showToast(error.message); return; }
-    showToast('Moved. It becomes your home TV within 20 seconds.');
+    showToast('Moved. It becomes your home TV within 20 seconds. To bring it back, use Your home TVs on this page.');
     onChanged(); onClose();
   };
   const removeWifi = async (id: string) => {
