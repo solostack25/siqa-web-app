@@ -16,6 +16,7 @@ import { loadSpaces, lastSpace, rememberSpace, spaceKey, initials, SPACE_LABEL, 
 import { SECTIONS as MASJID_SECTIONS, type SectionKey } from '../components/masjid/admin/kit';
 import { MasjidBody } from '../components/masjid/admin/MasjidBody';
 import { OrgOverview } from '../components/dashboard/OrgOverview';
+import { EventsSection } from '../components/events/dash/EventsSection';
 import { AdminMasjids } from '../components/dashboard/AdminMasjids';
 import { CreateMasjidSheet } from '../components/masjid/admin/CreateMasjid';
 import { backToSiqa, openOnSiqa } from '../components/dashboard/links';
@@ -43,6 +44,7 @@ function navFor(s: Space): NavItem[] {
     ];
     case 'org': return [
       { key: 'overview', label: 'Overview', icon: 'home-outline' },
+      { key: 'events', label: 'Events', icon: 'sparkles-outline' },
       { key: 'seed', label: 'Start a Seed', icon: 'leaf-outline', route: `/seed-create?orgId=${s.id}` },
       { key: 'page', label: 'Public page', icon: 'open-outline', link: `/org-profile?id=${s.id}` },
     ];
@@ -275,7 +277,7 @@ function SpaceBody({ s, page, wide, go, openMasjid }: { s: Space; page: string; 
   switch (s.kind) {
     case 'store': return <SellerDashboard />;
     case 'studio': return page === 'create' ? <CreateHub wide={wide} /> : <StudioScreen />;
-    case 'org': return <OrgOverview orgId={s.id} wide={wide} />;
+    case 'org': return page === 'events' ? <EventsSection orgId={s.id} wide={wide} /> : <OrgOverview orgId={s.id} wide={wide} />;
     case 'masjid':
       return <MasjidBody key={s.id} section={(page as SectionKey) || 'overview'} wide={wide} go={(p) => go(p)}
         masjid={{ id: s.id, org_name: s.name, city: null, state: null, logo_url: s.image, my_role: s.role ?? 'owner' }} />;

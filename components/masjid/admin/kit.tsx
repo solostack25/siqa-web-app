@@ -4,13 +4,14 @@ import { font, radius, space, type, useDS } from '../../../lib/ds';
 import { Icon, type SiqaIconName } from '../../Icon';
 
 export type MasjidRef = { id: string; org_name: string; city: string | null; state: string | null; logo_url: string | null; my_role: string };
-export type SectionKey = 'overview' | 'prayer' | 'schedule' | 'announcements' | 'seeds' | 'screens' | 'team';
+export type SectionKey = 'overview' | 'prayer' | 'schedule' | 'announcements' | 'seeds' | 'events' | 'screens' | 'team';
 export const SECTIONS: { key: SectionKey; label: string; icon: SiqaIconName }[] = [
   { key: 'overview', label: 'Overview', icon: 'home-outline' },
   { key: 'prayer', label: 'Prayer times', icon: 'time-outline' },
   { key: 'schedule', label: 'Schedule', icon: 'calendar-outline' },
   { key: 'announcements', label: 'Announcements', icon: 'megaphone-outline' },
   { key: 'seeds', label: 'Seeds', icon: 'leaf-outline' },
+  { key: 'events', label: 'Events', icon: 'sparkles-outline' },
   { key: 'screens', label: 'Screens', icon: 'tv-outline' },
   { key: 'team', label: 'Team', icon: 'people-outline' },
 ];

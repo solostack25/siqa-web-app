@@ -13,7 +13,7 @@ import { Button } from './ui';
 // who hasn't agreed to the current version sees this until they do.
 // The Terms and Privacy pages stay readable behind it.
 
-const OPEN_PATHS = ['/terms', '/privacy', '/support', '/delete-account', '/screen', '/tv'];
+const OPEN_PATHS = ['/terms', '/privacy', '/support', '/delete-account', '/screen', '/tv', '/event-device', '/e/', '/t/'];
 
 export function TermsGate() {
   const { c, shadow } = useDS();

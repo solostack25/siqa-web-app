@@ -207,6 +207,7 @@ function AppContent() {
         <Stack.Screen name="manage-handoff" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="screen" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="tv" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="event-device" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="link-tv" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
       </Stack>
       {IS_MARKETPLACE_SITE || IS_DASHBOARD_SITE ? null : <PrayerBanner />}
