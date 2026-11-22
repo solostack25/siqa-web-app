@@ -6,7 +6,7 @@ import React, { useEffect, useRef } from 'react';
 import { Platform, View } from 'react-native';
 
 const STALL_MS = 8000;   // picture hasn't moved for this long → recover
-const MAX_BEHIND_S = 12; // drifted this far behind live → jump to live
+const MAX_BEHIND_S = 8;  // drifted this far behind live → jump to live
 
 export function LivePlayer({ src, muted = true, style, onEnded }: { src: string; muted?: boolean; style?: any; onEnded?: () => void }) {
   const ref = useRef<HTMLVideoElement | null>(null);
@@ -29,8 +29,8 @@ export function LivePlayer({ src, muted = true, style, onEnded }: { src: string;
       if (Hls.isSupported()) {
         hls = new Hls({
           lowLatencyMode: true,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 6, // hls.js catches up by itself if it falls far behind
+          liveSyncDurationCount: 2,           // play 2 segments behind live (lowest that stays smooth)
+          liveMaxLatencyDurationCount: 4,     // hls.js catches up by itself if it falls behind
           maxBufferLength: 20,
           backBufferLength: 10,           // keep memory low on 2GB boxes
           manifestLoadingMaxRetry: 10,
