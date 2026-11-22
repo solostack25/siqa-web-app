@@ -47,6 +47,16 @@ export default function LinkTV() {
     setTvs((data as HomeTV[]) || []);
   };
 
+  const [moving, setMoving] = useState<string | null>(null);
+  const moveToMasjid = async (tv: HomeTV, m: M) => {
+    if (!(await confirmDialog(`Make ${tv.name || 'this TV'} a screen at ${m.org_name}?`, 'It switches to the masjid screen within 20 seconds. Its saved Wi-Fi stays.', 'Move'))) return;
+    const { error: e } = await supabase.rpc('screen_move_masjid', { p_screen: tv.id, p_org: m.id, p_name: 'Main hall TV' });
+    if (e) { setError(e.message); return; }
+    setMoving(null);
+    loadTvs();
+    router.push(`/masjid-admin?section=screens&org=${m.id}` as any);
+  };
+
   const unlink = async (tv: HomeTV) => {
     if (!(await confirmDialog(`Unlink ${tv.name || 'this TV'}?`, 'It goes back to showing a code, so you can link it to a masjid or another account.', 'Unlink'))) return;
     const { error: e } = await supabase.from('masjid_screens').delete().eq('id', tv.id);
@@ -140,11 +150,29 @@ export default function LinkTV() {
                   <Text style={[type.body, font(600), { color: c.ink }]}>{tv.name || 'TV'}</Text>
                   <Text style={[type.caption, { color: c.ink2 }]}>{seenLabel(tv.last_seen_at)}</Text>
                 </View>
+                {masjids.length ? (
+                  <Pressable onPress={() => setMoving(moving === tv.id ? null : tv.id)} accessibilityRole="button" accessibilityLabel={`Move ${tv.name || 'TV'} to a masjid`} hitSlop={8}>
+                    <Text style={[type.callout, font(600), { color: c.ink }]}>Move to masjid</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable onPress={() => unlink(tv)} accessibilityRole="button" accessibilityLabel={`Unlink ${tv.name || 'TV'}`} hitSlop={8}>
                   <Text style={[type.callout, font(600), { color: c.danger }]}>Unlink</Text>
                 </Pressable>
               </View>
             ))}
+            {moving ? (
+              <View style={{ gap: space[2], padding: space[4], borderRadius: radius.lg, backgroundColor: c.goldTint }}>
+                <Text style={[type.caption, font(600), { color: c.ink2 }]}>Make it a screen at</Text>
+                {masjids.map((m) => (
+                  <Pressable key={m.id} onPress={() => { const tv = tvs.find((t) => t.id === moving); if (tv) moveToMasjid(tv, m); }} accessibilityRole="button"
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[3], borderRadius: radius.md, backgroundColor: c.surface }}>
+                    <Icon name="business-outline" size={18} color={c.ink} />
+                    <Text style={[type.body, font(600), { color: c.ink, flex: 1 }]}>{m.org_name}</Text>
+                    <Icon name="chevron-forward" size={16} color={c.ink3} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {masjids.length ? <Text style={[type.caption, { color: c.ink2 }]}>Masjid screens are managed in Siqa for Masjids → Screens.</Text> : null}
           </View>
         ) : null}

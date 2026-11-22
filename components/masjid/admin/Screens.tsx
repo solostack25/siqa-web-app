@@ -135,6 +135,13 @@ function ScreenSheet({ screen, canWifi, onClose, onChanged }: { screen: ScreenRo
     setWifi((data as Wifi[]) || []);
     await command('wifi_sync');
   };
+  const moveHome = async () => {
+    if (!(await confirmDialog('Move this TV to your home?', 'It stops showing the masjid screen and becomes your Siqa Home TV within 20 seconds. Its saved Wi-Fi stays. You can move it back from Settings → Your TVs.', 'Move'))) return;
+    const { error } = await supabase.rpc('screen_move_home', { p_screen: s.id, p_name: null });
+    if (error) { showToast(error.message); return; }
+    showToast('Moved. It becomes your home TV within 20 seconds.');
+    onChanged(); onClose();
+  };
   const removeWifi = async (id: string) => {
     await supabase.from('masjid_screen_wifi').delete().eq('id', id);
     setWifi(wifi.filter((w) => w.id !== id));
@@ -168,6 +175,7 @@ function ScreenSheet({ screen, canWifi, onClose, onChanged }: { screen: ScreenRo
         <View style={{ flexDirection: 'row', gap: space[2], flexWrap: 'wrap' }}>
           <Button label="Reload screen" size="sm" variant="secondary" onPress={() => command('reload')} />
           {info.app === 'box' ? <Button label="Restart box" size="sm" variant="secondary" onPress={() => command('reboot')} /> : null}
+          <Button label="Move to my home" size="sm" variant="secondary" onPress={moveHome} />
         </View>
 
         {canWifi && info.app === 'box' ? (
