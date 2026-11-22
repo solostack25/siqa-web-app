@@ -12,7 +12,7 @@ begin
   update studio.sessions set status = 'ended', ended_at = now()
    where host_id = auth.uid() and watch_video_id is not null and status <> 'ended';
   insert into studio.sessions (host_id, title, scheduled_at, guest_count, audience_on, watch_video_id, wp_playing, wp_position, wp_at, wp_phase)
-  values (auth.uid(), left(v_title, 200), now(), 8, false, p_video, false, 0, now(), 'watching')
+  values (auth.uid(), left(v_title, 200), now(), 3, false, p_video, false, 0, now(), 'watching')
   returning * into r;
   return json_build_object('session_id', r.id, 'guest_token', r.guest_token, 'watch_token', r.watch_token, 'title', r.title);
 end $$;
