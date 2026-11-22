@@ -1,5 +1,6 @@
 // siqa.us/link-tv: opened by scanning the QR code on a TV (or typed in). Links the TV either
 // to your home (Siqa Home) or, for masjid teams, to one of your masjids as a screen.
+// Also lists the TVs linked to your home ("Your TVs" in Settings) so you can unlink them.
 
 import { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
@@ -10,8 +11,19 @@ import { font, radius, space, type, useDS } from '../lib/ds';
 import { Button, TextField } from '../components/ui';
 import { Icon } from '../components/Icon';
 import { goBack } from '../lib/goBack';
+import { confirmDialog } from '../lib/dialogs';
 
 type M = { id: string; org_name: string };
+type HomeTV = { id: string; name: string | null; last_seen_at: string | null };
+
+function seenLabel(iso: string | null) {
+  if (!iso) return 'Not seen yet';
+  const mins = (Date.now() - new Date(iso).getTime()) / 60000;
+  if (mins < 2) return 'Online now';
+  if (mins < 60) return `Last seen ${Math.round(mins)} min ago`;
+  if (mins < 48 * 60) return `Last seen ${Math.round(mins / 60)} h ago`;
+  return `Last seen ${new Date(iso).toLocaleDateString()}`;
+}
 
 export default function LinkTV() {
   const { c } = useDS();
@@ -25,6 +37,22 @@ export default function LinkTV() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tvs, setTvs] = useState<HomeTV[]>([]);
+
+  const loadTvs = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const { data } = await supabase.from('masjid_screens').select('id, name, last_seen_at')
+      .eq('owner_id', session.user.id).eq('mode', 'home').order('paired_at', { ascending: false });
+    setTvs((data as HomeTV[]) || []);
+  };
+
+  const unlink = async (tv: HomeTV) => {
+    if (!(await confirmDialog(`Unlink ${tv.name || 'this TV'}?`, 'It goes back to showing a code, so you can link it to a masjid or another account.', 'Unlink'))) return;
+    const { error: e } = await supabase.from('masjid_screens').delete().eq('id', tv.id);
+    if (e) { setError(e.message); return; }
+    loadTvs();
+  };
 
   useEffect(() => {
     (async () => {
@@ -35,6 +63,7 @@ export default function LinkTV() {
         const list = ((data as M[]) || []);
         setMasjids(list);
         if (list.length && !params.code) setTarget(list[0].id);
+        loadTvs();
       }
     })();
   }, []);
@@ -50,6 +79,7 @@ export default function LinkTV() {
       : await supabase.rpc('screen_claim_masjid', { p_code: code, p_org: target, p_name: name });
     setBusy(false);
     if (res.error) { setError(res.error.message); return; }
+    loadTvs();
     setDone(target === 'home' ? 'Your TV is linked. It shows your Siqa within 20 seconds.' : 'Screen added. It switches to your masjid within 20 seconds.');
   };
 
@@ -99,6 +129,25 @@ export default function LinkTV() {
             <Button label="Link TV" onPress={link} loading={busy} disabled={signedIn === null} />
           </>
         )}
+
+        {signedIn && tvs.length ? (
+          <View style={{ gap: space[2], marginTop: space[4] }}>
+            <Text style={[type.headline, { color: c.ink }]}>Your TVs</Text>
+            {tvs.map((tv) => (
+              <View key={tv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[4], borderRadius: radius.lg, backgroundColor: c.surfaceSoft }}>
+                <Icon name="tv-outline" size={20} color={c.ink} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[type.body, font(600), { color: c.ink }]}>{tv.name || 'TV'}</Text>
+                  <Text style={[type.caption, { color: c.ink2 }]}>{seenLabel(tv.last_seen_at)}</Text>
+                </View>
+                <Pressable onPress={() => unlink(tv)} accessibilityRole="button" accessibilityLabel={`Unlink ${tv.name || 'TV'}`} hitSlop={8}>
+                  <Text style={[type.callout, font(600), { color: c.danger }]}>Unlink</Text>
+                </Pressable>
+              </View>
+            ))}
+            {masjids.length ? <Text style={[type.caption, { color: c.ink2 }]}>Masjid screens are managed in Siqa for Masjids → Screens.</Text> : null}
+          </View>
+        ) : null}
       </View>
     </ScrollView>
   );

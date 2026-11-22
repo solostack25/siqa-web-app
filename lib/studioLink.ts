@@ -56,6 +56,25 @@ export async function saveKhutbahDetails(id: string, d: { title: string; descrip
   if (error) throw new Error(error.message);
 }
 
+export type MyMasjid = { id: string; org_name: string; city: string | null; state: string | null };
+
+/** Masjids whose team I'm on: the only ones whose TVs I can send a stream to. */
+export async function myMasjids(): Promise<MyMasjid[]> {
+  const { data } = await supabase.rpc('my_masjids');
+  return (data as MyMasjid[]) || [];
+}
+
+/** The masjid whose TVs switch to this stream when it goes live (null = none). */
+export async function cameraMasjid(id: string): Promise<string | null> {
+  const { data } = await supabase.rpc('studio_camera_masjid', { p_id: id });
+  return (data as string | null) ?? null;
+}
+
+export async function setCameraMasjid(id: string, orgId: string | null) {
+  const { error } = await supabase.rpc('studio_camera_set_masjid', { p_id: id, p_org: orgId });
+  if (error) throw new Error(error.message);
+}
+
 export const streamAddress = (c: CameraChannel) => `${c.rtmps_url}${c.stream_key}`;
 export const watchUrl = (token: string) => `https://www.siqa.us/live/${token}`;
 

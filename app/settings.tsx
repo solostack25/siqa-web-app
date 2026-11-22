@@ -474,6 +474,11 @@ export default function SettingsScreen() {
               <Text style={styles.menuLabel}>Notifications</Text>
               <Text style={styles.menuArrow}>›</Text>
             </TouchableOpacity>
+            {!IS_MARKETPLACE_SITE && <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/link-tv' as any)}>
+              <Icon name="tv-outline" size={18} color={C.text2} />
+              <Text style={styles.menuLabel}>Your TVs</Text>
+              <Text style={styles.menuArrow}>›</Text>
+            </TouchableOpacity>}
             {!IS_MARKETPLACE_SITE && <TouchableOpacity
               style={[styles.menuItem, { borderBottomWidth: 0 }]}
               onPress={() => router.push('/org-register' as any)}

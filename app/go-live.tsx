@@ -5,14 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { HEADER_TOP_PADDING } from '../constants/theme';
 import { DesktopShell, useIsDesktopWeb } from '../components/DesktopShell';
-import { Button, IconButton, ListRow, SectionLabel, Switch, TextField } from '../components/ui';
+import { Button, Chip, IconButton, ListRow, SectionLabel, Switch, TextField } from '../components/ui';
 import { Icon, type SiqaIconName } from '../components/Icon';
 import { font, radius, space, type, useDS } from '../lib/ds';
 import { goBack } from '../lib/goBack';
 import { STREAM_WORDS, type StreamKind } from '../lib/create';
 import {
-  createCamera, copyOrShare, myCameras, openStudio, saveKhutbahDetails, streamAddress, syncCameras, uploadStudioImage, watchUrl,
-  type CameraChannel,
+  cameraMasjid, createCamera, copyOrShare, myCameras, myMasjids, openStudio, saveKhutbahDetails, setCameraMasjid, streamAddress,
+  syncCameras, uploadStudioImage, watchUrl, type CameraChannel, type MyMasjid,
 } from '../lib/studioLink';
 
 // Camera streams: a speaker streams a khutbah or halaqa from a DJI camera (through the DJI Mimo app) into Siqa.
@@ -73,6 +73,7 @@ export default function GoLiveScreen() {
   }, [cam?.id]);
 
   async function startDji() {
+    if (busy) return; // one tap = one stream address
     setMsg('');
     if (cam) { setStep('dji'); return; }
     setBusy(true);
@@ -80,8 +81,10 @@ export default function GoLiveScreen() {
       await createCamera('Jumuah Khutbah');
       const c = await load();
       if (c) setStep('dji');
+      else setMsg("Your stream address was made but didn't load. Pull to refresh or reopen this page. Don't tap again.");
     } catch (e) {
-      setMsg((e as Error).message);
+      const m = (e as Error).message || '';
+      setMsg(/failed to fetch|network/i.test(m) ? "Couldn't reach Siqa Studio. Check your connection and try again." : m || 'Something went wrong. Try again.');
     }
     setBusy(false);
   }
@@ -134,10 +137,17 @@ export default function GoLiveScreen() {
     );
     return page(heading, 'What are you filming with? You only set this up once.', (
       <View style={{ gap: space[3] }}>
-        <Opt dark icon="videocam-outline" title="DJI camera with my phone" sub="Osmo Pocket 3 or Osmo Action, streamed through the DJI Mimo app" onPress={startDji} />
-        <Opt icon="laptop-outline" title="Camera plugged into a laptop or iPad" sub="USB-C in Webcam mode. Opens the Siqa live room. Not on iPhone." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
-        <Opt icon="phone-portrait-outline" title="Just my phone or computer" sub="Uses its own camera. Opens the Siqa live room." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
-        {busy ? <ActivityIndicator color={C.gold} /> : null}
+        <Opt dark icon="videocam-outline" title="Camera stream (DJI or any streaming app)"
+          sub="DJI Osmo through DJI Mimo, or any app that streams to an RTMP address (Larix, OBS). The only option that shows on masjid TVs."
+          onPress={startDji} />
+        <Opt icon="laptop-outline" title="Camera plugged into a laptop or iPad" sub="USB-C in Webcam mode. Opens the Siqa live room. Not on iPhone. Doesn't show on masjid TVs." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
+        <Opt icon="phone-portrait-outline" title="Just my phone or computer" sub="Uses its own camera. Opens the Siqa live room. Doesn't show on masjid TVs." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
+        {busy ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], justifyContent: 'center' }}>
+            <ActivityIndicator color={C.gold} />
+            <Text style={[type.subhead, { color: C.ink2 }]}>Making your stream address…</Text>
+          </View>
+        ) : null}
       </View>
     ), () => (cam ? setStep('home') : goBack('/studio')));
   }
@@ -274,6 +284,13 @@ function Details({ cam, userId, onDone, page, kind }: {
   const [f, setF] = useState({ title: cam.next_title || '', description: cam.next_description || '', coverUrl: cam.next_cover_url || '', masjid: cam.masjid_name || '', autoPost: cam.auto_post });
   const [busy, setBusy] = useState<'' | 'save' | 'cover'>('');
   const [err, setErr] = useState('');
+  // Masjid TVs: the masjid whose screens switch to this stream when it goes live.
+  const [masjids, setMasjids] = useState<MyMasjid[] | null>(null);
+  const [linked, setLinked] = useState<string | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  useEffect(() => {
+    Promise.all([myMasjids(), cameraMasjid(cam.id)]).then(([m, cur]) => { setMasjids(m); setLinked(cur); setPick(cur); });
+  }, [cam.id]);
 
   async function pickCover() {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsEditing: true, aspect: [16, 9] });
@@ -288,7 +305,12 @@ function Details({ cam, userId, onDone, page, kind }: {
 
   async function save() {
     setBusy('save'); setErr('');
-    try { await saveKhutbahDetails(cam.id, f); onDone(); } catch (e) { setErr((e as Error).message); }
+    try {
+      const chosen = masjids?.find((m) => m.id === pick);
+      await saveKhutbahDetails(cam.id, chosen ? { ...f, masjid: chosen.org_name } : f);
+      if (pick !== linked) await setCameraMasjid(cam.id, pick);
+      onDone();
+    } catch (e) { setErr((e as Error).message); }
     setBusy('');
   }
 
@@ -306,7 +328,25 @@ function Details({ cam, userId, onDone, page, kind }: {
       {f.coverUrl ? <Button label="Use a frame from the video instead" variant="soft" size="md" onPress={() => setF({ ...f, coverUrl: '' })} /> : null}
       <TextField label="Title" value={f.title} onChangeText={(t) => setF({ ...f, title: t })} placeholder={STREAM_WORDS[kind ?? 'khutbah'].placeholder} maxLength={120} />
       <TextField label="Description" value={f.description} onChangeText={(t) => setF({ ...f, description: t })} placeholder={`What the ${kind ?? 'khutbah'} covers`} multiline maxLength={2000} />
-      <TextField label="Masjid" value={f.masjid} onChangeText={(t) => setF({ ...f, masjid: t })} placeholder="Where you're giving it" maxLength={120} />
+      <View style={{ gap: space[2] }}>
+        <Text style={[type.subhead, font(600), { color: C.ink }]}>Show it on a masjid's TVs</Text>
+        {masjids === null ? <ActivityIndicator color={C.gold} style={{ alignSelf: 'flex-start' }} /> : (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2] }}>
+            <Chip label="No masjid TVs" selected={pick === null} onPress={() => setPick(null)} />
+            {masjids.map((m) => (
+              <Chip key={m.id} icon="tv-outline" label={m.org_name} selected={pick === m.id} onPress={() => setPick(m.id)} />
+            ))}
+          </View>
+        )}
+        <Text style={[type.caption, { color: C.ink2 }]}>
+          {masjids && masjids.length === 0
+            ? "You're not on a masjid's team yet. Ask the masjid to add you in Siqa for Masjids → Team, and it shows up here."
+            : 'When you go live, that masjid\'s TV screens switch to your stream, then back to salah times when you stop.'}
+        </Text>
+      </View>
+      {pick === null ? (
+        <TextField label="Masjid (label only)" value={f.masjid} onChangeText={(t) => setF({ ...f, masjid: t })} placeholder="Where you're giving it" maxLength={120} />
+      ) : null}
       <View style={[{ backgroundColor: C.surface, borderRadius: radius.xl, paddingHorizontal: space[4] }, shadow('card')]}>
         <ListRow label="Post when it ends" sub={f.autoPost ? 'Goes on your profile automatically' : 'Saves as a draft in Studio'} last
           right={<Switch value={f.autoPost} onValueChange={(v) => setF({ ...f, autoPost: v })} label="Post when it ends" />} />
