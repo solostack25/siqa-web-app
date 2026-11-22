@@ -12,7 +12,7 @@ type Mode = 'connecting' | 'realtime' | 'fallback';
 const CONNECT_TIMEOUT_MS = 20000;
 
 export function LiveView({ live, muted, style }: {
-  live: { playback_url: string; watch_token?: string; room?: boolean };
+  live: { playback_url: string | null; watch_token?: string; room?: boolean };
   muted: boolean;
   style?: any;
 }) {
@@ -35,18 +35,19 @@ export function LiveView({ live, muted, style }: {
     return () => { window.removeEventListener('message', onMsg); clearTimeout(t); };
   }, [canRealtime, mode, attempt]);
 
-  // Real time dropped: try again in a minute (the regular stream plays meanwhile).
+  // Real time dropped: try again in a minute (the regular stream plays meanwhile), or in 10 seconds
+  // when there is no regular stream (watch parties).
   useEffect(() => {
     if (!canRealtime || mode !== 'fallback') return;
-    const t = setTimeout(() => { setAttempt((a) => a + 1); setMode('connecting'); }, 60000);
+    const t = setTimeout(() => { setAttempt((a) => a + 1); setMode('connecting'); }, live.playback_url ? 60000 : 10000);
     return () => clearTimeout(t);
   }, [canRealtime, mode]);
 
-  if (Platform.OS !== 'web') return <LivePlayer src={live.playback_url} muted={muted} style={style} />;
+  if (Platform.OS !== 'web') return live.playback_url ? <LivePlayer src={live.playback_url} muted={muted} style={style} /> : <View style={[{ backgroundColor: '#000' }, style]} />;
   const iframeSrc = `${STUDIO_URL}/screen-room?d=${encodeURIComponent(token || '')}&muted=${muted ? 1 : 0}&a=${attempt}`;
   return (
     <View style={[{ backgroundColor: '#000', overflow: 'hidden' }, style]}>
-      {mode !== 'realtime' ? (
+      {mode !== 'realtime' && live.playback_url ? (
         // While real time connects, show the regular stream without sound (so it doesn't play twice).
         <LivePlayer src={live.playback_url} muted={muted || mode === 'connecting'} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }} />
       ) : null}

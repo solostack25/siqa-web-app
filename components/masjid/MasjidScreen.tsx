@@ -14,6 +14,7 @@ import { QRCode } from './QRCode';
 import { TVStage, Ticker } from './TVStage';
 import { LiveView } from './LiveView';
 import { LiveExtras } from './LiveExtras';
+import { useNowPlaying, NowPlayingPlayer } from './NowPlaying';
 
 const C = {
   bg: '#0a0f1c', panel: '#141c30', panel2: '#1b2438', line: '#222b40', ink: '#edf1f7', ink2: '#9facc4', ink3: '#7e89a3',
@@ -50,6 +51,8 @@ export function MasjidScreen({ data, now, offline }: { data: MasjidScreenData; n
   const seed = pickSeed(data, cd);
   const ann = data.announcements.length ? data.announcements[annIdx % data.announcements.length] : null;
   const live = data.screen.show_live ? data.live : null;
+  // "Play at masjid": a lecture the masjid team put on its screens (a live khutbah and iqamah come first).
+  const nowPlaying = useNowPlaying();
 
   // Power schedule (the Siqa box also turns the TV off over HDMI-CEC).
   const asleep = isAsleep(data.screen.power_on, data.screen.power_off, now, tz);
@@ -117,6 +120,30 @@ export function MasjidScreen({ data, now, offline }: { data: MasjidScreenData; n
           <Text style={[disp(), { fontSize: 180, color: C.ink, letterSpacing: -4 }]}>{iqNow.name}</Text>
           <Text style={[sans(500), { fontSize: 40, color: C.ink2 }]}>Straighten the rows · silence your phones</Text>
         </View>
+      </TVStage>
+    );
+  }
+
+  // ── Lecture playing on the masjid's screens ───────────────────────────
+  if (nowPlaying && data.screen.layout !== 'times_only') {
+    return (
+      <TVStage portrait={portrait} bg="#000">
+        <NowPlayingPlayer np={nowPlaying} muted={!data.screen.live_audio} style={{ position: 'absolute', left: 0, top: 0, width: portrait ? 1080 : 1920, height: portrait ? 608 : 1080 }} />
+        <View style={{ position: 'absolute', left: 40, top: 36, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999 }}>
+            <Text style={[sans(600), { fontSize: 22, color: '#fff' }]} numberOfLines={1}>{nowPlaying.title}{nowPlaying.speaker_name ? ` · ${nowPlaying.speaker_name}` : ''}</Text>
+          </View>
+        </View>
+        {!portrait ? (
+          <View style={{ position: 'absolute', left: 40, right: 40, bottom: 36, flexDirection: 'row', alignItems: 'center', gap: 28, backgroundColor: 'rgba(10,15,28,0.86)', borderRadius: 24, paddingHorizontal: 32, paddingVertical: 16 }}>
+            {day?.rows.map((r) => (
+              <View key={r.key} style={{ alignItems: 'center', flex: 1 }}>
+                <Text style={[sans(600), { fontSize: 20, color: nextSalah?.row.key === r.key ? C.goldInk : C.ink2 }]}>{r.name}</Text>
+                <Text style={[disp(), { fontSize: 34, color: nextSalah?.row.key === r.key ? C.goldInk : C.ink }]}>{r.jummah ? fmtClock(r.jummah[0], false) : fmtTime(r.iqamah, tz, false)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </TVStage>
     );
   }

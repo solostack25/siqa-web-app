@@ -8,6 +8,7 @@ import { supabase } from '../../../lib/supabase';
 import { fmtClock } from '../../../lib/masjid';
 import { confirmDialog } from '../../../lib/dialogs';
 import { showToast } from '../../Toast';
+import { Icon } from '../../Icon';
 
 type Wifi = { id: string; ssid: string; security: string; status: string; priority: number };
 
@@ -32,9 +33,32 @@ export function ScreensSection({ masjid, wide }: SectionProps) {
     showToast('Screen added. It switches to your masjid within 20 seconds.');
   };
 
+  // "Play at masjid": the lecture playing on all screens right now, with Stop.
+  const [playing, setPlaying] = useState<{ title: string; started_at: string; duration_secs: number | null } | null>(null);
+  const loadPlaying = async () => {
+    const { data } = await supabase.rpc('masjid_now_playing', { p_org: masjid.id });
+    setPlaying((data as any) || null);
+  };
+  useEffect(() => { loadPlaying(); const t = setInterval(loadPlaying, 15000); return () => clearInterval(t); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [masjid.id]);
+  const stopPlaying = async () => {
+    const { error } = await supabase.rpc('masjid_play_video', { p_org: masjid.id, p_video: null });
+    showToast(error ? error.message : 'Stopped. Screens go back to salah times within 20 seconds.');
+    loadPlaying();
+  };
+
   return (
     <>
       <PageHeader title="Screens" sub="TVs showing your prayer times, schedule and live khutbah." right={<Button label="Add screen" icon="add" size="md" onPress={() => setAdding(true)} />} />
+      {playing ? (
+        <Card style={{ flexDirection: 'row', alignItems: 'center', gap: space[3] }}>
+          <Icon name="play-circle" size={28} color={c.gold} />
+          <View style={{ flex: 1 }}>
+            <Text style={[type.caption, font(600), { color: c.ink2 }]}>Playing on your screens</Text>
+            <Text style={[type.headline, { color: c.ink }]} numberOfLines={1}>{playing.title}</Text>
+          </View>
+          <Button label="Stop" size="sm" variant="secondary" onPress={stopPlaying} />
+        </Card>
+      ) : null}
       {screens && screens.length === 0 ? (
         <Empty icon="tv-outline" title="No screens yet" sub="Plug in a Siqa box, or open siqa.us/screen on the TV's computer and make it full screen. The TV shows a 6-digit code: add it here.">
           <Button label="Add screen" size="md" onPress={() => setAdding(true)} style={{ marginTop: space[2] }} />

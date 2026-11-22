@@ -24,6 +24,9 @@ import { Theme } from '../../../constants/theme';
 import { shareVideo } from '../../../lib/share';
 import { CastButton } from '../../../components/CastButton';
 import { YouTubeEmbed } from '../../../components/YouTubeEmbed';
+import { openStudioSignedIn } from '../../../lib/studioLink';
+import { confirmDialog } from '../../../lib/dialogs';
+import { showToast } from '../../../components/Toast';
 import { WatchComments } from '../../../components/comments/Comments';
 import { Icon } from '../../../components/Icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -170,6 +173,37 @@ function WatchScreen() {
   }, [videoId]);
 
   const queue = useWatchQueue(video?.id, video?.series_id, typeof list === 'string' ? list : undefined);
+
+  // Watch party: watch this lecture together (Siqa Studio), in sync, then discuss.
+  async function startWatchParty() {
+    if (!video) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { router.push('/(auth)/sign-in' as any); return; }
+    await openStudioSignedIn(`/party?video=${video.id}`);
+  }
+
+  // Play at masjid: masjid teams can put this lecture on all their masjid's TV screens.
+  const [myMasjids, setMyMasjids] = useState<{ id: string; org_name: string }[]>([]);
+  const [pickMasjid, setPickMasjid] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      supabase.rpc('my_masjids').then(({ data }) => setMyMasjids(((data as any[]) || []).map((m) => ({ id: m.id, org_name: m.org_name }))));
+    });
+  }, []);
+  async function playAtMasjid(m: { id: string; org_name: string }) {
+    if (!video) return;
+    setPickMasjid(false);
+    if (!(await confirmDialog(`Play on ${m.org_name}'s screens?`, 'All its TV screens play this lecture now, then go back to salah times. A live khutbah still takes over. Stop it any time in Siqa for Masjids → Screens.', 'Play'))) return;
+    const { error } = await supabase.rpc('masjid_play_video', { p_org: m.id, p_video: video.id });
+    showToast(error ? error.message : `Playing on ${m.org_name}'s screens within 20 seconds.`);
+  }
+  const onPlayAtMasjid = () => (myMasjids.length === 1 ? playAtMasjid(myMasjids[0]) : setPickMasjid(!pickMasjid));
+  const masjidPicker = pickMasjid && myMasjids.length > 1 ? (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 8 }}>
+      {myMasjids.map((m) => <Chip key={m.id} icon="tv-outline" label={m.org_name} onPress={() => playAtMasjid(m)} />)}
+    </View>
+  ) : null;
 
   async function handleShare() {
     if (!video) return;
@@ -346,8 +380,11 @@ function WatchScreen() {
           <Chip icon={saved ? 'bookmark' : 'bookmark-outline'} label={saved ? 'Saved' : 'Save'} selected={saved} onPress={toggleSave} />
           <Chip icon="list" label="Playlist" onPress={() => setPlaylistOpen(true)} />
           <Chip icon="share-outline" label="Share" onPress={handleShare} />
+          <Chip icon="people-outline" label="Watch party" onPress={startWatchParty} />
+          {myMasjids.length ? <Chip icon="tv-outline" label="Play at masjid" onPress={onPlayAtMasjid} /> : null}
           <ReportButton variant="chip" targetType="video" targetId={video.id} videoId={video.id} reportedUserId={video.speakers?.profile_id} what="this video" />
         </ScrollView>
+        {masjidPicker}
 
         {queue && queue.items.length > 0 ? (
           <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
@@ -498,11 +535,14 @@ function WatchScreen() {
                   </TouchableOpacity>
   
                   <Button size="md" variant="secondary" icon="list" label="Playlist" onPress={() => setPlaylistOpen(true)} />
+                  <Button size="md" variant="secondary" icon="people-outline" label="Watch party" onPress={startWatchParty} />
+                  {myMasjids.length ? <Button size="md" variant="secondary" icon="tv-outline" label="Play at masjid" onPress={onPlayAtMasjid} /> : null}
                   <ReportButton variant="button" targetType="video" targetId={video.id} videoId={video.id} reportedUserId={video.speakers?.profile_id} what="this video" />
 
                   {/* Phones use the cast icon on the player instead (no room here). */}
                   {!isYouTube && isWide && <CastButton media={castMedia} getVideoElement={getPlayerVideo} />}
                 </View>
+                {masjidPicker}
               </View>
   
               <View style={styles.descCard}>

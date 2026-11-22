@@ -11,6 +11,16 @@ export function openStudio(path: string) {
   else Linking.openURL(url);
 }
 
+/**
+ * Opens a Studio page signed in as the current user: the session rides in the URL fragment
+ * (never sent to a server) and Studio removes it from the address bar as soon as it arrives.
+ */
+export async function openStudioSignedIn(path: string) {
+  const s = (await supabase.auth.getSession()).data.session;
+  const hash = s ? `#sb_at=${encodeURIComponent(s.access_token)}&sb_rt=${encodeURIComponent(s.refresh_token)}` : '';
+  openStudio(`${path}${hash}`);
+}
+
 export type CameraChannel = {
   id: string; title: string; speaker_name: string | null; cf_input_uid: string;
   rtmps_url: string; rtmp_url: string | null; stream_key: string;
