@@ -13,6 +13,7 @@ import {
 import { QRCode } from './QRCode';
 import { TVStage, Ticker } from './TVStage';
 import { LiveView } from './LiveView';
+import { LiveExtras } from './LiveExtras';
 
 const C = {
   bg: '#0a0f1c', panel: '#141c30', panel2: '#1b2438', line: '#222b40', ink: '#edf1f7', ink2: '#9facc4', ink3: '#7e89a3',
@@ -74,6 +75,7 @@ export function MasjidScreen({ data, now, offline }: { data: MasjidScreenData; n
     return (
       <TVStage portrait={portrait} bg="#000">
         <LiveView live={live} muted={!data.screen.live_audio} style={{ position: 'absolute', left: 0, top: 0, width: portrait ? 1080 : 1920, height: portrait ? 608 : 1080 }} />
+        {!portrait ? <LiveExtras watchToken={live.watch_token} bottom={200} /> : null}
         <View style={{ position: 'absolute', left: 40, top: 36, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.danger, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 999 }}>
             <View style={{ width: 12, height: 12, borderRadius: 999, backgroundColor: '#fff' }} />

@@ -54,7 +54,7 @@ export type MasjidEvent = {
 
 export type Announcement = { id: string; title: string; body: string | null; image_url: string | null; pinned: boolean; created_at: string };
 export type SeedLite = { id: string; title: string; goal_amount: number | null; raised_amount: number | null; donor_count: number | null; cover_image_url: string | null };
-export type LiveInfo = { watch_token: string; title: string; playback_url: string; started_at: string; speaker_name: string | null };
+export type LiveInfo = { watch_token: string; title: string; playback_url: string; started_at: string; speaker_name: string | null; room?: boolean };
 
 // ── Timezone helpers ────────────────────────────────────────────────────
 type Parts = { y: number; m: number; d: number; hh: number; mm: number; ss: number; dow: number };
