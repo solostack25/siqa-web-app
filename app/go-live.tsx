@@ -138,10 +138,10 @@ export default function GoLiveScreen() {
     return page(heading, 'What are you filming with? You only set this up once.', (
       <View style={{ gap: space[3] }}>
         <Opt dark icon="videocam-outline" title="Camera stream (DJI or any streaming app)"
-          sub="DJI Osmo through DJI Mimo, or any app that streams to an RTMP address (Larix, OBS). The only option that shows on masjid TVs."
+          sub="DJI Osmo through DJI Mimo, or any app that streams to an RTMP address (OBS). Best for a camera on a tripod at the masjid."
           onPress={startDji} />
-        <Opt icon="laptop-outline" title="Camera plugged into a laptop or iPad" sub="USB-C in Webcam mode. Opens the Siqa live room. Not on iPhone. Doesn't show on masjid TVs." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
-        <Opt icon="phone-portrait-outline" title="Just my phone or computer" sub="Uses its own camera. Opens the Siqa live room. Doesn't show on masjid TVs." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
+        <Opt icon="laptop-outline" title="Camera plugged into a laptop or iPad" sub="USB-C in Webcam mode. Opens the Siqa live room. Not on iPhone." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
+        <Opt icon="phone-portrait-outline" title="Just my phone or computer" sub="Uses its own camera. Opens the Siqa live room. Nothing else to install." onPress={() => openStudio(`/live?kind=${kind ?? 'khutbah'}`)} />
         {busy ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], justifyContent: 'center' }}>
             <ActivityIndicator color={C.gold} />
