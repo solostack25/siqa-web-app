@@ -7,6 +7,7 @@ import { Button } from '../../ui';
 import { Icon, type SiqaIconName } from '../../Icon';
 import { AdminPage, Kpi, Panel, Pill, since } from './kit';
 import { QUEUE_KINDS, type QueueKind } from './Queue';
+import { VisitorsPanel } from './Visitors';
 
 export type AdminOverviewData = {
   members: number; members_week: number; speakers: number; speakers_claimed: number; gems_published: number; gems_total: number;
@@ -54,6 +55,8 @@ export function AdminOverview({ wide, go }: { wide: boolean; go: (page: string, 
             <Kpi label="Given through Siqa" value={usd(data.given_cents)} sub={`${n(data.gifts)} gift${data.gifts === 1 ? '' : 's'}`} icon="heart-outline" gold />
             <Kpi label="Masjid TVs" value={n(data.tvs)} sub="Linked screens" icon="tv-outline" />
           </View>
+
+          <VisitorsPanel wide={wide} />
 
           <View style={{ flexDirection: wide ? 'row' : 'column', gap: 24, alignItems: 'flex-start' }}>
             <Panel title="Needs your review" action="See all" onAction={() => go('queue')} flush style={{ flex: 1.4, alignSelf: 'stretch' }}>
