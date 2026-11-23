@@ -30,12 +30,12 @@ const MATCH_LABEL: Record<Term['match'], string> = {
 
 const PAGE = 30;
 
-export function BlockedTermsSection({ C }: { C: AppColors }) {
+export function BlockedTermsSection({ C, embedded }: { C: AppColors; embedded?: boolean }) {
   const styles = useMemo(() => makeStyles(C), [C]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!embedded);
 
   const [input, setInput] = useState('');
   const [longer, setLonger] = useState(false);
@@ -112,11 +112,13 @@ export function BlockedTermsSection({ C }: { C: AppColors }) {
   const shown = showAll || q ? filtered : filtered.slice(0, PAGE);
 
   return (
-    <View style={styles.section}>
-      <TouchableOpacity style={styles.sectionHead} onPress={() => setOpen(o => !o)} accessibilityRole="button">
-        <Text style={styles.sectionTitle}>Blocked words & phrases {open ? '▾' : '▸'}</Text>
-        <Text style={styles.countPill}>{loading ? '…' : terms.length}</Text>
-      </TouchableOpacity>
+    <View style={embedded ? null : styles.section}>
+      {embedded ? null : (
+        <TouchableOpacity style={styles.sectionHead} onPress={() => setOpen(o => !o)} accessibilityRole="button">
+          <Text style={styles.sectionTitle}>Blocked words & phrases {open ? '▾' : '▸'}</Text>
+          <Text style={styles.countPill}>{loading ? '…' : terms.length}</Text>
+        </TouchableOpacity>
+      )}
 
       {!open ? (
         <Text style={styles.hint}>

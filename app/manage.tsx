@@ -23,10 +23,10 @@ import { backToSiqa, openOnSiqa } from '../components/dashboard/links';
 import SellerDashboard from './seller-dashboard';
 import StudioScreen from './studio';
 import CreateHub from '../components/studio/CreateHub';
-import AdminScreen from './admin';
 import { AdminOverview } from '../components/admin/console/Overview';
 import { AdminQueue } from '../components/admin/console/Queue';
 import { AdminOrgs } from '../components/admin/console/Orgs';
+import { AdminModeration } from '../components/admin/console/Moderation';
 
 type NavItem = { key: string; label: string; icon: SiqaIconName; route?: string; link?: string; badge?: number };
 
@@ -57,7 +57,7 @@ function navFor(s: Space): NavItem[] {
       { key: 'queue', label: 'Review queue', icon: 'file-tray-full-outline' },
       { key: 'orgs', label: 'Organizations', icon: 'business-outline' },
       { key: 'masjids', label: 'Masjids', icon: 'moon-outline' },
-      { key: 'moderation', label: 'Moderation tools', icon: 'shield-checkmark-outline' },
+      { key: 'moderation', label: 'Moderation', icon: 'shield-checkmark-outline' },
       { key: 'chai', label: 'Chai', icon: 'cafe-outline', route: '/chai-admin' },
     ];
   }
@@ -320,7 +320,7 @@ function SpaceBody({ s, page, wide, go, openMasjid }: { s: Space; page: string; 
         case 'masjids': return <AdminMasjids onOpen={openMasjid} />;
         case 'queue': return <AdminQueue key={page} wide={wide} initial={page.split(':')[1]} />;
         case 'orgs': return <AdminOrgs wide={wide} />;
-        case 'moderation': return <AdminScreen />;
+        case 'moderation': return <AdminModeration wide={wide} />;
         default: return <AdminOverview wide={wide} go={(p, filter) => go(filter ? `${p}:${filter}` : p)} />;
       }
   }
