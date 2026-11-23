@@ -209,8 +209,9 @@ export default function AdminScreen() {
           .limit(30),
         supabase
           .from('organizations')
-          .select('id, org_name, org_kind, is_verified, created_at')
-          .or('is_verified.eq.false,is_verified.is.null')
+          .select('id, org_name, org_kind, is_verified, approval_status, created_at')
+          // Not verified yet, or verified but never approved for the directory.
+          .or('is_verified.eq.false,is_verified.is.null,approval_status.neq.approved,approval_status.is.null')
           .order('created_at', { ascending: false })
           .limit(30),
         supabase
@@ -445,7 +446,8 @@ export default function AdminScreen() {
 
   async function verifyOrg(id: string) {
     setBusyId(id);
-    const result = await supabase.from('organizations').update({ is_verified: true }).eq('id', id);
+    // Verifying also approves the org, so it shows in the Organizations directory.
+    const result = await supabase.from('organizations').update({ is_verified: true, approval_status: 'approved' }).eq('id', id);
     setBusyId(null);
     if (result.error) return Alert.alert('Could not verify organization', result.error.message);
     setOrgs((prev) => prev.filter((o) => o.id !== id));
@@ -681,7 +683,7 @@ export default function AdminScreen() {
       <QueueSection title="Organization Verification" count={orgs.length} C={C}>
         {orgs.length === 0 ? <Empty text="No organizations waiting for verification." C={C} /> : orgs.map((o) => (
           <View key={o.id}>
-            <SimpleRow title={o.org_name || 'Unnamed organization'} sub={o.org_kind === 'content' ? 'Content publisher · videos reach Gems once verified' : 'Nonprofit'} action="Verify" busy={busyId === o.id} onPress={() => verifyOrg(o.id)} C={C} />
+            <SimpleRow title={o.org_name || 'Unnamed organization'} sub={`${o.org_kind === 'content' ? 'Content publisher · videos reach Gems once verified' : o.org_kind === 'masjid' ? 'Masjid' : 'Nonprofit'}${o.is_verified ? ' · verified, not yet in the directory' : ''}`} action={o.is_verified ? 'Approve' : 'Verify'} busy={busyId === o.id} onPress={() => verifyOrg(o.id)} C={C} />
             <TouchableOpacity style={{ alignSelf: 'flex-end', paddingHorizontal: 12, paddingBottom: 10 }} onPress={() => router.push({ pathname: '/org-profile', params: { id: o.id } } as any)}>
               <Text style={{ color: C.text, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' }}>Open profile</Text>
             </TouchableOpacity>
