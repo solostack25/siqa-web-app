@@ -61,6 +61,8 @@ async function studioApi(path: string, body?: unknown) {
 
 /** Makes the speaker's permanent stream address (a Cloudflare live input). */
 export const createCamera = (title = 'Jumuah Khutbah') => studioApi('/api/camera/channels', { action: 'create', title });
+/** Makes a masjid's own camera (its owner or admins). Lives take their title and imam from the masjid's schedule. */
+export const createMasjidCamera = (masjidId: string) => studioApi('/api/camera/channels', { action: 'create', masjidId });
 /** Asks the Studio to check Cloudflare now, so LIVE shows up within seconds. */
 export const syncCameras = () => studioApi('/api/camera/sync').catch(() => null);
 

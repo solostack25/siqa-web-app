@@ -6,6 +6,7 @@ import { AnnouncementsSection } from './Announcements';
 import { SeedsSection } from './Seeds';
 import { ScreensSection } from './Screens';
 import { TeamSection } from './Team';
+import { CameraSection } from './Camera';
 import { EventsSection } from '../../events/dash/EventsSection';
 import type { SectionProps, SectionKey } from './kit';
 
@@ -17,6 +18,7 @@ export function MasjidBody({ section, ...p }: SectionProps & { section: SectionK
     case 'seeds': return <SeedsSection {...p} />;
     case 'events': return <EventsSection orgId={p.masjid.id} wide={p.wide} />;
     case 'screens': return <ScreensSection {...p} />;
+    case 'camera': return <CameraSection {...p} />;
     case 'team': return <TeamSection {...p} />;
     default: return <Overview {...p} />;
   }

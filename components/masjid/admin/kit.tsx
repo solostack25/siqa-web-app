@@ -4,7 +4,7 @@ import { font, radius, space, type, useDS } from '../../../lib/ds';
 import { Icon, type SiqaIconName } from '../../Icon';
 
 export type MasjidRef = { id: string; org_name: string; city: string | null; state: string | null; logo_url: string | null; my_role: string };
-export type SectionKey = 'overview' | 'prayer' | 'schedule' | 'announcements' | 'seeds' | 'events' | 'screens' | 'team';
+export type SectionKey = 'overview' | 'prayer' | 'schedule' | 'announcements' | 'seeds' | 'events' | 'screens' | 'camera' | 'team';
 export const SECTIONS: { key: SectionKey; label: string; icon: SiqaIconName }[] = [
   { key: 'overview', label: 'Overview', icon: 'home-outline' },
   { key: 'prayer', label: 'Prayer times', icon: 'time-outline' },
@@ -13,6 +13,7 @@ export const SECTIONS: { key: SectionKey; label: string; icon: SiqaIconName }[] 
   { key: 'seeds', label: 'Seeds', icon: 'leaf-outline' },
   { key: 'events', label: 'Events', icon: 'sparkles-outline' },
   { key: 'screens', label: 'Screens', icon: 'tv-outline' },
+  { key: 'camera', label: 'Camera', icon: 'videocam-outline' },
   { key: 'team', label: 'Team', icon: 'people-outline' },
 ];
 export type SectionProps = { masjid: MasjidRef; go: (s: SectionKey) => void; wide: boolean };
