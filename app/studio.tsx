@@ -14,7 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, Redirect } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { deleteVideoEverywhere } from '../lib/bunnyUpload';
 import { useTheme, type AppColors } from '../lib/theme';
@@ -189,7 +189,8 @@ async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<
   return out;
 }
 
-export default function StudioScreen() {
+// The full stats + video list. Shown in the dashboard as Studio → My videos.
+export function StudioScreen() {
   const inDashboard = useInDashboard();
   const { colors: C } = useTheme();
   const ds = useDS();
@@ -1110,4 +1111,9 @@ function makeStyles(C: AppColors, desktop: boolean, wide: boolean) {
     },
     ghostBtnText: { color: C.text, fontSize: 14, fontWeight: '600' },
   }));
+}
+
+// siqa.us/studio used to be a second Studio home. There's one home now: the dashboard's Studio space.
+export default function StudioRoute() {
+  return <Redirect href={'/manage?space=studio' as any} />;
 }

@@ -21,8 +21,8 @@ import { AdminMasjids } from '../components/dashboard/AdminMasjids';
 import { CreateMasjidSheet } from '../components/masjid/admin/CreateMasjid';
 import { backToSiqa, openOnSiqa } from '../components/dashboard/links';
 import SellerDashboard from './seller-dashboard';
-import StudioScreen from './studio';
-import CreateHub from '../components/studio/CreateHub';
+import { StudioScreen } from './studio';
+import { SpeakerHome, MoreTools } from '../components/studio/SpeakerHome';
 import { AdminOverview } from '../components/admin/console/Overview';
 import { AdminQueue } from '../components/admin/console/Queue';
 import { AdminOrgs } from '../components/admin/console/Orgs';
@@ -39,11 +39,9 @@ function navFor(s: Space): NavItem[] {
       { key: 'shop', label: 'View store', icon: 'open-outline', link: `/shop/${s.id}` },
     ];
     case 'studio': return [
-      { key: 'overview', label: 'Overview', icon: 'stats-chart-outline' },
-      { key: 'create', label: 'Create', icon: 'add-circle-outline' },
-      { key: 'camera', label: 'Camera', icon: 'videocam-outline', route: '/go-live' },
-      { key: 'watermark', label: 'Watermark', icon: 'water-outline', route: '/watermark' },
-      { key: 'profile', label: 'Public profile', icon: 'open-outline', link: `/speaker/${s.id}` },
+      { key: 'overview', label: 'Home', icon: 'home-outline' },
+      { key: 'videos', label: 'My videos', icon: 'play-circle-outline' },
+      { key: 'more', label: 'More tools', icon: 'apps-outline' },
     ];
     case 'org': return [
       { key: 'overview', label: 'Overview', icon: 'home-outline' },
@@ -161,7 +159,7 @@ export default function Dashboard() {
   );
   // Masjid sections and the org overview lay themselves out as page content; the embedded
   // screens (store, Studio, admin) bring their own scrolling.
-  const selfScrolling = ((cur.kind === 'store' || cur.kind === 'studio') && page === 'overview') || (cur.kind === 'admin' && pageKey !== 'masjids');
+  const selfScrolling = ((cur.kind === 'store' && page === 'overview') || (cur.kind === 'studio' && page === 'videos')) || (cur.kind === 'admin' && pageKey !== 'masjids');
   // The Siqa admin console gets the night sidebar, so it reads as an operator tool rather than a member space.
   const night = cur.kind === 'admin';
 
@@ -310,7 +308,9 @@ export default function Dashboard() {
 function SpaceBody({ s, page, wide, go, openMasjid }: { s: Space; page: string; wide: boolean; go: (p: string) => void; openMasjid: (id: string) => void }) {
   switch (s.kind) {
     case 'store': return <SellerDashboard />;
-    case 'studio': return page === 'create' ? <CreateHub wide={wide} /> : <StudioScreen />;
+    case 'studio':
+      // Home is the simple speaker home; My videos is the full stats and video list; the rest is under More tools.
+      return page === 'videos' ? <StudioScreen /> : page === 'more' || page === 'create' ? <MoreTools speakerId={s.id} go={go} /> : <SpeakerHome wide={wide} go={go} />;
     case 'org': return page === 'events' ? <EventsSection orgId={s.id} wide={wide} /> : <OrgOverview orgId={s.id} wide={wide} />;
     case 'masjid':
       return <MasjidBody key={s.id} section={(page as SectionKey) || 'overview'} wide={wide} go={(p) => go(p)}
