@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Stack, router, usePathname } from 'expo-router';
+import { rememberDashboard, forgetDashboard, isDashboardTool } from '../lib/dashReturn';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { supabase } from '../lib/supabase';
@@ -84,6 +85,11 @@ function AppContent() {
   // Marketplace site (marketplace.thesiqaapp.com): Shop is home, and the
   // video and nonprofit pages aren't part of it - send those to the Shop.
   const pathname = usePathname();
+  // Remember where in the dashboard you were, so tools it opens keep its frame and Back returns there.
+  useEffect(() => {
+    if (pathname === '/manage') rememberDashboard();
+    else if (!isDashboardTool(pathname)) forgetDashboard();
+  }, [pathname]);
   useEffect(() => {
     if (!initialized || !IS_MARKETPLACE_SITE) return;
     if (isBlockedOnSite(pathname)) router.replace('/marketplace' as any);

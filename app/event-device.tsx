@@ -87,10 +87,10 @@ function Pairing({ code }: { code: string }) {
         {code.slice(0, 3)} {code.slice(3)}
       </Text>
       <Text style={[font(500), { fontSize: 18, lineHeight: 26, color: N.ink2, textAlign: 'center', maxWidth: 520 }]}>
-        On your computer or phone, open <Text style={{ color: N.ink, ...font(700) }}>dashboard.siqa.us</Text> → Events → your event → Devices, type this code and pick what this device does.
+        On your computer or phone, open <Text style={{ color: N.ink, ...font(700) }}>siqa.us/manage</Text> → Events → your event → Devices, type this code and pick what this device does.
       </Text>
       <View style={{ padding: 12, backgroundColor: '#fff', borderRadius: 18 }}>
-        <QRCode value="https://dashboard.siqa.us/manage" size={130} />
+        <QRCode value="https://www.siqa.us/manage" size={130} />
       </View>
       <Pressable onPress={() => setHelp(!help)} accessibilityRole="button"><Text style={[font(600), { fontSize: 15, color: N.ink2, textDecorationLine: 'underline' }]}>What can a device do?</Text></Pressable>
       {help ? (

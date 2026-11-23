@@ -4,6 +4,28 @@
   "framework": null,
   "redirects": [
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "dashboard.siqa.us"
+        }
+      ],
+      "destination": "https://www.siqa.us/manage",
+      "permanent": false
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "dashboard.siqa.us"
+        }
+      ],
+      "destination": "https://www.siqa.us/:path*",
+      "permanent": false
+    },
+    {
       "source": "/:path*",
       "has": [
         {
@@ -27,6 +49,14 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/studio-app",
+      "destination": "https://siqa-studio.vercel.app/studio-app"
+    },
+    {
+      "source": "/studio-app/:path*",
+      "destination": "https://siqa-studio.vercel.app/studio-app/:path*"
+    },
     {
       "source": "/watch/:id",
       "destination": "/api/og?type=video&id=:id"

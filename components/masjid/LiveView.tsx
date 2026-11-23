@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { LivePlayer } from './LivePlayer';
 import { readToken } from '../../lib/screenDevice';
-import { STUDIO_URL } from '../../lib/studioLink';
+import { STUDIO_ORIGIN, STUDIO_URL } from '../../lib/studioLink';
 
 type Mode = 'connecting' | 'realtime' | 'fallback';
 const CONNECT_TIMEOUT_MS = 20000;
@@ -26,7 +26,7 @@ export function LiveView({ live, muted, style }: {
   useEffect(() => {
     if (!canRealtime || mode !== 'connecting') return;
     const onMsg = (e: MessageEvent) => {
-      if (!String(e.origin).startsWith(STUDIO_URL) || e.data?.source !== 'siqa-room') return;
+      if (e.origin !== STUDIO_ORIGIN || e.data?.source !== 'siqa-room') return;
       if (e.data.type === 'ready') setMode('realtime');
       else if (e.data.type === 'failed' || e.data.type === 'ended') setMode('fallback');
     };

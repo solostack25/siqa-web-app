@@ -11,6 +11,7 @@ import { LivePlayer } from './LivePlayer';
 import { QRCode } from './QRCode';
 import { tvTile, useTVFocus } from './useTVFocus';
 import { youTubeEmbedUrl } from '../youtubeNative';
+import { STUDIO_URL } from '../../lib/studioLink';
 import {
   dayKeyIn, fmtDateLong, fmtHijri, fmtIn, fmtTime, occurrences, upcoming,
   type MasjidEvent, type MasjidSettings, SITE,
@@ -237,7 +238,7 @@ function Player({ p, onClose }: { p: NonNullable<Playing>; onClose: () => void }
         </TVStage>
       );
     }
-    return <WebFrame src={`https://siqa-studio.vercel.app/watch/${p.l.watch_token}?embed=1`} close={close} />;
+    return <WebFrame src={`${STUDIO_URL}/watch/${p.l.watch_token}?embed=1`} close={close} />;
   }
 
   const v = p.v;

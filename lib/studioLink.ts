@@ -1,8 +1,11 @@
 import { Linking, Platform, Share } from 'react-native';
 import { supabase } from './supabase';
 
-// Siqa Studio (recorder, podcast room, live tools) is its own web app, on the same Siqa accounts.
-export const STUDIO_URL = 'https://siqa-studio.vercel.app';
+// Siqa Studio (live room, recorder, watch parties) is its own web app, served under siqa.us/studio-app
+// (siqa.us proxies that path to it). Same website, same sign-in, and the installed app never opens a second window.
+const SAME_SITE = Platform.OS === 'web' && typeof window !== 'undefined' && /(^|\.)siqa\.us$/.test(window.location.hostname);
+export const STUDIO_URL = SAME_SITE ? `${window.location.origin}/studio-app` : 'https://www.siqa.us/studio-app';
+export const STUDIO_ORIGIN = new URL(STUDIO_URL).origin;
 
 /** Opens a Studio page: same tab on the web, Safari/Chrome on the phone apps. */
 export function openStudio(path: string) {
@@ -12,10 +15,12 @@ export function openStudio(path: string) {
 }
 
 /**
- * Opens a Studio page signed in as the current user: the session rides in the URL fragment
- * (never sent to a server) and Studio removes it from the address bar as soon as it arrives.
+ * Opens a Studio page signed in as the current user. On siqa.us Studio shares the app's sign-in already;
+ * anywhere else (the phone apps, previews) the session rides in the URL fragment, which never reaches a
+ * server, and Studio removes it from the address bar on arrival.
  */
 export async function openStudioSignedIn(path: string) {
+  if (SAME_SITE) { openStudio(path); return; }
   const s = (await supabase.auth.getSession()).data.session;
   const hash = s ? `#sb_at=${encodeURIComponent(s.access_token)}&sb_rt=${encodeURIComponent(s.refresh_token)}` : '';
   openStudio(`${path}${hash}`);
