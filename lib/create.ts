@@ -12,10 +12,8 @@ export const CREATE_GROUPS: { title: string; items: CreateItem[] }[] = [
   {
     title: 'Go live',
     items: [
-      { key: 'live', label: 'Go live', sub: 'Just you, with your phone or computer camera. Viewers watch, ask and chat.', icon: 'radio-outline', speakersOnly: true },
+      { key: 'live', label: 'Go live', sub: 'Khutbah, halaqa, class or talk. Pick where it is and you’re live. At a masjid, its TVs switch to you.', icon: 'radio-outline', speakersOnly: true },
       { key: 'podcast', label: 'Host a podcast', sub: 'Up to 4 speakers. Send guests a link. The audience is optional.', icon: 'mic-outline', speakersOnly: true },
-      { key: 'khutbah', label: 'Livestream a khutbah', sub: 'From your DJI camera through DJI Mimo.', icon: 'videocam-outline', speakersOnly: true },
-      { key: 'halaqa', label: 'Livestream a halaqa or khatira', sub: 'From your DJI camera, or your phone or computer.', icon: 'people-outline', speakersOnly: true },
     ],
   },
   {
@@ -37,9 +35,9 @@ export const CREATE_GROUPS: { title: string; items: CreateItem[] }[] = [
 /** Opens the tool for one Create option. `halaqa` needs a choice first, so the caller handles it. */
 export function startCreate(key: Exclude<CreateKey, 'halaqa'>) {
   switch (key) {
-    case 'live': return openStudio('/live?kind=live');
+    case 'live': return openStudio('/live');
     case 'podcast': return openStudio('/live?kind=podcast');
-    case 'khutbah': return router.push('/go-live?kind=khutbah' as any);
+    case 'khutbah': return openStudio('/live?kind=khutbah');
     case 'rec-gem': return openStudio('/record?type=gem');
     case 'rec-video': return openStudio('/record?type=video');
     case 'up-gem': return router.push('/gem-upload?format=short' as any);

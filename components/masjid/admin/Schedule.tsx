@@ -8,6 +8,8 @@ import { supabase } from '../../../lib/supabase';
 import { EVENT_KIND_LABEL, addDayKey, dayKeyIn, dowOfKey, fmtClock, fmtTime, masjidDay, occurrences, zonedToDate, type EventKind, type MasjidEvent } from '../../../lib/masjid';
 import { confirmDialog } from '../../../lib/dialogs';
 import { showToast } from '../../Toast';
+import { LiveOnSiqa, useImams } from './Imams';
+import { openStudio } from '../../../lib/studioLink';
 
 type Draft = Omit<MasjidEvent, 'id'> & { id?: string; timeText: string };
 const DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -16,7 +18,7 @@ function blank(orgId: string, dateKey: string): Draft {
   return {
     org_id: orgId, kind: 'halaqa', title: '', teacher: '', description: '', room: '', start_date: dateKey, start_time: '20:00',
     timeText: '8:00 PM', duration_min: 60, repeat_days: [dowOfKey(dateKey)], end_date: null, show_on_screens: true, countdown_min: 30,
-    live_on_siqa: false, registration: 'none', price_text: '', fundraiser_id: null, cancelled_dates: [],
+    live_on_siqa: false, speaker_id: null, registration: 'none', price_text: '', fundraiser_id: null, cancelled_dates: [],
   };
 }
 
@@ -25,6 +27,8 @@ export function ScheduleSection({ masjid, wide }: SectionProps) {
   const { settings } = useMasjidSettings(masjid.id);
   const { events, reload } = useMasjidEvents(masjid.id);
   const { seeds } = useSeeds(masjid.id);
+  const { imams, reload: reloadImams } = useImams(masjid.id);
+  const canManage = ['owner', 'admin', 'siqa'].includes(masjid.my_role ?? '');
   const tz = settings?.timezone ?? 'America/Chicago';
   const todayKey = dayKeyIn(new Date(), tz);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -89,7 +93,7 @@ export function ScheduleSection({ masjid, wide }: SectionProps) {
   };
 
   const kindStyle = (k: 'salah' | EventKind) => k === 'salah' ? { bg: c.surfaceSoft, fg: c.ink2, border: 'transparent' }
-    : k === 'halaqa' ? { bg: c.primary, fg: c.onPrimary, border: 'transparent' }
+    : k === 'halaqa' || k === 'khutbah' ? { bg: c.primary, fg: c.onPrimary, border: 'transparent' }
     : k === 'khatirah' ? { bg: c.goldTint, fg: c.goldInk, border: c.gold }
     : { bg: c.seedTint, fg: c.seed, border: c.seed };
 
@@ -117,8 +121,19 @@ export function ScheduleSection({ masjid, wide }: SectionProps) {
             <Choice label="Countdown" value={draft.countdown_min} options={[0, 10, 15, 30, 45, 60].map((n) => ({ value: n, label: n ? `${n} min before` : 'No countdown' }))} onChange={(n) => setDraft({ ...draft, countdown_min: n })} />
           </View>
         ) : null}
-        <Row label="Live on Siqa" sub="Interactive: questions and PDFs, run from Siqa Studio"><Switch label="Live on Siqa" value={draft.live_on_siqa} onValueChange={(v) => setDraft({ ...draft, live_on_siqa: v })} /></Row>
+        <Row label="Live on Siqa" sub="Streams on Siqa and switches your TVs to it while it's on"><Switch label="Live on Siqa" value={draft.live_on_siqa} onValueChange={(v) => setDraft({ ...draft, live_on_siqa: v })} /></Row>
       </View>
+      {draft.live_on_siqa ? (
+        <View style={{ gap: space[2] }}>
+          <Text style={[type.caption, font(600), { color: c.ink2 }]}>Who is speaking?</Text>
+          {(imams ?? []).length ? (
+            <Choice label="Imam" value={draft.speaker_id ?? ''} options={[...(imams ?? []).map((i) => ({ value: i.id, label: i.display_name })), { value: '', label: 'Not set' }]}
+              onChange={(v) => setDraft({ ...draft, speaker_id: v || null, teacher: v ? (imams ?? []).find((i) => i.id === v)?.display_name ?? draft.teacher : draft.teacher })} />
+          ) : <Text style={[type.caption, { color: c.ink2 }]}>Add your imams under Live on Siqa (top of this page) to pick one here.</Text>}
+          <Text style={[type.caption, { color: c.ink3 }]}>The imam sees this under Go live and can start it with one tap. Anyone on your team can also start it for them.</Text>
+          {draft.id ? <Button label="Go live now" icon="radio-outline" size="md" onPress={() => openStudio(`/live?program=${draft.id}`)} /> : null}
+        </View>
+      ) : null}
       <View style={{ gap: space[2] }}>
         <Text style={[type.caption, font(600), { color: c.ink2 }]}>Registration</Text>
         <Choice label="Registration" value={draft.registration} options={[{ value: 'none', label: 'None' }, { value: 'free', label: 'Free' }, { value: 'paid', label: 'Paid' }]} onChange={(v) => setDraft({ ...draft, registration: v })} />
@@ -207,8 +222,10 @@ export function ScheduleSection({ masjid, wide }: SectionProps) {
           <Button label="Add event" icon="add" size="md" onPress={() => open()} />
         </>}
       />
+      <LiveOnSiqa orgId={masjid.id} events={events ?? []} tz={tz} imams={imams} reloadImams={reloadImams} canManage={canManage}
+        onEdit={(e) => open(e)} onAddProgram={() => setDraft({ ...blank(masjid.id, todayKey), kind: 'khutbah', live_on_siqa: true, title: "Jumu'ah khutbah", repeat_days: [5], timeText: '1:30 PM', start_time: '13:30', duration_min: 45 })} />
       <View style={{ flexDirection: 'row', gap: space[4], flexWrap: 'wrap' }}>
-        {([['Salah (from Prayer times)', c.surfaceStrong], ['Halaqa', c.primary], ['Khatirah', c.goldTint], ['Class or event', c.seedTint]] as const).map(([l, col]) => (
+        {([['Salah (from Prayer times)', c.surfaceStrong], ['Khutbah or halaqa', c.primary], ['Khatirah', c.goldTint], ['Class or event', c.seedTint]] as const).map(([l, col]) => (
           <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={{ width: 12, height: 12, borderRadius: 4, backgroundColor: col }} />
             <Text style={[type.caption, { color: c.ink2 }]}>{l}</Text>

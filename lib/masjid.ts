@@ -27,8 +27,8 @@ export type MasjidSettings = {
   updated_at?: string;
 };
 
-export type EventKind = 'halaqa' | 'khatirah' | 'class' | 'event';
-export const EVENT_KIND_LABEL: Record<EventKind, string> = { halaqa: 'Halaqa', khatirah: 'Khatirah', class: 'Class', event: 'Event' };
+export type EventKind = 'khutbah' | 'halaqa' | 'khatirah' | 'class' | 'event';
+export const EVENT_KIND_LABEL: Record<EventKind, string> = { khutbah: 'Khutbah', halaqa: 'Halaqa', khatirah: 'Khatirah', class: 'Class', event: 'Event' };
 
 export type MasjidEvent = {
   id: string;
@@ -46,6 +46,7 @@ export type MasjidEvent = {
   show_on_screens?: boolean;
   countdown_min: number;
   live_on_siqa: boolean;
+  speaker_id?: string | null;   // the imam, for live programs (one of the masjid's imams)
   registration: 'none' | 'free' | 'paid';
   price_text?: string | null;
   fundraiser_id: string | null;

@@ -74,9 +74,10 @@ export async function saveKhutbahDetails(id: string, d: { title: string; descrip
 export type MyMasjid = { id: string; org_name: string; city: string | null; state: string | null };
 
 /** Masjids whose team I'm on: the only ones whose TVs I can send a stream to. */
+/** Masjids you can send a live to: ones whose team you're on, and ones that added you as an imam. */
 export async function myMasjids(): Promise<MyMasjid[]> {
-  const { data } = await supabase.rpc('my_masjids');
-  return (data as MyMasjid[]) || [];
+  const { data } = await supabase.rpc('studio_live_options');
+  return (((data as any)?.masjids as { id: string; name: string }[]) || []).map((m) => ({ id: m.id, org_name: m.name, city: null, state: null }));
 }
 
 /** The masjid whose TVs switch to this stream when it goes live (null = none). */
