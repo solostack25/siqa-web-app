@@ -225,6 +225,11 @@ function PrayerAlerts() {
 
 export default function RootLayout() {
   useOtaUpdates();
+  // Vercel Web Analytics (web only): counts visitors and page views, follows in-app navigation. No cookies.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !/(^|\.)siqa\.us$/.test(window.location.hostname)) return;
+    import('@vercel/analytics').then((m) => m.inject({ mode: 'production' })).catch(() => {});
+  }, []);
   return (
     // Needed for gesture-handler gestures (tab swipe on the phone app).
     <GestureHandlerRootView style={{ flex: 1 }}>
