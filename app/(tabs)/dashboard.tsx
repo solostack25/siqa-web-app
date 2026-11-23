@@ -29,6 +29,7 @@ import { EndorsementInbox } from '../../components/SeedSocial';
 import { ProfileMobileView } from '../../components/ProfileMobileView';
 import { confirmDialog, notifyDialog } from '../../lib/dialogs';
 import { brandStyles } from '../../lib/ds';
+import { countQueueItems } from '../../components/admin/console/Queue';
 
 type Profile = {
   id: string;
@@ -306,15 +307,8 @@ function DashboardScreenInner() {
     setSeller(sellerData ?? null);
 
     if (profileData && isAdminRole(profileData.role)) {
-      // Same queues as the admin screen; head-only counts.
-      const counts = await Promise.all([
-        supabase.from('videos').select('id', { count: 'exact', head: true }).in('status', ['pending', 'submitted']),
-        supabase.from('speaker_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('profile_claims').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('marketplace_sellers').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending'),
-        supabase.from('content_reports').select('id', { count: 'exact', head: true }).or('status.is.null,status.eq.open,status.eq.pending'),
-      ]);
-      setAdminPending(counts.reduce((sum, r) => sum + (r.count ?? 0), 0));
+      // Same queries as the Review queue, so the two counts always match.
+      setAdminPending(await countQueueItems().catch(() => null));
     } else {
       setAdminPending(null);
     }

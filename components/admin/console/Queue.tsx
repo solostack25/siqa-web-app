@@ -52,18 +52,40 @@ function reportLink(r: any): string | null {
 }
 const err = (e: { message: string } | null) => (e ? (showToast(e.message), false as const) : null);
 
+// Shared with the profile "waiting for review" card so both always agree.
+const GEM_QUEUE_FILTER = 'is_published.eq.false,status.eq.pending,status.eq.submitted,status.eq.draft';
+const ORG_QUEUE_FILTER = 'is_verified.eq.false,is_verified.is.null,approval_status.neq.approved,approval_status.is.null';
+const ORG_NOT_REJECTED = 'approval_status.is.null,approval_status.neq.rejected';
+const REPORT_FILTER = 'status.is.null,status.eq.open,status.eq.pending';
+
+/** Head-only count of everything the Review queue lists. */
+export async function countQueueItems(): Promise<number> {
+  const head = { count: 'exact' as const, head: true };
+  const res = await Promise.all([
+    supabase.from('profile_claims').select('id', head).eq('status', 'pending'),
+    supabase.from('videos').select('id', head).or(GEM_QUEUE_FILTER),
+    supabase.from('speaker_applications').select('id', head).eq('status', 'pending'),
+    supabase.from('speakers').select('id', head).eq('is_claimed', true).or('is_verified.eq.false,is_verified.is.null'),
+    supabase.from('organizations').select('id', head).or(ORG_QUEUE_FILTER).or(ORG_NOT_REJECTED),
+    supabase.from('organizations').select('id', head).eq('tax_exempt_status', 'pending'),
+    supabase.from('marketplace_sellers').select('id', head).eq('approval_status', 'pending'),
+    supabase.from('content_reports').select('id', head).or(REPORT_FILTER),
+  ]);
+  return res.reduce((sum, r) => sum + Math.min(r.count ?? 0, 100), 0);
+}
+
 async function loadItems(): Promise<Item[]> {
   const [claims, gems, apps, speakers, orgs, tax, sellers, reports] = await Promise.all([
     supabase.from('profile_claims').select('*').eq('status', 'pending').order('created_at').limit(100),
     supabase.from('videos').select('id, title, thumbnail_url, platform, platform_video_id, status, created_at, speakers(display_name)')
-      .or('is_published.eq.false,status.eq.pending,status.eq.submitted,status.eq.draft').order('created_at', { ascending: false }).limit(100),
+      .or(GEM_QUEUE_FILTER).order('created_at', { ascending: false }).limit(100),
     supabase.from('speaker_applications').select('*').eq('status', 'pending').order('created_at').limit(100),
     supabase.from('speakers').select('id, display_name, slug, created_at, avatar_url').eq('is_claimed', true).or('is_verified.eq.false,is_verified.is.null').order('created_at').limit(100),
     supabase.from('organizations').select('id, org_name, org_kind, city, state, website, slug, is_verified, approval_status, created_at, logo_url')
-      .or('is_verified.eq.false,is_verified.is.null,approval_status.neq.approved,approval_status.is.null').order('created_at').limit(100),
+      .or(ORG_QUEUE_FILTER).or(ORG_NOT_REJECTED).order('created_at').limit(100),
     supabase.from('organizations').select('id, org_name, slug, ein, tax_exempt_doc_url, tax_exempt_note, tax_exempt_submitted_at').eq('tax_exempt_status', 'pending').order('tax_exempt_submitted_at').limit(100),
     supabase.from('marketplace_sellers').select('id, shop_name, bio, created_at').eq('approval_status', 'pending').order('created_at').limit(100),
-    supabase.from('content_reports').select('id, reason, status, created_at, video_id, target_type, target_id, details').or('status.is.null,status.eq.open,status.eq.pending').order('created_at').limit(100),
+    supabase.from('content_reports').select('id, reason, status, created_at, video_id, target_type, target_id, details').or(REPORT_FILTER).order('created_at').limit(100),
   ]);
   const { data: { user } } = await supabase.auth.getUser();
   const me = user?.id ?? null;
@@ -229,7 +251,7 @@ export function AdminQueue({ wide, initial }: { wide: boolean; initial?: string 
   };
 
   const list = (
-    <Panel flush style={{ flex: 1.25, alignSelf: 'stretch', minWidth: 0 }}>
+    <Panel flush style={wide ? { flex: 1.25, alignSelf: 'stretch', minWidth: 0 } : { alignSelf: 'stretch' }}>
       {items === null ? <Text style={[type.callout, { color: c.ink2, padding: 20 }]}>Loading…</Text> : null}
       {items && shown.length === 0 ? (
         <View style={{ alignItems: 'center', gap: 6, paddingVertical: 56, paddingHorizontal: 20 }}>
