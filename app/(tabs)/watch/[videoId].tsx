@@ -180,7 +180,8 @@ function WatchScreen() {
   async function startWatchParty() {
     if (!video) return;
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.push('/(auth)/sign-in' as any); return; }
+    // Signed out: sign in, then straight on to starting the party.
+    if (!session) { router.push(`/sign-in?next=${encodeURIComponent(`/studio-app/party?video=${video.id}`)}` as any); return; }
     await openStudioSignedIn(`/party?video=${video.id}`);
   }
 
