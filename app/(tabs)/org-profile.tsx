@@ -42,6 +42,7 @@ import {
 import { brandStyles, font } from '../../lib/ds';
 import { Button, IconButton } from '../../components/ui';
 import { OrgVideos } from '../../components/OrgVideos';
+import { OrgSiqaVideos } from '../../components/OrgSiqaVideos';
 import { OrgPosts } from '../../components/OrgPosts';
 import { OrgScholars } from '../../components/OrgScholars';
 import { OrgGemVideos } from '../../components/OrgGemVideos';
@@ -873,6 +874,8 @@ function OrgProfileScreen() {
 
   // Org videos live only on this page (public.org_videos), never in Gems.
   const videosBlock = (limit?: number) => (
+    <>
+    <OrgSiqaVideos orgId={org.id} limit={limit ? 4 : undefined} />
     <OrgVideos
       key={`videos-${org.id}-${limit ?? 'all'}`}
       orgId={org.id}
@@ -881,6 +884,7 @@ function OrgProfileScreen() {
       onSeeAll={() => setActiveTab('videos')}
       onCount={setVideoCount}
     />
+    </>
   );
 
   // Org posts live only on this page (public.org_posts), never in Gems.

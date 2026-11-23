@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { MasjidWatermarkCard } from './MasjidWatermark';
 import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import { font, space, type, useDS } from '../../../lib/ds';
@@ -44,6 +45,8 @@ export function Overview({ masjid, go, wide }: SectionProps) {
           <Button label="Add to schedule" variant="secondary" size="md" onPress={() => go('schedule')} />
         </>}
       />
+
+      <MasjidWatermarkCard orgId={masjid.id} canManage={['owner', 'admin', 'siqa'].includes(masjid.my_role)} nudge />
 
       {needsLocation ? (
         <Card style={{ backgroundColor: c.goldTint }}>

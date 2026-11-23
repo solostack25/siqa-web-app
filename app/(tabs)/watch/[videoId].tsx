@@ -1,3 +1,4 @@
+import { SignatureOverlay } from '../../../components/SignatureOverlay';
 import {
   View,
   Text,
@@ -116,8 +117,9 @@ function WatchScreen() {
       .select(
         `id, title, description, video_url, thumbnail_url, category, topics,
          view_count, like_count, comment_count, published_at, created_at, speaker_id,
-         platform, platform_video_id, series_id, episode_number, show_watermark,
-         speakers(id, display_name, is_verified, is_claimed, follower_count, profile_id, avatar_url, watermark_url, watermark_position, watermark_on)`
+         platform, platform_video_id, series_id, episode_number, show_watermark, signature_burned,
+         speakers(id, display_name, is_verified, is_claimed, follower_count, profile_id, avatar_url, watermark_url, watermark_position, watermark_on),
+         organizations(org_name, watermark_url)`
       )
       .eq('id', videoId)
       .single();
@@ -320,18 +322,11 @@ function WatchScreen() {
         />
       )}
       {!isYouTube && <CastButton variant="overlay" media={castMedia} getVideoElement={getPlayerVideo} />}
-      {!isYouTube && (video as any).show_watermark !== false && (video.speakers as any)?.watermark_on && (video.speakers as any)?.watermark_url ? (
-        // The speaker's logo over their own Siqa videos (the Siqa mark is part of the video itself).
-        <Image
-          source={{ uri: (video.speakers as any).watermark_url }}
-          resizeMode="contain"
-          accessible={false}
-          style={[
-            { position: 'absolute', width: '18%', height: '11%', opacity: 0.9, pointerEvents: 'none' } as any,
-            (video.speakers as any).watermark_position === 'top-right' ? { right: '3%', top: '4%' }
-              : (video.speakers as any).watermark_position === 'bottom-left' ? { left: '3%', bottom: '16%' }
-              : { left: '3%', top: '4%' },
-          ]}
+      {!isYouTube && !(video as any).signature_burned && (video as any).show_watermark !== false ? (
+        // The Siqa signature: imam · masjid · Siqa. Live-room recordings have it stamped in, so it isn't drawn twice.
+        <SignatureOverlay
+          speakerWm={(video.speakers as any)?.watermark_on !== false ? (video.speakers as any)?.watermark_url : null}
+          masjidWm={(video as any).organizations?.watermark_url ?? null}
         />
       ) : null}
     </>

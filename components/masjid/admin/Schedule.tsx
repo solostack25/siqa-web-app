@@ -9,6 +9,7 @@ import { EVENT_KIND_LABEL, addDayKey, dayKeyIn, dowOfKey, fmtClock, fmtTime, mas
 import { confirmDialog } from '../../../lib/dialogs';
 import { showToast } from '../../Toast';
 import { LiveOnSiqa, useImams } from './Imams';
+import { MasjidWatermarkCard } from './MasjidWatermark';
 import { openStudio } from '../../../lib/studioLink';
 
 type Draft = Omit<MasjidEvent, 'id'> & { id?: string; timeText: string };
@@ -224,6 +225,7 @@ export function ScheduleSection({ masjid, wide }: SectionProps) {
       />
       <LiveOnSiqa orgId={masjid.id} events={events ?? []} tz={tz} imams={imams} reloadImams={reloadImams} canManage={canManage}
         onEdit={(e) => open(e)} onAddProgram={() => setDraft({ ...blank(masjid.id, todayKey), kind: 'khutbah', live_on_siqa: true, title: "Jumu'ah khutbah", repeat_days: [5], timeText: '1:30 PM', start_time: '13:30', duration_min: 45 })} />
+      <MasjidWatermarkCard orgId={masjid.id} canManage={canManage} />
       <View style={{ flexDirection: 'row', gap: space[4], flexWrap: 'wrap' }}>
         {([['Salah (from Prayer times)', c.surfaceStrong], ['Khutbah or halaqa', c.primary], ['Khatirah', c.goldTint], ['Class or event', c.seedTint]] as const).map(([l, col]) => (
           <View key={l} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
