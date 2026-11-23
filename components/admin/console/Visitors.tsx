@@ -48,7 +48,7 @@ export function VisitorsPanel({ wide }: { wide: boolean }) {
   const days = d.daily ?? [];
   const max = Math.max(1, ...days.map((x) => x.visitors));
   const list = (title: string, rows: { label: string; v: number }[]) => (
-    <View style={{ flex: 1, minWidth: 200, gap: 6 }}>
+    <View style={wide ? { flex: 1, minWidth: 200, gap: 6 } : { gap: 6 }}>
       <Text style={[type.micro, { color: c.ink2 }]}>{title}</Text>
       {rows.length === 0 ? <Text style={[type.caption, font(400), { color: c.ink3 }]}>No data yet</Text> : null}
       {rows.map((r) => (
