@@ -24,8 +24,11 @@ import SellerDashboard from './seller-dashboard';
 import StudioScreen from './studio';
 import CreateHub from '../components/studio/CreateHub';
 import AdminScreen from './admin';
+import { AdminOverview } from '../components/admin/console/Overview';
+import { AdminQueue } from '../components/admin/console/Queue';
+import { AdminOrgs } from '../components/admin/console/Orgs';
 
-type NavItem = { key: string; label: string; icon: SiqaIconName; route?: string; link?: string };
+type NavItem = { key: string; label: string; icon: SiqaIconName; route?: string; link?: string; badge?: number };
 
 function navFor(s: Space): NavItem[] {
   switch (s.kind) {
@@ -50,8 +53,11 @@ function navFor(s: Space): NavItem[] {
     ];
     case 'masjid': return MASJID_SECTIONS.map((m) => ({ key: m.key, label: m.label, icon: m.icon }));
     case 'admin': return [
-      { key: 'overview', label: 'Review queue', icon: 'shield-checkmark-outline' },
-      { key: 'masjids', label: 'Masjids', icon: 'business-outline' },
+      { key: 'overview', label: 'Overview', icon: 'home-outline' },
+      { key: 'queue', label: 'Review queue', icon: 'file-tray-full-outline' },
+      { key: 'orgs', label: 'Organizations', icon: 'business-outline' },
+      { key: 'masjids', label: 'Masjids', icon: 'moon-outline' },
+      { key: 'moderation', label: 'Moderation tools', icon: 'shield-checkmark-outline' },
       { key: 'chai', label: 'Chai', icon: 'cafe-outline', route: '/chai-admin' },
     ];
   }
@@ -109,7 +115,16 @@ export default function Dashboard() {
 
   const all = useMemo(() => (extra && spaces && !spaces.some((s) => spaceKey(s) === spaceKey(extra)) ? [...spaces, extra] : spaces ?? []), [spaces, extra]);
   const cur = all.find((s) => spaceKey(s) === current) ?? null;
-  const nav = cur ? navFor(cur) : [];
+  const [queueCount, setQueueCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (cur?.kind !== 'admin') return;
+    supabase.rpc('admin_overview').then(({ data }) => {
+      const q = (data as any)?.queues;
+      if (q) setQueueCount(Object.values(q).reduce((a: number, b: any) => a + Number(b || 0), 0) as number);
+    });
+  }, [cur?.kind, page]);
+  const nav = cur ? navFor(cur).map((n) => (cur.kind === 'admin' && n.key === 'queue' && queueCount ? { ...n, badge: queueCount } : n)) : [];
+  const pageKey = page.split(':')[0];
 
   const choose = (s: Space) => {
     setCurrent(spaceKey(s)); rememberSpace(spaceKey(s)); setPage('overview'); setSwitcher(false);
@@ -132,7 +147,7 @@ export default function Dashboard() {
   const body = (
     <InDesktopShell.Provider value={true}>
       <InDashboard.Provider value={true}>
-        <SpaceBody s={cur} page={page} wide={wide} go={(p) => setPage(p)} openMasjid={(id) => {
+        <SpaceBody s={cur} page={page} wide={wide} go={(p) => { setPage(p); if (Platform.OS === 'web') try { router.setParams({ page: p } as any); } catch {} }} openMasjid={(id) => {
           const m: Space = { kind: 'masjid', id, name: '', label: 'Masjid', image: null };
           const known = all.find((s) => s.kind === 'masjid' && s.id === id);
           if (known) choose(known);
@@ -146,7 +161,9 @@ export default function Dashboard() {
   );
   // Masjid sections and the org overview lay themselves out as page content; the embedded
   // screens (store, Studio, admin) bring their own scrolling.
-  const selfScrolling = (cur.kind === 'store' || cur.kind === 'studio' || cur.kind === 'admin') && page === 'overview';
+  const selfScrolling = ((cur.kind === 'store' || cur.kind === 'studio') && page === 'overview') || (cur.kind === 'admin' && pageKey !== 'masjids');
+  // The Siqa admin console gets the night sidebar, so it reads as an operator tool rather than a member space.
+  const night = cur.kind === 'admin';
 
   const spaceButton = (compact = false) => (
     <Pressable onPress={() => setSwitcher(true)} accessibilityRole="button" accessibilityLabel={`${cur.name}, ${cur.label}. Switch`}
@@ -211,28 +228,45 @@ export default function Dashboard() {
   if (wide) {
     return (
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: c.bgSunk }}>
-        <View style={{ width: 252, backgroundColor: c.bg, borderRightWidth: 1, borderRightColor: c.line, padding: space[4], gap: 4 }}>
-          <View style={{ paddingHorizontal: 6, paddingBottom: space[4] }}><Brand /></View>
-          {spaceButton()}
+        <View style={{ width: 252, backgroundColor: night ? N.bg : c.bg, borderRightWidth: night ? 0 : 1, borderRightColor: c.line, padding: space[4], gap: 4 }}>
+          <View style={{ paddingHorizontal: 6, paddingBottom: space[4] }}><Brand night={night} /></View>
+          {night ? (
+            <Pressable onPress={() => setSwitcher(true)} accessibilityRole="button" accessibilityLabel="Siqa admin. Switch space"
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[3], borderRadius: radius.lg, backgroundColor: pressed ? N.panel2 : N.panel })}>
+              <View style={{ flex: 1 }}>
+                <Text style={[type.subhead, font(700), { color: N.ink }]}>Siqa admin</Text>
+                <Text style={[type.micro, { color: N.ink2 }]} numberOfLines={1}>{all.length > 1 ? `Switch · ${all.length} spaces` : 'Operator console'}</Text>
+              </View>
+              <Icon name="chevron-expand-outline" size={16} color={N.ink2} />
+            </Pressable>
+          ) : spaceButton()}
           <View style={{ height: space[3] }} />
           {nav.map((n) => {
-            const on = !n.route && !n.link && n.key === page;
+            const on = !n.route && !n.link && n.key === pageKey;
+            const fg = night ? (on ? '#ffffff' : N.ink2) : on ? c.ink : c.ink2;
             return (
               <Pressable key={n.key} onPress={() => openItem(n)} accessibilityRole="link" accessibilityState={{ selected: on }}
-                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: space[3], height: 42, paddingHorizontal: space[3], borderRadius: radius.md, backgroundColor: on ? c.surfaceSoft : pressed ? c.bgSunk : 'transparent' })}>
-                <Icon name={n.icon} size={20} color={on ? c.ink : c.ink2} />
-                <Text style={[type.subhead, font(on ? 700 : 500), { color: on ? c.ink : c.ink2, flex: 1 }]}>{n.label}</Text>
-                {n.link ? <Icon name="open-outline" size={14} color={c.ink3} /> : null}
+                accessibilityLabel={n.badge ? `${n.label}, ${n.badge} waiting` : n.label}
+                style={({ pressed, hovered }: any) => ({ flexDirection: 'row', alignItems: 'center', gap: space[3], height: 40, paddingHorizontal: space[3], borderRadius: radius.sm,
+                  backgroundColor: night ? (on ? N.panel2 : pressed || hovered ? N.panel : 'transparent') : on ? c.surfaceSoft : pressed ? c.bgSunk : 'transparent' })}>
+                <Icon name={n.icon} size={19} color={fg} />
+                <Text style={[type.subhead, font(on ? 700 : 500), { color: fg, flex: 1 }]}>{n.label}</Text>
+                {n.badge ? (
+                  <View style={{ minWidth: 22, height: 20, paddingHorizontal: 6, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: night ? N.gold : c.gold }}>
+                    <Text style={[{ fontSize: 11, lineHeight: 14 }, font(700), { color: '#0a0f1c' }]}>{n.badge > 999 ? '999+' : n.badge}</Text>
+                  </View>
+                ) : null}
+                {n.link || n.route ? <Icon name="open-outline" size={14} color={night ? N.ink3 : c.ink3} /> : null}
               </Pressable>
             );
           })}
           <View style={{ flex: 1 }} />
-          <Pressable onPress={backToSiqa} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], height: 42, paddingHorizontal: space[3] }}>
-            <Icon name="arrow-back-outline" size={20} color={c.ink2} /><Text style={[type.subhead, { color: c.ink2 }]}>Back to Siqa</Text>
+          <Pressable onPress={backToSiqa} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], height: 40, paddingHorizontal: space[3] }}>
+            <Icon name="arrow-back-outline" size={19} color={night ? N.ink2 : c.ink2} /><Text style={[type.subhead, { color: night ? N.ink2 : c.ink2 }]}>Back to Siqa</Text>
           </Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], paddingTop: space[3], paddingHorizontal: space[2], borderTopWidth: 1, borderTopColor: c.line }}>
-            <Text style={[type.caption, { color: c.ink2, flex: 1 }]} numberOfLines={1}>{email}</Text>
-            <Pressable onPress={signOut} accessibilityRole="button" hitSlop={8}><Text style={[type.caption, font(600), { color: c.ink }]}>Sign out</Text></Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2], paddingTop: space[3], paddingHorizontal: space[2], borderTopWidth: 1, borderTopColor: night ? N.line : c.line }}>
+            <Text style={[type.caption, { color: night ? N.ink2 : c.ink2, flex: 1 }]} numberOfLines={1}>{email}</Text>
+            <Pressable onPress={signOut} accessibilityRole="button" hitSlop={8}><Text style={[type.caption, font(600), { color: night ? N.ink : c.ink }]}>Sign out</Text></Pressable>
           </View>
         </View>
         {selfScrolling ? <View style={{ flex: 1 }}>{body}</View> : (
@@ -258,7 +292,7 @@ export default function Dashboard() {
       )}
       <View accessibilityRole="tablist" style={{ flexDirection: 'row', justifyContent: 'space-around', paddingTop: 8, paddingBottom: insets.bottom + 8, backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.line }}>
         {tabs.map((n) => {
-          const on = n.key === page;
+          const on = n.key === pageKey;
           return (
             <Pressable key={n.key} onPress={() => n.key === '__more' ? setMore(true) : openItem(n as NavItem)} accessibilityRole="tab" accessibilityState={{ selected: on }}
               style={{ alignItems: 'center', gap: 3, minWidth: 60, paddingVertical: 4 }}>
@@ -282,7 +316,13 @@ function SpaceBody({ s, page, wide, go, openMasjid }: { s: Space; page: string; 
       return <MasjidBody key={s.id} section={(page as SectionKey) || 'overview'} wide={wide} go={(p) => go(p)}
         masjid={{ id: s.id, org_name: s.name, city: null, state: null, logo_url: s.image, my_role: s.role ?? 'owner' }} />;
     case 'admin':
-      return page === 'masjids' ? <AdminMasjids onOpen={openMasjid} /> : <AdminScreen />;
+      switch (page.split(':')[0]) {
+        case 'masjids': return <AdminMasjids onOpen={openMasjid} />;
+        case 'queue': return <AdminQueue key={page} wide={wide} initial={page.split(':')[1]} />;
+        case 'orgs': return <AdminOrgs wide={wide} />;
+        case 'moderation': return <AdminScreen />;
+        default: return <AdminOverview wide={wide} go={(p, filter) => go(filter ? `${p}:${filter}` : p)} />;
+      }
   }
 }
 
@@ -300,14 +340,17 @@ function Avatar({ s, size }: { s: Space; size: number }) {
   );
 }
 
-function Brand() {
+// Night palette for the Siqa admin console sidebar.
+const N = { bg: '#0a0f1c', panel: '#141c30', panel2: '#1b2438', line: '#1b2438', ink: '#edf1f7', ink2: '#9facc4', ink3: '#7e89a3', gold: '#d4ac73' };
+
+function Brand({ night }: { night?: boolean }) {
   const { c } = useDS();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[2] }}>
-      <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#0a0f1c', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: night ? '#141c30' : '#0a0f1c', alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ color: '#d4ac73', fontSize: 18, fontWeight: '700' }}>ص</Text>
       </View>
-      <Text style={[type.headline, font(800, 'display'), { color: c.ink }]}>Dashboard</Text>
+      <Text style={[type.headline, font(800, 'display'), { color: night ? '#ffffff' : c.ink }]}>{night ? 'Siqa Admin' : 'Dashboard'}</Text>
     </View>
   );
 }
