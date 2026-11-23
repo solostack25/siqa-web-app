@@ -24,6 +24,7 @@ import { shareLink, getAppBaseUrl } from '../../lib/share';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadFileToBunny } from '../../lib/bunnyUpload';
 import ImageCropModal from '../../components/ImageCropModal';
+import { OrgClasses, useOrgClasses } from '../../components/OrgClasses';
 import {
   Avatar,
   Card,
@@ -125,7 +126,7 @@ type Fundraiser = {
   zakat_eligible: boolean | null;
 };
 
-type Tab = 'overview' | 'scholars' | 'posts' | 'videos' | 'series' | 'seeds' | 'endorsements' | 'reviews' | 'about';
+type Tab = 'overview' | 'classes' | 'scholars' | 'posts' | 'videos' | 'series' | 'seeds' | 'endorsements' | 'reviews' | 'about';
 
 function orgIcon(type: string | null): GlyphName {
   const map: Record<string, GlyphName> = {
@@ -192,6 +193,7 @@ function OrgProfileScreen() {
   const [scholarCount, setScholarCount] = useState(0);
   const [gemVideoCount, setGemVideoCount] = useState(0);
   const orgSeries = useSeriesFor({ orgId: id });
+  const orgClasses = useOrgClasses(id);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -567,6 +569,7 @@ function OrgProfileScreen() {
   const isContentOrg = org.org_kind === 'content';
   const tabs: { key: Tab; label: string }[] = isContentOrg ? [
     { key: 'overview', label: 'Overview' },
+    ...((orgClasses.rows?.length || canEditOrg) ? [{ key: 'classes' as Tab, label: `Classes${orgClasses.rows?.length ? ` (${orgClasses.rows.length})` : ''}` }] : []),
     { key: 'scholars', label: `Scholars${scholarCount ? ` (${scholarCount})` : ''}` },
     { key: 'videos', label: `Videos${gemVideoCount ? ` (${gemVideoCount})` : ''}` },
     ...(orgSeries.rows.length ? [{ key: 'series' as Tab, label: `Series (${orgSeries.rows.length})` }] : []),
@@ -575,6 +578,7 @@ function OrgProfileScreen() {
     { key: 'about', label: 'About' },
   ] : [
     { key: 'overview', label: 'Overview' },
+    ...((orgClasses.rows?.length || canEditOrg) ? [{ key: 'classes' as Tab, label: `Classes${orgClasses.rows?.length ? ` (${orgClasses.rows.length})` : ''}` }] : []),
     { key: 'posts', label: `Posts${postCount ? ` (${postCount})` : ''}` },
     { key: 'videos', label: `Videos${videoCount ? ` (${videoCount})` : ''}` },
     { key: 'seeds', label: `Seeds${fundraisers.length ? ` (${fundraisers.length})` : ''}` },
@@ -938,7 +942,13 @@ function OrgProfileScreen() {
     </Card>
   ) : null;
 
+  const classesBlock = (limit?: number) => (orgClasses.rows?.length || (!limit && canEditOrg)) ? (
+    <OrgClasses orgId={org.id} orgName={org.org_name} rows={orgClasses.rows} reload={orgClasses.reload} canEdit={canEditOrg}
+      limit={limit} onSeeAll={() => setActiveTab('classes')} />
+  ) : null;
+
   function renderContentTab() {
+    if (activeTab === 'classes') return <View style={styles.stack}>{classesBlock()}</View>;
     if (activeTab === 'series') return <View style={styles.stack}>{seriesBlock()}</View>;
     if (activeTab === 'scholars') return <View style={styles.stack}>{scholarsBlock()}</View>;
     if (activeTab === 'videos') return <View style={styles.stack}>{gemVideosBlock()}</View>;
@@ -946,11 +956,11 @@ function OrgProfileScreen() {
     if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
     if (activeTab === 'about') return <View style={styles.stack}>{aboutBlock}{trustBlock}{docsBlock}</View>;
     if (cols === 1) {
-      return <View style={styles.stack}>{scholarsBlock(6)}{gemVideosBlock(6)}{seriesBlock(3)}{postsBlock(2)}{aboutBlock}</View>;
+      return <View style={styles.stack}>{classesBlock(2)}{scholarsBlock(6)}{gemVideosBlock(6)}{seriesBlock(3)}{postsBlock(2)}{aboutBlock}</View>;
     }
     return (
       <View style={styles.row}>
-        <View style={[styles.stack, styles.colMain]}>{scholarsBlock(cols === 3 ? 8 : 6)}{gemVideosBlock(8)}{seriesBlock(cols + 1)}{postsBlock(2)}</View>
+        <View style={[styles.stack, styles.colMain]}>{classesBlock(2)}{scholarsBlock(cols === 3 ? 8 : 6)}{gemVideosBlock(8)}{seriesBlock(cols + 1)}{postsBlock(2)}</View>
         <View style={[styles.stack, styles.colSide]}>{aboutBlock}{trustBlock}</View>
       </View>
     );
@@ -958,6 +968,7 @@ function OrgProfileScreen() {
 
   function renderTab() {
     if (isContentOrg) return renderContentTab();
+    if (activeTab === 'classes') return <View style={styles.stack}>{classesBlock()}</View>;
     if (activeTab === 'posts') return <View style={styles.stack}>{postsBlock()}</View>;
     if (activeTab === 'videos') return <View style={styles.stack}>{videosBlock()}</View>;
     if (activeTab === 'seeds') return <View style={styles.stack}>{seedsBlock()}</View>;
@@ -980,7 +991,7 @@ function OrgProfileScreen() {
       return (
         <View style={styles.row}>
           <View style={[styles.stack, styles.colLeft]}>{aboutBlock}{trustBlock}{services.length ? servicesBlock : null}</View>
-          <View style={[styles.stack, styles.colMain]}>{postsBlock(2)}{videosBlock(3)}{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colMain]}>{classesBlock(2)}{postsBlock(2)}{videosBlock(3)}{seedsBlock(4)}{reviewsBlock(3)}</View>
           <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(4)}</View>
         </View>
       );
@@ -988,13 +999,14 @@ function OrgProfileScreen() {
     if (cols === 2) {
       return (
         <View style={styles.row}>
-          <View style={[styles.stack, styles.colMain]}>{postsBlock(2)}{videosBlock(2)}{seedsBlock(4)}{reviewsBlock(3)}</View>
+          <View style={[styles.stack, styles.colMain]}>{classesBlock(2)}{postsBlock(2)}{videosBlock(2)}{seedsBlock(4)}{reviewsBlock(3)}</View>
           <View style={[styles.stack, styles.colSide]}>{endorsementsBlock(3)}{aboutBlock}{trustBlock}</View>
         </View>
       );
     }
     return (
       <View style={styles.stack}>
+        {classesBlock(2)}
         {postsBlock(2)}
         {videosBlock(2)}
         {seedsBlock(3)}
