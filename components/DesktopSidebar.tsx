@@ -126,6 +126,7 @@ export function DesktopSidebar() {
     ...(hasSpaces ? [{ key: 'dashboard', label: 'Dashboard', path: '/manage', matchPrefixes: ['/manage'], icon: 'grid-outline', onPress: () => { openDashboard(); } }] : []),
     ...(!IS_MARKETPLACE_SITE ? [{ key: 'playlists', label: 'Playlists', path: '/playlists', matchPrefixes: ['/playlists', '/playlist/'], icon: 'list-outline' }] : []),
     { key: 'cart', label: 'Cart', path: '/cart', matchPrefixes: ['/cart'], icon: 'cart-outline' },
+    ...(!IS_MARKETPLACE_SITE ? [{ key: 'classes', label: 'My classes', path: '/my-classes', matchPrefixes: ['/my-classes'], icon: 'book-outline' }] : []),
     { key: 'orders', label: 'My Orders', path: '/orders', matchPrefixes: ['/orders'], icon: 'receipt-outline' },
     { key: 'messages', label: 'Messages', path: '/messages', matchPrefixes: ['/messages'], icon: 'chatbubble-outline' },
     ...(hasBusiness ? [{ key: 'mybusiness', label: 'My business listing', path: '/local/inbox', matchPrefixes: ['/local/inbox', '/local/edit'], icon: 'briefcase-outline' }] : []),

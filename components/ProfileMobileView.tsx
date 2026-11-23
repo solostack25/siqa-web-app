@@ -93,6 +93,7 @@ export function ProfileMobileView(p: {
     // Studio, the store, Seeds and admin live in the Dashboard (dashboard.siqa.us).
     ...(runsSomething ? [{ label: 'Dashboard', icon: 'grid-outline' as SiqaIconName, go: () => { openDashboard(); } }] : []),
     { label: 'Business', icon: 'storefront-outline', go: () => router.push((p.hasBusiness ? '/local/inbox' : '/local/edit') as any) },
+    { label: 'My classes', icon: 'book-outline', go: () => router.push('/my-classes' as any) },
     { label: 'Orders', icon: 'bag-handle-outline', go: () => router.push('/orders' as any) },
     { label: 'Salah Tracker', icon: 'checkmark-done-outline', go: () => router.push('/salah-tracker' as any) },
   ];

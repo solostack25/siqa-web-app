@@ -42,7 +42,15 @@ const SHOP_ROLES: RoleOption[] = [
 ];
 
 export default function LoginScreen() {
-  const params = useLocalSearchParams<{ mode?: string; role?: string }>();
+  const params = useLocalSearchParams<{ mode?: string; role?: string; next?: string }>();
+  // ?next=/studio-app/s/… sends you back to the page that asked you to sign in (Siqa pages only).
+  const next = typeof params.next === 'string' && /^\/(?!\/)/.test(params.next) ? params.next : null;
+  const goNext = () => {
+    if (!next) return false;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') window.location.assign(next);
+    else router.replace(next as any);
+    return true;
+  };
   const [mode, setMode] = useState<'signin' | 'signup'>(params.mode === 'signup' ? 'signup' : 'signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,6 +69,7 @@ export default function LoginScreen() {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) { setError(error.message); setLoading(false); return; }
     // Signed up as a Seller, confirmed their email, now signing in.
+    if (goNext()) return;
     const intent = consumeSignupIntent();
     router.replace((intent ? INTENT_ROUTE[intent] : SITE_HOME) as any);
   }
@@ -81,6 +90,7 @@ export default function LoginScreen() {
     if (error) { setError(error.message); setLoading(false); return; }
     if (data.session) {
       setSignupIntent(null);
+      if (role === 'viewer' && goNext()) return;
       if (role === 'speaker') router.replace('/apply-speaker' as any);
       else if (role === 'seller') router.replace('/sell' as any);
       else if (role === 'org') router.replace('/org-register' as any);

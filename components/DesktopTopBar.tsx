@@ -180,6 +180,10 @@ export function DesktopTopBar() {
                       <Text style={styles.menuItemText}>Dashboard</Text>
                     </TouchableOpacity>
                   )}
+                  <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/my-classes')}>
+                    <Icon name="book-outline" size={16} color={C.text2} />
+                    <Text style={styles.menuItemText}>My classes</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.menuItem} onPress={() => goTo('/orders')}>
                     <Icon name="receipt-outline" size={16} color={C.text2} />
                     <Text style={styles.menuItemText}>My Orders</Text>
