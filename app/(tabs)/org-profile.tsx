@@ -154,7 +154,20 @@ function confirmAction(title: string, onYes: () => void) {
 
 function OrgProfileScreen() {
   const { colors: C } = useTheme();
-  const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: Tab }>();
+  // /org-profile?id=<uuid>, /org/<uuid> or /org/icnareliefusa (the organization's short name).
+  const { id: idParam, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: Tab }>();
+  const paramIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(idParam ?? ''));
+  const [resolvedId, setResolvedId] = useState<string | null>(null);
+  const [slugNotFound, setSlugNotFound] = useState(false);
+  useEffect(() => {
+    if (!idParam || paramIsUuid) return;
+    setResolvedId(null);
+    setSlugNotFound(false);
+    const clean = String(idParam).toLowerCase().replace(/[^a-z0-9]/g, '');
+    supabase.from('organizations').select('id').eq('slug', clean).maybeSingle()
+      .then(({ data }) => { if (data?.id) setResolvedId(data.id); else setSlugNotFound(true); });
+  }, [idParam, paramIsUuid]);
+  const id = (paramIsUuid ? idParam : resolvedId) as string;
   const { width, onLayout } = useMeasuredWidth();
   const cols = width >= 1080 ? 3 : width >= 760 ? 2 : 1;
   const styles = useMemo(() => makeStyles(C, cols), [C, cols]);
@@ -220,6 +233,7 @@ function OrgProfileScreen() {
       if (id) loadOrg(id);
     }, [id])
   );
+  useEffect(() => { if (slugNotFound) setLoading(false); }, [slugNotFound]);
 
   async function loadOrg(orgId: string) {
     const [orgRes, docsRes, frRes, sessionRes, endorsementsRes, projectsRes, servicesRes, reviewsRes] = await Promise.all([
@@ -510,7 +524,7 @@ function OrgProfileScreen() {
 
   function share() {
     if (!org) return;
-    shareLink({ url: `${getAppBaseUrl()}/org-profile?id=${org.id}`, title: org.org_name, text: org.tagline || undefined });
+    shareLink({ url: `${getAppBaseUrl()}/org/${(org as any).slug || org.id}`, title: org.org_name, text: org.tagline || undefined });
   }
 
   if (loading) {

@@ -12,6 +12,7 @@
 //   /seed/:id             -> ?type=seed&id=:id
 //   /org-video/:id        -> ?type=org_video&id=:id (a nonprofit's profile video)
 //   /speaker/:id          -> ?type=speaker&id=:id
+//   /org/:id              -> ?type=org&id=:id (uuid or short name, e.g. icnareliefusa)
 //   /chai/:id[?r=&s=]     -> ?type=chai&id=:id (r/s = a shared quiz result)
 // This function loads the built index.html, swaps in the right title,
 // description and image, and returns it. The browser URL is unchanged, so
@@ -109,6 +110,7 @@ function pathFor(type, id, q = {}) {
     case 'seed': return `/seed/${id}`;
     case 'org_video': return `/org-video/${id}`;
     case 'speaker': return `/speaker/${id}`;
+    case 'org': return `/org/${id}`;
     case 'chai': return `/chai/${id}${chaiQuery(q)}`;
     default: return '/';
   }
@@ -230,6 +232,21 @@ async function lookup(type, id, origin, isMarketplace, q = {}) {
       title: `${sp.display_name} on Siqa`,
       description: sp.bio || `Watch talks from ${sp.display_name} on Siqa.`,
       image,
+      ogType: 'profile',
+    };
+  }
+
+  if (type === 'org' && !isMarketplace) {
+    // /org/<uuid> or /org/<slug> (e.g. icnareliefusa)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+    const oEq = isUuid ? eq : `slug=eq.${encodeURIComponent(String(id).toLowerCase().replace(/[^a-z0-9]/g, ''))}`;
+    const o = await sb(`organizations?${oEq}&select=org_name,tagline,mission,logo_url,banner_url,city,state&limit=1`).catch(() => null);
+    if (!o) return null;
+    const where = [o.city, o.state].filter(Boolean).join(', ');
+    return {
+      title: `${o.org_name} on Siqa`,
+      description: o.tagline || o.mission || `Support ${o.org_name}${where ? ` in ${where}` : ''} on Siqa.`,
+      image: absolute(o.banner_url || o.logo_url, origin),
       ogType: 'profile',
     };
   }

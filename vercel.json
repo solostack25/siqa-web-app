@@ -58,6 +58,10 @@
       "destination": "/api/og?type=speaker&id=:id"
     },
     {
+      "source": "/org/:id",
+      "destination": "/api/og?type=org&id=:id"
+    },
+    {
       "source": "/chai/:id",
       "destination": "/api/og?type=chai&id=:id"
     },
