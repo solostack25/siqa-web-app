@@ -287,13 +287,13 @@ export function AdminQueue({ wide, initial }: { wide: boolean; initial?: string 
   );
 
   const detail = cur ? (
-    <View style={[{ flex: 1, alignSelf: 'flex-start', minWidth: 0, width: wide ? undefined : '100%', backgroundColor: c.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: c.line, overflow: 'hidden' }, shadow('card')]}>
+    <View style={[{ ...(wide ? { flex: 1 } : null), alignSelf: 'flex-start', minWidth: 0, width: wide ? undefined : '100%', backgroundColor: c.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: c.line, overflow: 'hidden' }, shadow('card')]}>
       {!wide ? (
         <Pressable onPress={() => setShowDetail(false)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 16, paddingBottom: 0 }}>
           <Icon name="chevron-back" size={16} color={c.ink2} /><Text style={[type.subhead, font(600), { color: c.ink2 }]}>Back to the list</Text>
         </Pressable>
       ) : null}
-      {cur.image ? <Image source={{ uri: cur.image }} style={{ width: '100%', aspectRatio: cur.kind === 'gem' ? 16 / 9 : 2, backgroundColor: c.bgSunk }} resizeMode={cur.kind === 'tax' ? 'contain' : 'cover'} /> : null}
+      {cur.image ? <Image source={{ uri: cur.image }} style={{ width: '100%', aspectRatio: cur.kind === 'gem' ? 16 / 9 : 2, backgroundColor: c.bgSunk }} resizeMode={cur.kind === 'tax' || cur.kind === 'org' ? 'contain' : 'cover'} /> : null}
       <View style={{ padding: 20, gap: 8, borderBottomWidth: 1, borderBottomColor: c.line }}>
         <Pill label={KIND_LABEL[cur.kind]} tone="gold" />
         <Text style={[{ fontSize: 22, lineHeight: 28 }, font(800, 'display'), { color: c.ink }]}>{cur.title}</Text>
@@ -334,7 +334,7 @@ export function AdminQueue({ wide, initial }: { wide: boolean; initial?: string 
   return (
     <AdminPage wide={wide} title="Review queue" sub="Everything waiting on a Siqa admin, oldest first."
       right={<Button label="Refresh" icon="refresh" size="md" variant="secondary" onPress={reload} />}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space[2] }} accessibilityRole="tablist">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: space[2] }} accessibilityRole="tablist">
         <FilterTab label="All" count={counts.all} on={tab === 'all'} onPress={() => { setTab('all'); setSel(null); }} />
         {QUEUE_KINDS.map((k) => <FilterTab key={k.key} label={k.short} count={counts[k.key]} on={tab === k.key} onPress={() => { setTab(k.key); setSel(null); }} />)}
       </ScrollView>
