@@ -95,6 +95,21 @@ export default function DonateScreen() {
       setTaxOk(org?.tax_exempt_status === 'verified');
     })();
   }, [fundraiserId]);
+  // In-app card donations (Stripe) stay paused until Siqa's own Stripe account
+  // is live. Same pattern as marketplace checkout: flip
+  // platform_settings.stripe_donations_enabled to true to open them.
+  // Orgs that use their own donation link (Zeffy, PayPal, etc.) aren't affected.
+  const [stripeDonationsOn, setStripeDonationsOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('platform_settings')
+        .select('value')
+        .eq('key', 'stripe_donations_enabled')
+        .maybeSingle();
+      setStripeDonationsOn(data?.value === true);
+    })();
+  }, []);
   const src = loadedSeed ?? params;
   const title = src.title ?? '';
   const orgStripeAccountId = src.orgStripeAccountId;
@@ -148,6 +163,7 @@ export default function DonateScreen() {
   const lookingUp = needsLookup && !loadedSeed;
   const notTaxExempt = taxOk === false;
   const isNoPayment = notTaxExempt || (!lookingUp && !orgStripeAccountId && !paymentMethodUrl);
+  const isStripePaused = !isAltPay && !isNoPayment && stripeDonationsOn !== true;
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const { colors: C, isDark } = useTheme();
@@ -429,8 +445,17 @@ if (fnError) throw new Error(fnError);
           </View>
         )}
 
+        {/* Card donations paused until Siqa's Stripe account is live */}
+        {isStripePaused && stripeDonationsOn === false && (
+          <View style={styles.noPayNotice}>
+            <Text style={styles.noPayNoticeText}>
+              <Glyph name="time-outline" style={styles.noPayNoticeText} />{' '}Donations on Siqa open soon. We're finishing setup with our payment partner.
+            </Text>
+          </View>
+        )}
+
         {/* Apple Pay notice — Stripe only */}
-        {!isAltPay && !isNoPayment && (
+        {!isAltPay && !isNoPayment && !isStripePaused && (
           <View style={styles.payNotice}>
             <Text style={styles.payNoticeText}><Glyph name="logo-apple" style={styles.payNoticeText} />{' '}Apple Pay available at checkout</Text>
           </View>
@@ -454,6 +479,8 @@ if (fnError) throw new Error(fnError);
         <View style={styles.footerInner}>
         {isNoPayment ? (
           <Button label="Payment not set up" disabled />
+        ) : isStripePaused ? (
+          <Button label={stripeDonationsOn === null ? 'Loading…' : 'Donations open soon'} disabled />
         ) : isAltPay ? (
           <Button
             variant="gold"
