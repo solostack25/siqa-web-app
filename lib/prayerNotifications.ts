@@ -25,14 +25,9 @@ const CATEGORY = 'prayer';
 const MARK_ACTION = 'mark-prayed';
 
 // The 2.0 App Store build doesn't include the native module; never crash on it.
-let N: typeof import('expo-notifications') | null = null;
-if (Platform.OS !== 'web') {
-  try {
-    N = require('expo-notifications');
-    // Touch the native side once; throws if the module isn't in this build.
-    N!.getPermissionsAsync;
-  } catch { N = null; }
-}
+// iOS 2.0 App Store OTA branch: this build has no expo-notifications native module,
+// so alerts are off. Prayer times, countdown and Salah Tracker still work.
+let N: any = null;
 
 export const nativeAlertsAvailable = () => !!N;
 

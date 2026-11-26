@@ -2,7 +2,7 @@
   "expo": {
     "name": "Siqa",
     "slug": "siqa",
-    "version": "2.1.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -57,12 +57,6 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Siqa uses your location to show local businesses, organizations and events near you."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "color": "#0A0F1C"
         }
       ]
     ],
