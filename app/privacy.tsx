@@ -14,7 +14,8 @@ const SECTIONS: LegalSection[] = [
         'Activity in the app: who you follow, videos you like, save or watch (view counts), reports you file and people you block.',
         'Purchases and orders: what you bought or sold, order totals and the shipping address you enter. Card details go straight to Stripe; Siqa never sees or stores your card number.',
         'Donations: the Seed you gave to, the amount and the receipt details, processed by Stripe or the organization’s own payment page.',
-        'Location: only if you allow it, used on your device to show businesses and organizations near you. The area you choose is saved on your device, not on our servers.',
+        'Location: only if you allow it, your approximate location is used to show businesses and organizations near you. To turn it into a city and ZIP code, your coordinates are sent once to a geocoding service (BigDataCloud or OpenStreetMap) and not kept. The area you choose is saved on your device, not on our servers.',
+        'Device and install identifiers: the app creates a random ID for your install (not tied to your name, and not an advertising ID) so we can count video views without counting the same viewer twice. Our app-update provider (Expo) uses a similar install ID to deliver updates, and our payment provider (Stripe) collects device information during checkout to prevent fraud.',
         'Camera, microphone and photos: only when you choose to record or upload something. We only receive the files you post.',
       ],
     ],
@@ -25,8 +26,8 @@ const SECTIONS: LegalSection[] = [
       [
         'To run your account and show your posts, comments, store and campaigns.',
         'To process orders, pay sellers and send donations to the organizations you choose.',
-        'To keep Siqa safe: reviewing reports, removing content that breaks our Terms, and stopping spam and abuse.',
-        'To show simple counts, like views, followers, votes and amount raised.',
+        'To keep Siqa safe: reviewing reports, removing content that breaks our Terms, and stopping spam, abuse and payment fraud.',
+        'To show simple counts, like views, followers, votes and amount raised. View counts use the random install ID described above.',
       ],
       'We don’t sell your personal information. We don’t use it for third-party advertising, and we don’t track you across other companies’ apps or websites.',
     ],
@@ -46,8 +47,9 @@ const SECTIONS: LegalSection[] = [
         'Supabase: database, file storage and sign-in.',
         'Vercel: hosting for siqa.us.',
         'Bunny.net: video storage and streaming.',
-        'Stripe: payments, seller payouts and donations.',
+        'Stripe: payments, seller payouts and donations, including fraud checks.',
         'Expo: delivering app updates.',
+        'BigDataCloud and OpenStreetMap: turning your location into a city or ZIP code, only if you use “near me”.',
         'YouTube: some videos are YouTube embeds, which follow Google’s privacy policy when they play.',
       ],
       'We may also share information if the law requires it, or to protect people from harm.',
@@ -87,6 +89,7 @@ export default function PrivacyScreen() {
       title="Privacy policy"
       intro="This explains what information Siqa collects, how it’s used and the choices you have. It applies to the Siqa app on iPhone and Android and to siqa.us."
       sections={SECTIONS}
+      updated="November 27, 2026"
       other={{ label: 'Read the Terms of use', href: '/terms' }}
     />
   );

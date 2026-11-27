@@ -16,7 +16,7 @@ export const LEGAL_CONTACT = 'claims@siqa.us';
 
 export type LegalSection = { heading: string; body: (string | string[])[] };
 
-export function LegalPage({ title, intro, sections, other }: { title: string; intro: string; sections: LegalSection[]; other: { label: string; href: string } }) {
+export function LegalPage({ title, intro, sections, other, updated = LEGAL_UPDATED }: { title: string; intro: string; sections: LegalSection[]; other: { label: string; href: string }; updated?: string }) {
   const { c } = useDS();
   const isDesktop = useIsDesktopWeb();
   const insets = useSafeAreaInsets();
@@ -29,7 +29,7 @@ export function LegalPage({ title, intro, sections, other }: { title: string; in
           </View>
           <View style={{ gap: 6 }}>
             <Text style={[isDesktop ? type.display : type.title1 ?? type.display, { color: c.ink }]} accessibilityRole="header">{title}</Text>
-            <Text style={[type.caption, { color: c.ink2 }]}>Last updated {LEGAL_UPDATED}</Text>
+            <Text style={[type.caption, { color: c.ink2 }]}>Last updated {updated}</Text>
           </View>
           <Text style={[type.body, { color: c.ink, lineHeight: 24 }]}>{intro}</Text>
           {sections.map((s, i) => (
